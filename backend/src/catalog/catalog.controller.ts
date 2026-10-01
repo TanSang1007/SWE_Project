@@ -5,7 +5,7 @@ import { CatalogQueryDto, ProductParamsDto, type ProductDetailDto, type ProductL
 @Controller('products')
 export class CatalogController {
   constructor(private readonly catalog: CatalogService) {}
-
+  // GET /products: Trả danh sách đồ uống đang kinh doanh kèm trạng thái khả dụng
   @Get()
   list(@Query() _query: CatalogQueryDto): Promise<ProductListDto> {
     void _query; // DTO exists to validate that no query options were supplied.
