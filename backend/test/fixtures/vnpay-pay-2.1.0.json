@@ -1,0 +1,60 @@
+{
+  "provenance": "Synthetic vectors independently calculated with Python stdlib hmac/hashlib and urllib.parse.quote; not merchant or actual Sandbox evidence.",
+  "secret": "synthetic-only-vnpay-fixture-key",
+  "vectors": [
+    {
+      "name": "callback",
+      "parameters": {
+        "vnp_TmnCode": "TEST0001",
+        "vnp_Amount": "8500000",
+        "vnp_BankCode": "NCB",
+        "vnp_OrderInfo": "Thanh toan BrewLite 0123456789abcdef0123456789abcdef",
+        "vnp_TransactionNo": "14500001",
+        "vnp_ResponseCode": "00",
+        "vnp_TransactionStatus": "00",
+        "vnp_TxnRef": "0123456789abcdef0123456789abcdef",
+        "vnp_PayDate": "20261015233000"
+      },
+      "canonical": "vnp_Amount=8500000&vnp_BankCode=NCB&vnp_OrderInfo=Thanh+toan+BrewLite+0123456789abcdef0123456789abcdef&vnp_PayDate=20261015233000&vnp_ResponseCode=00&vnp_TmnCode=TEST0001&vnp_TransactionNo=14500001&vnp_TransactionStatus=00&vnp_TxnRef=0123456789abcdef0123456789abcdef",
+      "signature": "f6772fef4184a2c8e2e04a200114e5b986f2c6fd2e877e2833bc815348e2ab6f5941ab9427c967fb748a4a2c0e8cecfe5fc3b6fe3ded38e413cebbcf49e33e49"
+    },
+    {
+      "name": "encoding",
+      "parameters": {
+        "vnp_OrderInfo": "Brew + 50% ~!*'() /?&=",
+        "vnp_TxnRef": "0123456789abcdef0123456789abcdef"
+      },
+      "canonical": "vnp_OrderInfo=Brew+%2B+50%25+~!*'()+%2F%3F%26%3D&vnp_TxnRef=0123456789abcdef0123456789abcdef",
+      "signature": "e117751d392f9616bb02e25550ed48c94a94bb561b0ed08b4c3b9b7a9518d7bb938ee8f8b65a530da9891e52d79b597536924a1a8b8706f0328c339b542d9fb5"
+    },
+    {
+      "name": "unicode",
+      "parameters": {
+        "vnp_OrderInfo": "\u0110\u01a1n h\u00e0ng c\u00e0 ph\u00ea",
+        "vnp_TxnRef": "0123456789abcdef0123456789abcdef"
+      },
+      "canonical": "vnp_OrderInfo=%C4%90%C6%A1n+h%C3%A0ng+c%C3%A0+ph%C3%AA&vnp_TxnRef=0123456789abcdef0123456789abcdef",
+      "signature": "42e408e22c5317dd09d550e6368c04766265c030588f56236b472c04ed7eceaf059b1fe67c9099123e273b661421a5488f8ae9b500f2d9100b83e6e506a706a8"
+    },
+    {
+      "name": "payment",
+      "parameters": {
+        "vnp_Version": "2.1.0",
+        "vnp_Command": "pay",
+        "vnp_TmnCode": "TEST0001",
+        "vnp_Amount": "8500000",
+        "vnp_CurrCode": "VND",
+        "vnp_TxnRef": "0123456789abcdef0123456789abcdef",
+        "vnp_OrderInfo": "Thanh toan BrewLite 0123456789abcdef0123456789abcdef",
+        "vnp_OrderType": "other",
+        "vnp_Locale": "vn",
+        "vnp_ReturnUrl": "https://callback.example.org/payments/vnpay/return",
+        "vnp_IpAddr": "127.0.0.1",
+        "vnp_CreateDate": "20261015232000",
+        "vnp_ExpireDate": "20261015233500"
+      },
+      "canonical": "vnp_Amount=8500000&vnp_Command=pay&vnp_CreateDate=20261015232000&vnp_CurrCode=VND&vnp_ExpireDate=20261015233500&vnp_IpAddr=127.0.0.1&vnp_Locale=vn&vnp_OrderInfo=Thanh+toan+BrewLite+0123456789abcdef0123456789abcdef&vnp_OrderType=other&vnp_ReturnUrl=https%3A%2F%2Fcallback.example.org%2Fpayments%2Fvnpay%2Freturn&vnp_TmnCode=TEST0001&vnp_TxnRef=0123456789abcdef0123456789abcdef&vnp_Version=2.1.0",
+      "signature": "8e8c46fa92ae1f1c160b98826adf67201f5f77a09787396d714a42009251e1baf535a0b468f86d55613e1cc493b2326a392a0e606608c1510c4a1658e35828a8"
+    }
+  ]
+}

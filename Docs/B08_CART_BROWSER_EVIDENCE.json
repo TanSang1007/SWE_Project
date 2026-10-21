@@ -1,0 +1,355 @@
+{
+  "browser": "Edg/154.0.4258.62",
+  "viewports": [
+    {
+      "width": 390,
+      "height": 844,
+      "overflow": false,
+      "cards": 2,
+      "columns": 1,
+      "alt": true,
+      "prices": [
+        "45.000 ₫",
+        "40.000 ₫"
+      ]
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "overflow": false,
+      "cards": 2,
+      "columns": 2,
+      "alt": true,
+      "prices": [
+        "45.000 ₫",
+        "40.000 ₫"
+      ]
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "overflow": false,
+      "cards": 2,
+      "columns": 2,
+      "alt": true,
+      "prices": [
+        "45.000 ₫",
+        "40.000 ₫"
+      ]
+    }
+  ],
+  "checks": [
+    "seed menu, prices, detail click, sizes/toppings, direct refresh, 3 viewports no overflow, image alt, keyboard link focus",
+    "invalid ID and real backend 404 are friendly states",
+    "browser-only delayed loading, empty fixture, network-failure fixture and retry recovery",
+    "B08 real FE/BE/PostgreSQL: add M+Kem 55000, qty2 subtotal110000, edit L/no topping then Caramel subtotal124000, duplicate merge qty3 subtotal186000, reload/login restores DB cart; no web storage",
+    "B08 logout/login retains cart, remove renders empty and DB has zero items; all catalog price/stock/version/updated_at unchanged",
+    "auth browser: validation/register/login error/success, bcrypt10 DB hash, no auto-login, guard200/no-token401 on verification-only endpoint, logout clear, reload loses memory, fixture user removed; no credentials/tokens in evidence",
+    "real browser Network events confirm backend GETs and database unchanged"
+  ],
+  "requests": [
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/products",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/products/11111111-1111-4111-8111-111111111111",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/products/11111111-1111-4111-8111-111111111111",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/products",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/products/11111111-1111-4111-8111-111111111111",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/products/11111111-1111-4111-8111-111111111111",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/products",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/products/11111111-1111-4111-8111-111111111111",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/products/11111111-1111-4111-8111-111111111111",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/products/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/products",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/products",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/products",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "url": "http://localhost:3001/auth/register",
+      "status": 204
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:3001/auth/register",
+      "status": 201
+    },
+    {
+      "method": "OPTIONS",
+      "url": "http://localhost:3001/auth/login",
+      "status": 204
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:3001/auth/login",
+      "status": 401
+    },
+    {
+      "method": "OPTIONS",
+      "url": "http://localhost:3001/auth/login",
+      "status": 204
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:3001/auth/login",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/products",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "url": "http://localhost:3001/cart",
+      "status": 204
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/cart",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/products/11111111-1111-4111-8111-111111111111",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "url": "http://localhost:3001/cart/items",
+      "status": 204
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:3001/cart/items",
+      "status": 201
+    },
+    {
+      "method": "OPTIONS",
+      "url": "http://localhost:3001/cart",
+      "status": 204
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/cart",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "url": "http://localhost:3001/cart/items/49e268d2-75d1-46f0-a4fa-fec88bdd353c",
+      "status": 204
+    },
+    {
+      "method": "PATCH",
+      "url": "http://localhost:3001/cart/items/49e268d2-75d1-46f0-a4fa-fec88bdd353c",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/products/11111111-1111-4111-8111-111111111111",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "url": "http://localhost:3001/cart/items",
+      "status": 204
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:3001/cart/items",
+      "status": 201
+    },
+    {
+      "method": "OPTIONS",
+      "url": "http://localhost:3001/cart/items/49e268d2-75d1-46f0-a4fa-fec88bdd353c",
+      "status": 204
+    },
+    {
+      "method": "DELETE",
+      "url": "http://localhost:3001/cart/items/49e268d2-75d1-46f0-a4fa-fec88bdd353c",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/products/11111111-1111-4111-8111-111111111111",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "url": "http://localhost:3001/cart/items",
+      "status": 204
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:3001/cart/items",
+      "status": 201
+    },
+    {
+      "method": "OPTIONS",
+      "url": "http://localhost:3001/cart/items/b4d0ccc3-dc11-42ab-b3b6-1f8206a52c7d",
+      "status": 204
+    },
+    {
+      "method": "DELETE",
+      "url": "http://localhost:3001/cart/items/b4d0ccc3-dc11-42ab-b3b6-1f8206a52c7d",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/products",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/products/11111111-1111-4111-8111-111111111111",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "url": "http://localhost:3001/cart/items",
+      "status": 204
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:3001/cart/items",
+      "status": 201
+    },
+    {
+      "method": "OPTIONS",
+      "url": "http://localhost:3001/cart",
+      "status": 204
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/cart",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "url": "http://localhost:3001/auth/login",
+      "status": 204
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:3001/auth/login",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/cart",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/cart",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "url": "http://localhost:3001/cart",
+      "status": 204
+    },
+    {
+      "method": "OPTIONS",
+      "url": "http://localhost:3001/cart",
+      "status": 204
+    },
+    {
+      "method": "OPTIONS",
+      "url": "http://localhost:3001/auth/login",
+      "status": 204
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:3001/auth/login",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/products",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/cart",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "url": "http://localhost:3001/cart",
+      "status": 204
+    },
+    {
+      "method": "OPTIONS",
+      "url": "http://localhost:3001/cart",
+      "status": 204
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3001/cart",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "url": "http://localhost:3001/cart/items/82bc1f7e-360b-4a52-91e9-0c5924e33c47",
+      "status": 204
+    },
+    {
+      "method": "DELETE",
+      "url": "http://localhost:3001/cart/items/82bc1f7e-360b-4a52-91e9-0c5924e33c47",
+      "status": 200
+    }
+  ],
+  "verifiedAt": "2026-10-07T03:11:12.785Z",
+  "frontendMode": "owned compiled frontend process",
+  "backendMode": "owned production backend3001; guard probe on separate verification port"
+}

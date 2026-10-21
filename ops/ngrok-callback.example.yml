@@ -1,0 +1,16 @@
+# Preparation only. NOT an activation approval or a runnable merchant configuration.
+# Replace the reserved example domain only after a separate controlled setup approval.
+# Authtoken belongs in a private local config, never in this file or a command log.
+version: 3
+agent:
+  web_addr: false
+  inspect_db_size: -1
+  log: false
+  console_ui: false
+  remote_management: false
+  update_check: false
+endpoints:
+  - name: brewlite-callback
+    url: https://approved-callback-domain.example
+    upstream:
+      url: http://127.0.0.1:3102

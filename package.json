@@ -1,0 +1,30 @@
+{
+  "name": "brewlite",
+  "version": "0.0.0",
+  "private": true,
+  "workspaces": ["frontend", "backend"],
+  "engines": { "node": ">=24.11 <25", "npm": ">=11 <12" },
+  "scripts": {
+    "dev": "node scripts/dev-runtime.cjs start MOCK",
+    "dev:vnpay": "node scripts/dev-runtime.cjs start VNPAY_SANDBOX",
+    "dev:status": "node scripts/dev-runtime.cjs status",
+    "dev:stop": "node scripts/dev-runtime.cjs stop",
+    "dev:restart-backend": "node scripts/dev-runtime.cjs restart-backend",
+    "dev:drain": "node scripts/dev-runtime.cjs drain",
+    "dev:recover": "node scripts/dev-runtime.cjs recover",
+    "test:runtime": "node --test scripts/test/dev-runtime.test.cjs",
+    "dev:frontend": "npm run dev --workspace frontend",
+    "dev:backend": "npm run dev --workspace backend",
+    "build": "npm run build --workspaces",
+    "lint": "npm run lint --workspaces",
+    "test": "npm run test --workspace backend",
+    "db:validate": "npm run db:validate --workspace backend",
+    "db:generate": "npm run db:generate --workspace backend",
+    "db:migrate:dev": "npm run db:migrate:dev --workspace backend --",
+    "db:migrate:deploy": "npm run db:migrate:deploy --workspace backend",
+    "db:format": "npm run db:format --workspace backend",
+    "db:seed": "npm run db:seed --workspace backend",
+    "db:status": "npm run db:status --workspace backend",
+    "test:database": "npm run test:database --workspace backend"
+  }
+}

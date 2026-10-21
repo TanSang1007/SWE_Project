@@ -1,0 +1,48 @@
+{
+  "name": "@brewlite/frontend",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1 --port 3000",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1 --port 3000",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/catalog.test.mjs test/auth.test.mjs test/cart.test.mjs test/orders.test.mjs test/payments.test.mjs test/checkout.test.mjs test/promotions.test.mjs test/loyalty.test.mjs test/order-history.test.mjs test/rbac.test.mjs test/operator-orders.test.mjs test/operator-workflow.test.mjs test/admin-products.test.mjs test/ui01.test.mjs test/admin-options.test.mjs test/admin-inventory.test.mjs test/loyalty-redemption.test.mjs test/gateway-payments.test.mjs",
+    "test:loyalty-redemption:browser": "node test/browser-verify.mjs --loyalty-redemption --evidence-prefix=L01",
+    "test:inventory:browser": "node test/browser-verify.mjs --inventory --evidence-prefix=A06",
+    "test:options:browser": "node test/browser-verify.mjs --options --evidence-prefix=A05",
+    "test:ui01:browser": "node test/browser-verify.mjs --ui01 --evidence-prefix=UI01",
+    "test:browser": "node test/browser-verify.mjs",
+    "test:auth:browser": "node test/browser-verify.mjs --auth",
+    "test:cart:browser": "node test/browser-verify.mjs --cart",
+    "test:orders:browser": "node test/browser-verify.mjs --orders",
+    "test:payments:browser": "node test/browser-verify.mjs --payments",
+    "test:checkout:browser": "node test/browser-verify.mjs --checkout",
+    "test:promotions:browser": "node test/browser-verify.mjs --promotions",
+    "test:loyalty:browser": "node test/browser-verify.mjs --loyalty",
+    "test:history:browser": "node test/browser-verify.mjs --history",
+    "test:rbac:browser": "node test/browser-verify.mjs --rbac",
+    "test:operator:browser": "node test/browser-verify.mjs --operator --evidence-prefix=A02",
+    "test:workflow:browser": "node test/browser-verify.mjs --workflow --evidence-prefix=A03",
+    "test:products:browser": "node test/browser-verify.mjs --products --evidence-prefix=A04",
+    "test:gateway:browser": "node test/gateway-browser.mjs"
+  },
+  "dependencies": {
+    "next": "16.3.8",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zustand": "5.0.15"
+  },
+  "devDependencies": {
+    "@eslint/compat": "2.1.1",
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "24.19.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "eslint": "10.12.0",
+    "eslint-config-next": "16.3.8",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3"
+  }
+}

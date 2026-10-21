@@ -1,0 +1,501 @@
+{
+  "notice": "INDEPENDENT SYNTHETIC CRYPTO ONLY; EXTERNAL SANDBOX RESPONSE VERIFICATION PENDING",
+  "secret": "synthetic-b2a-querydr-reference-only",
+  "request": {
+    "fields": {
+      "vnp_RequestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "vnp_Version": "2.1.0",
+      "vnp_Command": "querydr",
+      "vnp_TmnCode": "TEST0001",
+      "vnp_TxnRef": "0123456789abcdef0123456789abcdef",
+      "vnp_TransactionDate": "20261016235959",
+      "vnp_CreateDate": "20261017070000",
+      "vnp_IpAddr": "127.0.0.1",
+      "vnp_OrderInfo": "Truy van BrewLite 0123456789abcdef0123456789abcdef",
+      "vnp_SecureHash": "e5894405b0d66d90514de4d7a1a28100878e351a0f0a8d4ba911cc24f08eb36e3b46dec248adde3544858995702dbd31f1758271c312ef95ec963602bf1f77e6"
+    },
+    "canonical": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|2.1.0|querydr|TEST0001|0123456789abcdef0123456789abcdef|20261016235959|20261017070000|127.0.0.1|Truy van BrewLite 0123456789abcdef0123456789abcdef"
+  },
+  "vectors": [
+    {
+      "name": "full",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"155bafe8e898fd6145b8bfdfd8d68f5b1c63235aec539fb6628462e8df1b9d6fdb0443f8de56ffb098f009eb2c1500dbd530f4dcd676fc349286f1b9f7e44764\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "155bafe8e898fd6145b8bfdfd8d68f5b1c63235aec539fb6628462e8df1b9d6fdb0443f8de56ffb098f009eb2c1500dbd530f4dcd676fc349286f1b9f7e44764",
+      "result": "SUCCEEDED"
+    },
+    {
+      "name": "absent_vnp_Command",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"a0f7218308474e9fb9422197cb959b9be007ca8bf5735cee3b295649e836ea9e5065ac8efeb4685cede03fd2826376071a560979ff8a8149d9b4ab196bd2815d\"}",
+      "canonical": "response001||00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001||00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "a0f7218308474e9fb9422197cb959b9be007ca8bf5735cee3b295649e836ea9e5065ac8efeb4685cede03fd2826376071a560979ff8a8149d9b4ab196bd2815d",
+      "result": "SUCCEEDED"
+    },
+    {
+      "name": "absent_vnp_PayDate",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"9270909b01aad76285ee53e4d7720dd308f8e6fcfb5647d2101bcb10bd6c70318e8d57d0399757820a6e406c16062c600766315455550aa616317ab5dda3b60e\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB||000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB||000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "9270909b01aad76285ee53e4d7720dd308f8e6fcfb5647d2101bcb10bd6c70318e8d57d0399757820a6e406c16062c600766315455550aa616317ab5dda3b60e",
+      "result": "SUCCEEDED"
+    },
+    {
+      "name": "absent_vnp_PromotionCode",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"a2cf13d6b1f35ca6b27c5cc93fc44d00f57892623d122c72fb4099e2aa13792e281cbd02ad62ada18e692d0abfd069b613e2b983baabdb2c5155a94eec989dc6\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite||1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite||1000",
+      "expectedHmac": "a2cf13d6b1f35ca6b27c5cc93fc44d00f57892623d122c72fb4099e2aa13792e281cbd02ad62ada18e692d0abfd069b613e2b983baabdb2c5155a94eec989dc6",
+      "result": "SUCCEEDED"
+    },
+    {
+      "name": "absent_vnp_PromotionAmount",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_SecureHash\":\"793a478125bde90a289ade53deeab39ea0a9cc57943731eef9c489250003477bfd79aa1ff7e32f0bcafa7a832b87271650583ac0faa46053611507aa869764c1\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|",
+      "expectedHmac": "793a478125bde90a289ade53deeab39ea0a9cc57943731eef9c489250003477bfd79aa1ff7e32f0bcafa7a832b87271650583ac0faa46053611507aa869764c1",
+      "result": "SUCCEEDED"
+    },
+    {
+      "name": "absent_all_optional",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_SecureHash\":\"f030710a8ce11ffe256f2e1e64fa9e29b6fd3f945547f508b485603e2015047f8200dbbeceb35bc251579b045c5b4668a55c84762fbfcdc1b1c26b77ad6324df\"}",
+      "canonical": "response001||00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB||000123456|01|00|Thanh toan BrewLite||",
+      "signedCanonical": "response001||00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB||000123456|01|00|Thanh toan BrewLite||",
+      "expectedHmac": "f030710a8ce11ffe256f2e1e64fa9e29b6fd3f945547f508b485603e2015047f8200dbbeceb35bc251579b045c5b4668a55c84762fbfcdc1b1c26b77ad6324df",
+      "result": "SUCCEEDED"
+    },
+    {
+      "name": "empty_optional",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"\",\"vnp_PromotionAmount\":\"\",\"vnp_SecureHash\":\"f030710a8ce11ffe256f2e1e64fa9e29b6fd3f945547f508b485603e2015047f8200dbbeceb35bc251579b045c5b4668a55c84762fbfcdc1b1c26b77ad6324df\"}",
+      "canonical": "response001||00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB||000123456|01|00|Thanh toan BrewLite||",
+      "signedCanonical": "response001||00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB||000123456|01|00|Thanh toan BrewLite||",
+      "expectedHmac": "f030710a8ce11ffe256f2e1e64fa9e29b6fd3f945547f508b485603e2015047f8200dbbeceb35bc251579b045c5b4668a55c84762fbfcdc1b1c26b77ad6324df",
+      "result": "SUCCEEDED"
+    },
+    {
+      "name": "unicode",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Truy vấn thành công\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toán cà phê\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"aa4930a50d5fed3dd2dfeb9b4f980d8cbc0931b46fbc5c4365c5dc9b92948d32c951d4b4861e9a9f84fe7152b8f2e9330469b1186abcd96a86fab59b861dd902\"}",
+      "canonical": "response001|querydr|00|Truy vấn thành công|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toán cà phê|123|1000",
+      "signedCanonical": "response001|querydr|00|Truy vấn thành công|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toán cà phê|123|1000",
+      "expectedHmac": "aa4930a50d5fed3dd2dfeb9b4f980d8cbc0931b46fbc5c4365c5dc9b92948d32c951d4b4861e9a9f84fe7152b8f2e9330469b1186abcd96a86fab59b861dd902",
+      "result": "SUCCEEDED"
+    },
+    {
+      "name": "wrong_order",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"d3a8537d3d35046ca6a84a0f99f13c511dacc9b882cd511e25d35acdc539b1c00e1ccc3b61367696a13ccb978ba6db9f2108f23cf26521fa580836b2de3d8b9d\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "1000|123|Thanh toan BrewLite|00|01|000123456|20261017100000|NCB|8500000|0123456789abcdef0123456789abcdef|TEST0001|Query successful|00|querydr|response001",
+      "expectedHmac": "d3a8537d3d35046ca6a84a0f99f13c511dacc9b882cd511e25d35acdc539b1c00e1ccc3b61367696a13ccb978ba6db9f2108f23cf26521fa580836b2de3d8b9d",
+      "result": "REJECT"
+    },
+    {
+      "name": "dropped_empty_segments",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_SecureHash\":\"e57e2c7cdfd18c0b8a076f54800fc7ee30d29cb9066d524fff187fc606e65a50f1dadae232c78a55bb98019bf7ee6a1c62122b19511cc52f2792c84b2d469129\"}",
+      "canonical": "response001||00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB||000123456|01|00|Thanh toan BrewLite||",
+      "signedCanonical": "response001|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|000123456|01|00|Thanh toan BrewLite",
+      "expectedHmac": "e57e2c7cdfd18c0b8a076f54800fc7ee30d29cb9066d524fff187fc606e65a50f1dadae232c78a55bb98019bf7ee6a1c62122b19511cc52f2792c84b2d469129",
+      "result": "REJECT"
+    },
+    {
+      "name": "tampered_amount",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500001\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"155bafe8e898fd6145b8bfdfd8d68f5b1c63235aec539fb6628462e8df1b9d6fdb0443f8de56ffb098f009eb2c1500dbd530f4dcd676fc349286f1b9f7e44764\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "155bafe8e898fd6145b8bfdfd8d68f5b1c63235aec539fb6628462e8df1b9d6fdb0443f8de56ffb098f009eb2c1500dbd530f4dcd676fc349286f1b9f7e44764",
+      "result": "REJECT"
+    },
+    {
+      "name": "tampered_status",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"02\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"155bafe8e898fd6145b8bfdfd8d68f5b1c63235aec539fb6628462e8df1b9d6fdb0443f8de56ffb098f009eb2c1500dbd530f4dcd676fc349286f1b9f7e44764\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "155bafe8e898fd6145b8bfdfd8d68f5b1c63235aec539fb6628462e8df1b9d6fdb0443f8de56ffb098f009eb2c1500dbd530f4dcd676fc349286f1b9f7e44764",
+      "result": "REJECT"
+    },
+    {
+      "name": "invalid_signature",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"0155bafe8e898fd6145b8bfdfd8d68f5b1c63235aec539fb6628462e8df1b9d6fdb0443f8de56ffb098f009eb2c1500dbd530f4dcd676fc349286f1b9f7e44764\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "155bafe8e898fd6145b8bfdfd8d68f5b1c63235aec539fb6628462e8df1b9d6fdb0443f8de56ffb098f009eb2c1500dbd530f4dcd676fc349286f1b9f7e44764",
+      "result": "REJECT"
+    },
+    {
+      "name": "missing_vnp_ResponseId",
+      "raw": "{\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"a148b6cfa638bc90f7d846e9a5df1e224ef6265497480cc2a1955497c413b225ed7ad68bed77e0ed8434653a872df6e3709a5519a3b839ac38cab9f7356d6855\"}",
+      "canonical": "|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "a148b6cfa638bc90f7d846e9a5df1e224ef6265497480cc2a1955497c413b225ed7ad68bed77e0ed8434653a872df6e3709a5519a3b839ac38cab9f7356d6855",
+      "result": "REJECT"
+    },
+    {
+      "name": "empty_vnp_ResponseId",
+      "raw": "{\"vnp_ResponseId\":\"\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"a148b6cfa638bc90f7d846e9a5df1e224ef6265497480cc2a1955497c413b225ed7ad68bed77e0ed8434653a872df6e3709a5519a3b839ac38cab9f7356d6855\"}",
+      "canonical": "|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "a148b6cfa638bc90f7d846e9a5df1e224ef6265497480cc2a1955497c413b225ed7ad68bed77e0ed8434653a872df6e3709a5519a3b839ac38cab9f7356d6855",
+      "result": "REJECT"
+    },
+    {
+      "name": "missing_vnp_ResponseCode",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"14c7506a784588068d7d820fa33ec5f0d440e7a9c3628429d016591d941a746e36ab1acbc14667a18fb9669610ca29c41d8af627208d43a87ea492e2872f491c\"}",
+      "canonical": "response001|querydr||Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr||Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "14c7506a784588068d7d820fa33ec5f0d440e7a9c3628429d016591d941a746e36ab1acbc14667a18fb9669610ca29c41d8af627208d43a87ea492e2872f491c",
+      "result": "REJECT"
+    },
+    {
+      "name": "empty_vnp_ResponseCode",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"14c7506a784588068d7d820fa33ec5f0d440e7a9c3628429d016591d941a746e36ab1acbc14667a18fb9669610ca29c41d8af627208d43a87ea492e2872f491c\"}",
+      "canonical": "response001|querydr||Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr||Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "14c7506a784588068d7d820fa33ec5f0d440e7a9c3628429d016591d941a746e36ab1acbc14667a18fb9669610ca29c41d8af627208d43a87ea492e2872f491c",
+      "result": "REJECT"
+    },
+    {
+      "name": "missing_vnp_Message",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"b9d5da5d565abab9e633d7a72755595e93a7decd02e1cc47ed4d110618483f178dfdffdc9498b26fcafa1142952eaba62776a0c9b01dd867c8780756bb88bd20\"}",
+      "canonical": "response001|querydr|00||TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00||TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "b9d5da5d565abab9e633d7a72755595e93a7decd02e1cc47ed4d110618483f178dfdffdc9498b26fcafa1142952eaba62776a0c9b01dd867c8780756bb88bd20",
+      "result": "REJECT"
+    },
+    {
+      "name": "empty_vnp_Message",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"b9d5da5d565abab9e633d7a72755595e93a7decd02e1cc47ed4d110618483f178dfdffdc9498b26fcafa1142952eaba62776a0c9b01dd867c8780756bb88bd20\"}",
+      "canonical": "response001|querydr|00||TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00||TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "b9d5da5d565abab9e633d7a72755595e93a7decd02e1cc47ed4d110618483f178dfdffdc9498b26fcafa1142952eaba62776a0c9b01dd867c8780756bb88bd20",
+      "result": "REJECT"
+    },
+    {
+      "name": "missing_vnp_TmnCode",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"8d9433cf82495d1b32deac0e5cb86883c7a74441487f37368c46d001c942676b7bd5940126615489601e06c0657682f7056f0765cc4b3993b7fce9d66eb7a491\"}",
+      "canonical": "response001|querydr|00|Query successful||0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful||0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "8d9433cf82495d1b32deac0e5cb86883c7a74441487f37368c46d001c942676b7bd5940126615489601e06c0657682f7056f0765cc4b3993b7fce9d66eb7a491",
+      "result": "REJECT"
+    },
+    {
+      "name": "empty_vnp_TmnCode",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"8d9433cf82495d1b32deac0e5cb86883c7a74441487f37368c46d001c942676b7bd5940126615489601e06c0657682f7056f0765cc4b3993b7fce9d66eb7a491\"}",
+      "canonical": "response001|querydr|00|Query successful||0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful||0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "8d9433cf82495d1b32deac0e5cb86883c7a74441487f37368c46d001c942676b7bd5940126615489601e06c0657682f7056f0765cc4b3993b7fce9d66eb7a491",
+      "result": "REJECT"
+    },
+    {
+      "name": "missing_vnp_TxnRef",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"a8591ab3148c1c237da1e314cd7d5b98a7b57bd731f56ab41926aee236b1d0c770643b7803ea2bca435115a75ed691f57f84a0760469343f69608923fc37b2d9\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001||8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001||8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "a8591ab3148c1c237da1e314cd7d5b98a7b57bd731f56ab41926aee236b1d0c770643b7803ea2bca435115a75ed691f57f84a0760469343f69608923fc37b2d9",
+      "result": "REJECT"
+    },
+    {
+      "name": "empty_vnp_TxnRef",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"a8591ab3148c1c237da1e314cd7d5b98a7b57bd731f56ab41926aee236b1d0c770643b7803ea2bca435115a75ed691f57f84a0760469343f69608923fc37b2d9\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001||8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001||8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "a8591ab3148c1c237da1e314cd7d5b98a7b57bd731f56ab41926aee236b1d0c770643b7803ea2bca435115a75ed691f57f84a0760469343f69608923fc37b2d9",
+      "result": "REJECT"
+    },
+    {
+      "name": "missing_vnp_Amount",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"36b4ebbe569396431f63d3cd32bef8febca9a74692b2d46f27209ca53df0da69e7c0209c8c08c95324aa8edd551efbe8d40773e9c9e35169c2eef0c4e94d3f9c\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef||NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef||NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "36b4ebbe569396431f63d3cd32bef8febca9a74692b2d46f27209ca53df0da69e7c0209c8c08c95324aa8edd551efbe8d40773e9c9e35169c2eef0c4e94d3f9c",
+      "result": "REJECT"
+    },
+    {
+      "name": "empty_vnp_Amount",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"36b4ebbe569396431f63d3cd32bef8febca9a74692b2d46f27209ca53df0da69e7c0209c8c08c95324aa8edd551efbe8d40773e9c9e35169c2eef0c4e94d3f9c\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef||NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef||NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "36b4ebbe569396431f63d3cd32bef8febca9a74692b2d46f27209ca53df0da69e7c0209c8c08c95324aa8edd551efbe8d40773e9c9e35169c2eef0c4e94d3f9c",
+      "result": "REJECT"
+    },
+    {
+      "name": "missing_vnp_BankCode",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"45cafadb7fcf0441c02b85a1e0c7a14cfe5a1365a0169af5cfeeb207616ef72190f2613060d582a6a12824d8b6079bf4a008cc9c098de25a1016dbc057da7d62\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000||20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000||20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "45cafadb7fcf0441c02b85a1e0c7a14cfe5a1365a0169af5cfeeb207616ef72190f2613060d582a6a12824d8b6079bf4a008cc9c098de25a1016dbc057da7d62",
+      "result": "REJECT"
+    },
+    {
+      "name": "empty_vnp_BankCode",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"45cafadb7fcf0441c02b85a1e0c7a14cfe5a1365a0169af5cfeeb207616ef72190f2613060d582a6a12824d8b6079bf4a008cc9c098de25a1016dbc057da7d62\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000||20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000||20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "45cafadb7fcf0441c02b85a1e0c7a14cfe5a1365a0169af5cfeeb207616ef72190f2613060d582a6a12824d8b6079bf4a008cc9c098de25a1016dbc057da7d62",
+      "result": "REJECT"
+    },
+    {
+      "name": "missing_vnp_TransactionNo",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"beed10f0633db66190383ff63009b63c2307fd7b394d2172b0abf791de6fcd3f66ed85a9695982c09c239292cec1def1bb43390552e0080501060114898200f9\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000||01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000||01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "beed10f0633db66190383ff63009b63c2307fd7b394d2172b0abf791de6fcd3f66ed85a9695982c09c239292cec1def1bb43390552e0080501060114898200f9",
+      "result": "REJECT"
+    },
+    {
+      "name": "empty_vnp_TransactionNo",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"beed10f0633db66190383ff63009b63c2307fd7b394d2172b0abf791de6fcd3f66ed85a9695982c09c239292cec1def1bb43390552e0080501060114898200f9\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000||01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000||01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "beed10f0633db66190383ff63009b63c2307fd7b394d2172b0abf791de6fcd3f66ed85a9695982c09c239292cec1def1bb43390552e0080501060114898200f9",
+      "result": "REJECT"
+    },
+    {
+      "name": "missing_vnp_TransactionType",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"ee5927fbaeafecdb49c0f7833e085a4c30bb32af4b32c9d06d05e315e6b6e7ecfaa46783bbbc379793c98e43f062155de13bf097a5cd7560485977d5df130d61\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456||00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456||00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "ee5927fbaeafecdb49c0f7833e085a4c30bb32af4b32c9d06d05e315e6b6e7ecfaa46783bbbc379793c98e43f062155de13bf097a5cd7560485977d5df130d61",
+      "result": "REJECT"
+    },
+    {
+      "name": "empty_vnp_TransactionType",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"ee5927fbaeafecdb49c0f7833e085a4c30bb32af4b32c9d06d05e315e6b6e7ecfaa46783bbbc379793c98e43f062155de13bf097a5cd7560485977d5df130d61\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456||00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456||00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "ee5927fbaeafecdb49c0f7833e085a4c30bb32af4b32c9d06d05e315e6b6e7ecfaa46783bbbc379793c98e43f062155de13bf097a5cd7560485977d5df130d61",
+      "result": "REJECT"
+    },
+    {
+      "name": "missing_vnp_TransactionStatus",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"cd0382cf04eb888e3c15eaff6af293b97554b4979d4fd534910138f13b3fb1beaa3da58e65469e614cf30f802074aed0eb9aedf6728589f5118d3ce81e0201c6\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01||Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01||Thanh toan BrewLite|123|1000",
+      "expectedHmac": "cd0382cf04eb888e3c15eaff6af293b97554b4979d4fd534910138f13b3fb1beaa3da58e65469e614cf30f802074aed0eb9aedf6728589f5118d3ce81e0201c6",
+      "result": "REJECT"
+    },
+    {
+      "name": "empty_vnp_TransactionStatus",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"cd0382cf04eb888e3c15eaff6af293b97554b4979d4fd534910138f13b3fb1beaa3da58e65469e614cf30f802074aed0eb9aedf6728589f5118d3ce81e0201c6\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01||Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01||Thanh toan BrewLite|123|1000",
+      "expectedHmac": "cd0382cf04eb888e3c15eaff6af293b97554b4979d4fd534910138f13b3fb1beaa3da58e65469e614cf30f802074aed0eb9aedf6728589f5118d3ce81e0201c6",
+      "result": "REJECT"
+    },
+    {
+      "name": "missing_vnp_OrderInfo",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"a4d265672285431aef1880f46a82c6c9106de40e9d54bd61a79ab54c3b173443f20b780336df01a387786615eae674865f80fe2f31afe1b11261c5c95f4f5118\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00||123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00||123|1000",
+      "expectedHmac": "a4d265672285431aef1880f46a82c6c9106de40e9d54bd61a79ab54c3b173443f20b780336df01a387786615eae674865f80fe2f31afe1b11261c5c95f4f5118",
+      "result": "REJECT"
+    },
+    {
+      "name": "empty_vnp_OrderInfo",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"a4d265672285431aef1880f46a82c6c9106de40e9d54bd61a79ab54c3b173443f20b780336df01a387786615eae674865f80fe2f31afe1b11261c5c95f4f5118\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00||123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00||123|1000",
+      "expectedHmac": "a4d265672285431aef1880f46a82c6c9106de40e9d54bd61a79ab54c3b173443f20b780336df01a387786615eae674865f80fe2f31afe1b11261c5c95f4f5118",
+      "result": "REJECT"
+    },
+    {
+      "name": "duplicate_key",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"155bafe8e898fd6145b8bfdfd8d68f5b1c63235aec539fb6628462e8df1b9d6fdb0443f8de56ffb098f009eb2c1500dbd530f4dcd676fc349286f1b9f7e44764\",\"vnp_Amount\":\"8500000\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "155bafe8e898fd6145b8bfdfd8d68f5b1c63235aec539fb6628462e8df1b9d6fdb0443f8de56ffb098f009eb2c1500dbd530f4dcd676fc349286f1b9f7e44764",
+      "result": "REJECT"
+    },
+    {
+      "name": "escaped_duplicate_key",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"155bafe8e898fd6145b8bfdfd8d68f5b1c63235aec539fb6628462e8df1b9d6fdb0443f8de56ffb098f009eb2c1500dbd530f4dcd676fc349286f1b9f7e44764\",\"vnp_Amou\\u006et\":\"8500000\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "155bafe8e898fd6145b8bfdfd8d68f5b1c63235aec539fb6628462e8df1b9d6fdb0443f8de56ffb098f009eb2c1500dbd530f4dcd676fc349286f1b9f7e44764",
+      "result": "REJECT"
+    },
+    {
+      "name": "unknown_key",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"155bafe8e898fd6145b8bfdfd8d68f5b1c63235aec539fb6628462e8df1b9d6fdb0443f8de56ffb098f009eb2c1500dbd530f4dcd676fc349286f1b9f7e44764\",\"vnp_Unexpected\":\"x\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "155bafe8e898fd6145b8bfdfd8d68f5b1c63235aec539fb6628462e8df1b9d6fdb0443f8de56ffb098f009eb2c1500dbd530f4dcd676fc349286f1b9f7e44764",
+      "result": "REJECT"
+    },
+    {
+      "name": "invalid_type_8500000",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":8500000,\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"155bafe8e898fd6145b8bfdfd8d68f5b1c63235aec539fb6628462e8df1b9d6fdb0443f8de56ffb098f009eb2c1500dbd530f4dcd676fc349286f1b9f7e44764\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "155bafe8e898fd6145b8bfdfd8d68f5b1c63235aec539fb6628462e8df1b9d6fdb0443f8de56ffb098f009eb2c1500dbd530f4dcd676fc349286f1b9f7e44764",
+      "result": "REJECT"
+    },
+    {
+      "name": "invalid_type_null",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":null,\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"155bafe8e898fd6145b8bfdfd8d68f5b1c63235aec539fb6628462e8df1b9d6fdb0443f8de56ffb098f009eb2c1500dbd530f4dcd676fc349286f1b9f7e44764\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "155bafe8e898fd6145b8bfdfd8d68f5b1c63235aec539fb6628462e8df1b9d6fdb0443f8de56ffb098f009eb2c1500dbd530f4dcd676fc349286f1b9f7e44764",
+      "result": "REJECT"
+    },
+    {
+      "name": "invalid_type_true",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":true,\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"155bafe8e898fd6145b8bfdfd8d68f5b1c63235aec539fb6628462e8df1b9d6fdb0443f8de56ffb098f009eb2c1500dbd530f4dcd676fc349286f1b9f7e44764\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "155bafe8e898fd6145b8bfdfd8d68f5b1c63235aec539fb6628462e8df1b9d6fdb0443f8de56ffb098f009eb2c1500dbd530f4dcd676fc349286f1b9f7e44764",
+      "result": "REJECT"
+    },
+    {
+      "name": "invalid_type_[]",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":[],\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"155bafe8e898fd6145b8bfdfd8d68f5b1c63235aec539fb6628462e8df1b9d6fdb0443f8de56ffb098f009eb2c1500dbd530f4dcd676fc349286f1b9f7e44764\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "155bafe8e898fd6145b8bfdfd8d68f5b1c63235aec539fb6628462e8df1b9d6fdb0443f8de56ffb098f009eb2c1500dbd530f4dcd676fc349286f1b9f7e44764",
+      "result": "REJECT"
+    },
+    {
+      "name": "invalid_type_{}",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":{},\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"155bafe8e898fd6145b8bfdfd8d68f5b1c63235aec539fb6628462e8df1b9d6fdb0443f8de56ffb098f009eb2c1500dbd530f4dcd676fc349286f1b9f7e44764\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "155bafe8e898fd6145b8bfdfd8d68f5b1c63235aec539fb6628462e8df1b9d6fdb0443f8de56ffb098f009eb2c1500dbd530f4dcd676fc349286f1b9f7e44764",
+      "result": "REJECT"
+    },
+    {
+      "name": "invalid_vnp_TmnCode_WRONG001",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"WRONG001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"19b43b0c97fa505667fb903f0de8d9abe923cfedf5504a4812c9023e1721c39d38dbb5687b349bee5d5bcbfac93ff39c1c0abc057b25d839bbc9b411d1d89544\"}",
+      "canonical": "response001|querydr|00|Query successful|WRONG001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|WRONG001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "19b43b0c97fa505667fb903f0de8d9abe923cfedf5504a4812c9023e1721c39d38dbb5687b349bee5d5bcbfac93ff39c1c0abc057b25d839bbc9b411d1d89544",
+      "result": "REJECT"
+    },
+    {
+      "name": "invalid_vnp_TxnRef_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"e273d267f438867ba426996fc7b16e7742c1acf816da1d2de0124e3ff24ab6da8aa1613943c5dcf6a392b1095704e750bb9f0632013e4ef35f2c8f81c5920aa9\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "e273d267f438867ba426996fc7b16e7742c1acf816da1d2de0124e3ff24ab6da8aa1613943c5dcf6a392b1095704e750bb9f0632013e4ef35f2c8f81c5920aa9",
+      "result": "REJECT"
+    },
+    {
+      "name": "invalid_vnp_Amount_8500001",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500001\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"bf0e1894557cd6fa3bbe67db0d04bc9e789333e2cd26cae4eb23b8dc863f5a844a62d78892e951fa3ba8081470bd499bfa397de6795127caa9ad1fac9a10b4da\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500001|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500001|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "bf0e1894557cd6fa3bbe67db0d04bc9e789333e2cd26cae4eb23b8dc863f5a844a62d78892e951fa3ba8081470bd499bfa397de6795127caa9ad1fac9a10b4da",
+      "result": "REJECT"
+    },
+    {
+      "name": "invalid_vnp_TransactionNo_NaN",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"NaN\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"304c51d203c8668dc9461e125f10a8cfa62584593df68e3a2fd4d1297b1d336a39cc1c6f8491ffe56c76c42e04f108615801f321152312a435a67d6f218a076e\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|NaN|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|NaN|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "304c51d203c8668dc9461e125f10a8cfa62584593df68e3a2fd4d1297b1d336a39cc1c6f8491ffe56c76c42e04f108615801f321152312a435a67d6f218a076e",
+      "result": "REJECT"
+    },
+    {
+      "name": "invalid_vnp_TransactionNo_0",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"0\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"c14d5df453d7073528bacb2967e6ef71e7a47a393561c0872877468a7ea67828c8401b13df8cf9436dff1cf2802fdc2e4d4d2edf7dde67c069002b2c93c94636\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|0|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|0|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "c14d5df453d7073528bacb2967e6ef71e7a47a393561c0872877468a7ea67828c8401b13df8cf9436dff1cf2802fdc2e4d4d2edf7dde67c069002b2c93c94636",
+      "result": "REJECT"
+    },
+    {
+      "name": "invalid_vnp_PayDate_20260231090000",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20260231090000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"72050c3d11c6749797ebee04f7a7fcb6335f04e9cb3b22313586bab4aec92309757db2ddbcb7aa497ce1851137087c7290c65ce13ea80c239ca4ba53efc923c8\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20260231090000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20260231090000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "72050c3d11c6749797ebee04f7a7fcb6335f04e9cb3b22313586bab4aec92309757db2ddbcb7aa497ce1851137087c7290c65ce13ea80c239ca4ba53efc923c8",
+      "result": "REJECT"
+    },
+    {
+      "name": "invalid_vnp_Command_refund",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"refund\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"fc897d1136c1e1c8b47201a0f0b88aabe6529860c90e42d530e93d26a183173abf3910fa6c8d9d0a3fd5e86d0999ebe41803b6a5dc5422685486ae388c621ce0\"}",
+      "canonical": "response001|refund|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|refund|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "fc897d1136c1e1c8b47201a0f0b88aabe6529860c90e42d530e93d26a183173abf3910fa6c8d9d0a3fd5e86d0999ebe41803b6a5dc5422685486ae388c621ce0",
+      "result": "REJECT"
+    },
+    {
+      "name": "status_01",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"01\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"d758b5ef7dadf72bd423d9378aeb90d1b38231e92d772c54967f3ff09919b294b3f735642228d6c4d8c3a3ee1186202e58441fd20983ca095681812147c2420d\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|01|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|01|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "d758b5ef7dadf72bd423d9378aeb90d1b38231e92d772c54967f3ff09919b294b3f735642228d6c4d8c3a3ee1186202e58441fd20983ca095681812147c2420d",
+      "result": "UNKNOWN"
+    },
+    {
+      "name": "status_02",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"02\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"fe69bf44a8069f052d775c8a604d88674b03663d60ccd39e40c4b96029ced3f71e0840d4d97a2ce93e81826ae3b515a4b7b86035a943124c3f6dadf92a6072c4\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|02|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|02|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "fe69bf44a8069f052d775c8a604d88674b03663d60ccd39e40c4b96029ced3f71e0840d4d97a2ce93e81826ae3b515a4b7b86035a943124c3f6dadf92a6072c4",
+      "result": "FAILED"
+    },
+    {
+      "name": "status_04",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"04\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"17b72b39d4f9554bf0a84ee356f7546a0ffb076031770d3477ecb918c6c5dd8676f1aa2363ad8740c7c33de87e37cdce619878df89a4810dbded66cd168e01fa\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|04|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|04|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "17b72b39d4f9554bf0a84ee356f7546a0ffb076031770d3477ecb918c6c5dd8676f1aa2363ad8740c7c33de87e37cdce619878df89a4810dbded66cd168e01fa",
+      "result": "REVIEW"
+    },
+    {
+      "name": "status_07",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"07\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"41b379d08ac686b066a577978086a579684598021ed7a80e0ae9bbdf4df64f52bde403fffc75828f2470bce3d52a031fb2b691b51ececb6bcbf7eed0cca8b9e4\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|07|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|07|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "41b379d08ac686b066a577978086a579684598021ed7a80e0ae9bbdf4df64f52bde403fffc75828f2470bce3d52a031fb2b691b51ececb6bcbf7eed0cca8b9e4",
+      "result": "REVIEW"
+    },
+    {
+      "name": "status_88",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"88\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"7999aeef3006c60285a91de0d6b338fa8ca4954ab7e716cefbf3560174bddcd79aa8c5e3b99df1a18de8950a0f6c22caa5fbf13e0ed854f35f382472d1211629\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|88|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|88|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "7999aeef3006c60285a91de0d6b338fa8ca4954ab7e716cefbf3560174bddcd79aa8c5e3b99df1a18de8950a0f6c22caa5fbf13e0ed854f35f382472d1211629",
+      "result": "REVIEW"
+    },
+    {
+      "name": "refund_type",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"00\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"02\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"b5e77f26a2314603a9df378fa3241c7fc41865e41a1d602a4f22b5ffcbc366916aa0c8d55d0f46ea9396830b1fbbf6a1478cac53c8a58f2ed89c747a65ccbbbe\"}",
+      "canonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|02|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|00|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|02|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "b5e77f26a2314603a9df378fa3241c7fc41865e41a1d602a4f22b5ffcbc366916aa0c8d55d0f46ea9396830b1fbbf6a1478cac53c8a58f2ed89c747a65ccbbbe",
+      "result": "REVIEW"
+    },
+    {
+      "name": "api_error_91",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"91\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"031ac01f4c1dfcecb4e546778b962aa065aead5c103e4c0bb8356b8204f0fa283517091a646954096a0cf894e0655fcd1c5b3b5929776392dd79db462f73df12\"}",
+      "canonical": "response001|querydr|91|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|91|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "031ac01f4c1dfcecb4e546778b962aa065aead5c103e4c0bb8356b8204f0fa283517091a646954096a0cf894e0655fcd1c5b3b5929776392dd79db462f73df12",
+      "result": "REJECT"
+    },
+    {
+      "name": "api_error_94",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"94\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"9c8da6fb04d330705cc15fee039065c3e0e8c143381db191595b7a6d0c7b6ee0bf2f985e9ee18bf1ea59f3c0a59034e66816e9ea6e7c2b56013b6fa6d71c2860\"}",
+      "canonical": "response001|querydr|94|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|94|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "9c8da6fb04d330705cc15fee039065c3e0e8c143381db191595b7a6d0c7b6ee0bf2f985e9ee18bf1ea59f3c0a59034e66816e9ea6e7c2b56013b6fa6d71c2860",
+      "result": "REJECT"
+    },
+    {
+      "name": "api_error_97",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"97\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"5bd3c5cfb9cc4660b18ecb36e778cb5df7e8987fc2bd3fa931f0cc03e14f3a46504855af0a01ba7b891756aa04cbc1aa600976ca81d01e908a24373ff430cfe6\"}",
+      "canonical": "response001|querydr|97|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|97|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "5bd3c5cfb9cc4660b18ecb36e778cb5df7e8987fc2bd3fa931f0cc03e14f3a46504855af0a01ba7b891756aa04cbc1aa600976ca81d01e908a24373ff430cfe6",
+      "result": "REJECT"
+    },
+    {
+      "name": "api_error_99",
+      "raw": "{\"vnp_ResponseId\":\"response001\",\"vnp_Command\":\"querydr\",\"vnp_ResponseCode\":\"99\",\"vnp_Message\":\"Query successful\",\"vnp_TmnCode\":\"TEST0001\",\"vnp_TxnRef\":\"0123456789abcdef0123456789abcdef\",\"vnp_Amount\":\"8500000\",\"vnp_BankCode\":\"NCB\",\"vnp_PayDate\":\"20261017100000\",\"vnp_TransactionNo\":\"000123456\",\"vnp_TransactionType\":\"01\",\"vnp_TransactionStatus\":\"00\",\"vnp_OrderInfo\":\"Thanh toan BrewLite\",\"vnp_PromotionCode\":\"123\",\"vnp_PromotionAmount\":\"1000\",\"vnp_SecureHash\":\"32a5cc504570d10fade67beb227970764b27ac83d20dcb793b31d2b83efdd10b447c9d3f90d4c81eadabdc0f217a7f337f9d205d89d440bb1ac6e5346b32123a\"}",
+      "canonical": "response001|querydr|99|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "signedCanonical": "response001|querydr|99|Query successful|TEST0001|0123456789abcdef0123456789abcdef|8500000|NCB|20261017100000|000123456|01|00|Thanh toan BrewLite|123|1000",
+      "expectedHmac": "32a5cc504570d10fade67beb227970764b27ac83d20dcb793b31d2b83efdd10b447c9d3f90d4c81eadabdc0f217a7f337f9d205d89d440bb1ac6e5346b32123a",
+      "result": "REJECT"
+    }
+  ]
+}

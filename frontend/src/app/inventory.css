@@ -1,0 +1,6 @@
+.inventory-identity { display: block; overflow-wrap: anywhere; font-size: .75rem; margin-top: .5rem; }
+.admin-inventory select { width: 100%; min-height: 44px; padding: .5rem; }
+.admin-inventory > button { min-height: 44px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 6px; background: #fffdf8; }
+@media (max-width: 1000px) {
+  .admin-inventory .product-management-table caption { display: block; width: 100%; }
+}

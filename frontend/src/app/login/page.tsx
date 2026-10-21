@@ -1,0 +1,3 @@
+import { Suspense } from 'react';
+import { AuthForm } from '../../components/auth-form';
+export default function LoginPage() { return <Suspense fallback={<p role="status">Đang tải…</p>}><AuthForm mode="login" /></Suspense>; }

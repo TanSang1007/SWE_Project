@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "module": "commonjs", "target": "ES2022", "moduleResolution": "node",
+    "declaration": true, "sourceMap": true, "outDir": "./dist", "experimentalDecorators": true,
+    "emitDecoratorMetadata": true, "esModuleInterop": true, "strict": true,
+    "skipLibCheck": true, "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "prisma.config.ts"],
+  "exclude": ["node_modules", "dist"]
+}
