@@ -4,11 +4,10 @@
 
 BrewLite hỗ trợ khách chọn đồ uống, tùy chỉnh size/topping, đặt hàng, thanh toán và theo dõi đơn lấy tại quầy. Nhân viên xử lý hàng đợi pha chế; quản trị viên quản lý menu, tồn kho và đơn hàng.
 
-Đây là đồ án Công nghệ phần mềm, gồm frontend Next.js, backend NestJS và PostgreSQL. Thanh toán mặc định là MOCK; VNPAY Sandbox là tùy chọn kiểm thử, chưa phải tích hợp thanh toán production.
+Nền tảng gồm frontend Next.js, backend NestJS và PostgreSQL. Thanh toán mặc định là MOCK; VNPAY Sandbox là tùy chọn kiểm thử, chưa phải tích hợp thanh toán production.
 
 ## 2. Thành viên nhóm
 
-Repository chưa có danh sách họ tên và phân công được xác nhận. Nhóm bổ sung bảng này trước khi nộp; tác giả Git không được tự suy thành vai trò dự án.
 
 | STT | Họ tên | Vai trò | Công việc phụ trách |
 | --- | --- | --- | --- |
