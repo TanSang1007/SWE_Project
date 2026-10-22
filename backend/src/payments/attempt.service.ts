@@ -13,6 +13,7 @@ import type { AttemptListDto } from './attempt.dto';
 import { decodeAttemptCursor, encodeAttemptCursor } from './attempt-cursor';
 import { assertVnpayMinimum, belowVnpayMinimum } from './minimum-payment-policy';
 import { acceptsNewPayments, assertPaymentAdmission } from './payment-admission';
+import { assertPaymentWindow, PAYMENT_WINDOW_MS } from './payment-deadline';
 const unavailable = () => new ServiceUnavailableException({ code: 'PAYMENT_UNAVAILABLE', message: 'Payment initiation unavailable' });
 const stateError = () => new ConflictException({ code: 'INVALID_ORDER_STATE', message: 'Order does not permit this payment action' });
 const conflict = () => new ConflictException({ code: 'CONCURRENT_UPDATE', message: 'Data changed; read the current order and try again' });
@@ -46,7 +47,7 @@ export class AttemptService {
         return this.db.$transaction(async (tx) => {
             await tx.$executeRaw `SELECT set_config('lock_timeout','200ms',true),set_config('statement_timeout','300ms',true),set_config('TimeZone','UTC',true)`;
             return work(tx);
-        }, { maxWait: 50, timeout: 400 });
+        }, this.db.transactionOptions ?? { maxWait: 50, timeout: 400 });
     }
     private async owned(tx: Prisma.TransactionClient, userId: string, id: string) {
         const o = await tx.order.findFirst({ where: { id, userId }, include: orderInclude });
@@ -91,8 +92,12 @@ export class AttemptService {
                 await lockAttempts(tx, orderId);
                 const o = await this.owned(tx, userId, orderId);
                 const previous = await tx.idempotencyRequest.findUnique({ where });
-                if (previous)
+                if (previous) {
+                    const body = previous.responseBody as { expiresAt?: string } | null;
+                    if (body?.expiresAt && new Date(body.expiresAt) <= new Date()) throw new ConflictException({ code: 'PAYMENT_TIMEOUT', message: 'Payment link expired' });
                     return replayResult(previous, hash);
+                }
+                assertPaymentWindow(o);
                 const blocks = await gatewayBlocks(tx, orderId);
                 assertGatewayClear(blocks);
                 if (['PAID', 'PREPARING', 'READY', 'COMPLETED'].includes(o.status))
@@ -116,7 +121,7 @@ export class AttemptService {
                 reservationGate(account, o.redeemedPoints);
                 if (o.status === 'PAYMENT_FAILED' && account.available < BigInt(o.redeemedPoints))
                     throw new ConflictException({ code: 'LOYALTY_INSUFFICIENT_POINTS', message: 'Insufficient points for the original reservation' });
-                const now = new Date(), expiresAt = new Date(now.getTime() + 900000), ref = randomUUID().replaceAll('-', '');
+                const now = new Date(), expiresAt = o.paymentExpiresAt ?? new Date(now.getTime() + PAYMENT_WINDOW_MS), ref = randomUUID().replaceAll('-', '');
                 const paymentUrl = buildPaymentUrl(settings, { orderTotalVnd: o.total.toFixed(0), txnRef: ref, createDate: providerDate(now), expireDate: providerDate(expiresAt), customerIp });
                 const parameters = Object.fromEntries(new URL(paymentUrl).searchParams);
                 delete parameters.vnp_SecureHash;
@@ -144,8 +149,11 @@ export class AttemptService {
             // Read committed replay after rollback only; never repeat the financial transaction.
             try {
                 const replay = await this.transaction(async (tx) => { await this.owned(tx, userId, orderId); return tx.idempotencyRequest.findUnique({ where }); });
-                if (replay)
+                if (replay) {
+                    const body = replay.responseBody as { expiresAt?: string } | null;
+                    if (body?.expiresAt && new Date(body.expiresAt) <= new Date()) throw new ConflictException({ code: 'PAYMENT_TIMEOUT', message: 'Payment link expired' });
                     return replayResult(replay, hash);
+                }
             }
             catch (recovery) {
                 if (recovery instanceof HttpException)
@@ -165,7 +173,7 @@ export class AttemptService {
         }
     }
     private async canRetry(tx: Prisma.TransactionClient, o: Order, a: Attempt | null, blocks: Blocks) {
-        if (!this.enabled() || !acceptsNewPayments(this.config) || belowVnpayMinimum(o.total) || blocks.review || blocks.pending || blocks.receipt || !this.retryEligible(o, a))
+        if ((o.paymentExpiresAt && o.paymentExpiresAt <= new Date()) || !this.enabled() || !acceptsNewPayments(this.config) || belowVnpayMinimum(o.total) || blocks.review || blocks.pending || blocks.receipt || !this.retryEligible(o, a))
             return false;
         const account = await reconcileAccount(tx, o.userId);
         if (o.redeemedPoints > 0 && (account.debt > 0n || account.available < BigInt(o.redeemedPoints)))
@@ -184,7 +192,7 @@ export class AttemptService {
         const effectiveState = requiresReview ? 'REVIEW' : success ? 'SUCCEEDED' : terminalBound(a, o, false) ? 'FAILED'
             : a.state === 'AWAITING' && a.expiresAt > now ? 'AWAITING' : 'UNKNOWN';
         return { attemptId: a.id, orderId: o.id, provider: a.provider, amount: a.amount.toFixed(0), currency: a.currency.trim(), providerState: a.state,
-            applicationState: a.applicationState, effectiveState, expiresAt: a.expiresAt.toISOString(), verifiedAt: a.verifiedAt?.toISOString() ?? null,
+            applicationState: a.applicationState, effectiveState, expiresAt: a.expiresAt.toISOString(), serverNow: now.toISOString(), verifiedAt: a.verifiedAt?.toISOString() ?? null,
             appliedAt: a.appliedAt?.toISOString() ?? null, paymentId: a.payment?.id ?? null, orderStatus: o.status,
             ...(effectiveState === 'FAILED' && !requiresReview && latest?.id === a.id && !blocks.pending && !blocks.receipt
                 && ['PAYMENT_FAILED', 'CANCELLED'].includes(o.status) && !o.paidAt && a.responseCode === '24' && a.transactionStatus === '02'
@@ -200,7 +208,7 @@ export class AttemptService {
     }
     private async read<T>(work: (tx: Prisma.TransactionClient) => Promise<T>) {
         try {
-            return await this.db.$transaction(async (tx) => { await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY'); return work(tx); }, { isolationLevel: 'RepeatableRead', maxWait: 50, timeout: 400 });
+            return await this.db.$transaction(async (tx) => { await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY'); return work(tx); }, { isolationLevel: 'RepeatableRead', ...(this.db.transactionOptions ?? { maxWait: 50, timeout: 400 }) });
         }
         catch (error) {
             if (error instanceof HttpException)
@@ -215,6 +223,20 @@ export class AttemptService {
                 throw new NotFoundException({ code: 'PAYMENT_ATTEMPT_NOT_FOUND', message: 'Payment attempt not found' });
             const o = await this.owned(tx, userId, a.orderId), blocks = await gatewayBlocks(tx, o.id), latest = await this.latest(tx, o.id);
             return this.status(a, o, latest, blocks, await this.canRetry(tx, o, latest, blocks), new Date());
+        });
+    }
+    async resume(userId: string, id: string) {
+        return this.transaction(async tx => {
+            await this.owned(tx, userId, id);
+            await lockUser(tx, userId); await lockOrder(tx, id); await lockAttempts(tx, id);
+            const o = await this.owned(tx, userId, id), a = await this.latest(tx, id), blocks = await gatewayBlocks(tx, id);
+            assertPaymentWindow(o);
+            if (!a || !this.status(a, o, a, blocks, false, new Date()).canResume) throw stateError();
+            const claim = await tx.idempotencyRequest.findUniqueOrThrow({ where: { id: a.idempotencyRequestId } });
+            const body = claim.responseBody as { paymentUrl?: string; expiresAt?: string } | null;
+            if (!body?.paymentUrl || !body.expiresAt || new Date(body.expiresAt) <= new Date()) throw stateError();
+            // Return the existing signed URL; no new attempt or new deadline.
+            return body;
         });
     }
     async list(userId: string, orderId: string, input: AttemptListDto) {

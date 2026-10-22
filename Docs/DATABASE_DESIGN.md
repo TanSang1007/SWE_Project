@@ -1,6 +1,12 @@
 # BrewLite — Thiết kế database
 
+## Additive amendment 2026-10-22 — checkout/session
+
+Migration `20261022160000_checkout_expiration_sessions` thêm nullable `orders.payment_started_at/payment_expires_at/payment_expired_at` (timestamptz6), `cancellation_reason` varchar64; CHECK cặp started/expires cùng NULL hoặc expires=started+10 phút; partial index deadline cho unpaid orders. Không backfill lịch sử. `auth_sessions` chứa UUID PK, user_id FK→users RESTRICT (User1:N sessions), SHA256 token_hash/previous_token_hash, expires_at/revoked_at/created_at và index user_id. Rotation dùng row lock; token plaintext chỉ ở HttpOnly cookie. [Nghiệp vụ, quan hệ và rollout](CHECKOUT_SESSION_UPDATE.md).
+
 ## 1. Nguồn và quy ước
+
+Development có thể dùng Neon shared `brewlite_dev`: pooled `DATABASE_URL` cho PrismaPg, direct `DIRECT_URL` cho Prisma CLI. Schema/constraints/migrations không đổi. Với transaction Order/payment trên Neon, tổng deadline 5000 ms và maxWait 2000 ms để chịu remote I/O; SQL lock/statement limits giữ nguyên. Database local giữ baseline 50/400 ms. [Quyết định kỹ thuật và an toàn](VNPAY_NEON.md).
 
 Schema hiện hành: [schema.prisma](../backend/prisma/schema.prisma), [13 migrations](../backend/prisma/migrations), [Prisma config](../backend/prisma.config.ts). Có **18 model nghiệp vụ**, thêm `_prisma_migrations` do Prisma quản lý. Không lấy số bảng ở checkpoint cũ làm schema hiện tại.
 

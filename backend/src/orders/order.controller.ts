@@ -29,6 +29,11 @@ export class OrderController {
     @Res({ passthrough: true }) res: Response) {
     void query; void body; res.vary('Authorization'); return this.orders.history(req.user.id);
   }
+  @Get('active')
+  @Header('Cache-Control', 'private, no-store, max-age=0')
+  active(@Req() req: AuthRequest, @Query() query: OrderEmptyDto, @Body() body: OrderEmptyDto) {
+    void query; void body; return this.orders.active(req.user.id);
+  }
   @Get(':id')
   @Header('Cache-Control', 'private, no-store, max-age=0')
   get(@Req() req: AuthRequest, @Param() params: OrderParamsDto, @Query() query: OrderEmptyDto, @Body() body: OrderEmptyDto,

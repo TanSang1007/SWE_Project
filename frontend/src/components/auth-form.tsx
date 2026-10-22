@@ -25,7 +25,9 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
         await register({ email, password }, controller.current.signal); setPassword('');
         router.replace(`/login?registered=1&returnTo=${encodeURIComponent(returnTo)}`);
       } else {
-        const response = await login({ email, password }, controller.current.signal); setPassword(''); signIn(response); router.replace(roleDestination(response.user.role, params.get('returnTo')));
+        const response = await login({ email, password }, controller.current.signal); setPassword(''); signIn(response);
+        const channel = new BroadcastChannel('brewlite-auth'); channel.postMessage('login'); channel.close();
+        router.replace(roleDestination(response.user.role, params.get('returnTo')));
       }
     } catch (error) {
       if (!controller.current.signal.aborted) setError(authErrorMessage(error instanceof AuthError ? error.code : 'UNAVAILABLE'));

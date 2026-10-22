@@ -1,4 +1,3 @@
-import { getApiBaseUrl } from '../env';
 import type { Credentials, LoginResponse, PublicUser } from '../../types/auth';
 export class AuthError extends Error {
   constructor(public readonly code: 'VALIDATION_ERROR' | 'EMAIL_ALREADY_EXISTS' | 'INVALID_CREDENTIALS' | 'UNAVAILABLE') { super(code); }
@@ -21,8 +20,8 @@ export function parseLogin(value: unknown): LoginResponse {
 async function post(path: string, credentials: Credentials, signal?: AbortSignal): Promise<unknown> {
   try {
     const timeout = AbortSignal.timeout(5000);
-    const response = await fetch(`${getApiBaseUrl()}/auth/${path}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'omit', cache: 'no-store', signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+    const response = await fetch(`/api/auth/${path}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BrewLite-CSRF': '1' }, credentials: 'same-origin', cache: 'no-store', signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
       body: JSON.stringify({ email: credentials.email.trim().toLowerCase(), password: credentials.password }),
     });
     if (!response.ok) {
@@ -40,7 +39,10 @@ async function post(path: string, credentials: Credentials, signal?: AbortSignal
 export async function register(credentials: Credentials, signal?: AbortSignal): Promise<{ user: PublicUser }> {
   return { user: publicUser(object(await post('register', credentials, signal)).user) };
 }
-export async function login(credentials: Credentials, signal?: AbortSignal): Promise<LoginResponse> { return parseLogin(await post('login', credentials, signal)); }
+export async function login(credentials: Credentials, signal?: AbortSignal): Promise<LoginResponse> {
+  const work = async () => parseLogin(await post('login', credentials, signal));
+  return typeof navigator !== 'undefined' && navigator.locks ? navigator.locks.request('brewlite-session', work) : work();
+}
 export function authErrorMessage(code: AuthError['code']): string {
   return {
     VALIDATION_ERROR: 'Thông tin chưa hợp lệ. Kiểm tra email và độ dài mật khẩu.',

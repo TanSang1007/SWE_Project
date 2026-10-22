@@ -17,21 +17,26 @@ function loadConfiguration(root, mode, inherited = process.env) {
   // Explicit launcher selection wins over an old shell/session; no fallback.
   const env = { ...merged, NODE_ENV: 'development', PORT: '3001', FRONTEND_ORIGIN: 'http://localhost:3000',
     PAYMENT_PROVIDER_MODE: mode, VNPAY_SANDBOX_ENABLED: mode === 'VNPAY_SANDBOX' ? 'true' : 'false',
-    VNPAY_ACCEPT_NEW_PAYMENTS: 'false', NEXT_PUBLIC_API_BASE_URL: 'http://localhost:3001', NEXT_TELEMETRY_DISABLED: '1' };
+    VNPAY_ACCEPT_NEW_PAYMENTS: 'false', NEXT_PUBLIC_API_BASE_URL: 'http://127.0.0.1:3001', NEXT_TELEMETRY_DISABLED: '1' };
   delete env.NODE_OPTIONS; delete env.BREWLITE_RECOVERY_PHASE; delete env.BREWLITE_RECOVERY_INSTANCE;
   delete env.VNPAY_INITIATION_TEST_ONLY; delete env.TEST_DATABASE_URL;
   const u = new URL(env.DATABASE_URL);
-  if (!['postgres:', 'postgresql:'].includes(u.protocol) || !['localhost', '127.0.0.1', '[::1]'].includes(u.hostname)) throw runtimeError('LOCAL_DATABASE_REQUIRED');
-  let callbackOrigin, ngrokConfig;
+  const localDatabase = ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname);
+  const neonDatabase = u.hostname.endsWith('.neon.tech') && u.hostname.includes('-pooler.')
+    && u.pathname === '/brewlite_dev' && ['require', 'verify-full'].includes(u.searchParams.get('sslmode'));
+  if (!['postgres:', 'postgresql:'].includes(u.protocol) || !(localDatabase || neonDatabase)) throw runtimeError('LOCAL_OR_NEON_DATABASE_REQUIRED');
+  let callbackOrigin, ngrokConfig, callbackRole;
   if (mode === 'VNPAY_SANDBOX') {
+    callbackRole = merged.BREWLITE_CALLBACK_ROLE || (localDatabase ? 'owner' : undefined);
+    if (!['owner', 'member'].includes(callbackRole)) throw runtimeError('SET_BREWLITE_CALLBACK_ROLE_OWNER_OR_MEMBER');
     // Use the application's existing parser. No hostname or merchant is baked in.
     const { validateEnvironment } = require(path.join(root, 'backend/dist/config/environment.js'));
     const settings = validateEnvironment(env);
     callbackOrigin = new URL(settings.VNPAY_INITIATION_CONFIG.ipnUrl).origin;
     ngrokConfig = merged.BREWLITE_NGROK_CONFIG;
-    if (!ngrokConfig || !fs.existsSync(ngrokConfig)) throw runtimeError('SET_BREWLITE_NGROK_CONFIG');
+    if (callbackRole === 'owner' && (!ngrokConfig || !fs.existsSync(ngrokConfig))) throw runtimeError('SET_BREWLITE_NGROK_CONFIG');
   }
-  return { mode, env, callbackOrigin, ngrokConfig, ngrokExecutable: merged.BREWLITE_NGROK_BIN || 'ngrok' };
+  return { mode, env, callbackOrigin, callbackRole, ngrokConfig, ngrokExecutable: merged.BREWLITE_NGROK_BIN || 'ngrok' };
 }
 
 async function assertPortsFree(ports) {
@@ -44,10 +49,12 @@ async function assertPortsFree(ports) {
 
 async function dependencies(databaseUrl) {
   const u = new URL(databaseUrl);
-  u.searchParams.set('options', '-c default_transaction_read_only=on -c statement_timeout=5000 -c lock_timeout=2000');
   const db = new Client({ connectionString: u.toString(), connectionTimeoutMillis:5000 });
   try {
     await db.connect(); await db.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+    // PgBouncer rejects statement_timeout in startup options. Scope settings to
+    // this read-only transaction instead; never leave session state in the pool.
+    await db.query("SELECT set_config('statement_timeout','5000',true),set_config('lock_timeout','2000',true)");
     const counts = (await db.query(`SELECT
       (SELECT count(*)::int FROM payment_attempts WHERE state IN ('AWAITING','UNKNOWN') OR application_state IN ('PENDING','REVIEW')) unresolved,
       (SELECT count(*)::int FROM payment_verifications WHERE state='VERIFIED' AND processed_at IS NULL) unprocessed,

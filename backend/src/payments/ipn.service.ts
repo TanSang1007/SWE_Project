@@ -45,7 +45,7 @@ export class IpnService {
         return this.db.$transaction(async (tx) => {
             await tx.$executeRaw `SELECT set_config('lock_timeout','200ms',true),set_config('statement_timeout','300ms',true),set_config('TimeZone','UTC',true)`;
             return work(tx);
-        }, { maxWait: 50, timeout: 400 });
+        }, this.db.transactionOptions ?? { maxWait: 50, timeout: 400 });
     }
     async locked(tx: Prisma.TransactionClient, id: string) {
         const lookup = await tx.paymentAttempt.findUniqueOrThrow({ where: { id }, select: { order: { select: { id: true, userId: true } } } });
@@ -235,26 +235,6 @@ export class IpnService {
                     throw new Review('RESERVATION_STATE');
                 if (result === 'SUCCEEDED' && o.redeemedPoints > 0 && account.debt > 0n)
                     throw new Review('LOYALTY_DEBT');
-                const cart = result === 'SUCCEEDED' ? await tx.cart.findUnique({ where: { userId: o.userId }, include: { items: true } }) : null;
-                const purchased: {
-                    id: string;
-                    remaining: number;
-                }[] = [];
-                if (result === 'SUCCEEDED') {
-                    if (!cart)
-                        throw new Review('CART_INVARIANT');
-                    const quantities = new Map<string, number>();
-                    for (const item of o.items) {
-                        const key = [item.productId, item.size, ...item.toppings.map(t => t.toppingId).sort()].join(':');
-                        quantities.set(key, (quantities.get(key) ?? 0) + item.qty);
-                    }
-                    for (const [key, qty] of quantities) {
-                        const row = cart.items.find(i => i.configurationKey === key);
-                        if (!row || row.qty < qty)
-                            throw new Review('CART_INVARIANT');
-                        purchased.push({ id: row.id, remaining: row.qty - qty });
-                    }
-                }
                 const now = new Date(), success = result === 'SUCCEEDED';
                 if (!success) {
                     const demand = new Map<string, number>();
@@ -284,13 +264,7 @@ export class IpnService {
                     const points = o.total.dividedBy(10000).floor().toNumber();
                     await tx.loyaltyAward.create({ data: { orderId: o.id, userId: o.userId, points } });
                     effects.push(effect(account, 'EARN', points, { orderId: o.id, paymentId: payment.id }));
-                    for (const row of purchased) {
-                        if (row.remaining)
-                            await tx.cartItem.update({ where: { id: row.id }, data: { qty: row.remaining } });
-                        else
-                            await tx.cartItem.delete({ where: { id: row.id } });
-                    }
-                    await tx.cart.update({ where: { id: cart!.id }, data: { updatedAt: now } });
+
                 }
                 if (effects.length)
                     await persistEffects(tx, before, account, effects);

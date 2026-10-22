@@ -62,62 +62,83 @@ Chi tiết: [PROJECT_STRUCTURE](Docs/PROJECT_STRUCTURE.md).
 ## 6. Yêu cầu hệ thống
 
 - Node.js **>=24.11 và <25**; npm **>=11 và <12** (root `engines`).
-- PostgreSQL **18.x** chạy riêng; Git **2.x**.
+- Git **2.x**; kết nối Internet tới Neon PostgreSQL **18** dùng chung. Không cần cài PostgreSQL local để chạy ứng dụng.
 - Windows PowerShell; ngrok chỉ cần cho Local VNPAY Sandbox.
 
 Chạy lệnh tại root chứa `package.json`, không cài dependencies riêng từng workspace. Dùng `npm.cmd` thay `npm` nếu PowerShell chặn `npm.ps1`.
 
 ## 7. Clone và cài đặt
 
-Repository đích có commit riêng. Hướng dẫn này áp dụng **sau khi owner tích hợp source BrewLite**; nếu clone chỉ thấy README `SWE_Project`, source chưa được bàn giao. Source BrewLite được nhập từ snapshot đã được owner duyệt.
+Chạy các lệnh sau trong PowerShell:
 
 ```powershell
 git clone https://github.com/TanSang1007/SWE_Project.git
-Set-Location SWE_Project
+cd SWE_Project
 npm ci
 Copy-Item .env.example .env
+```
+
+Mở `.env` tại root, điền hai connection string được trưởng nhóm cấp riêng theo mục bên dưới. Giữ `NODE_ENV=development`, `FRONTEND_ORIGIN=http://localhost:3000` và `PAYMENT_PROVIDER_MODE=MOCK` cho lần chạy thông thường. File mẫu chỉ chứa placeholder, không kết nối được trước khi điền cấu hình thật. Không ghi đè `.env` đã cấu hình.
+
+Tạo `JWT_SECRET` riêng cho máy bằng helper có sẵn:
+
+```powershell
 node backend/scripts/configure-auth-env.cjs
 ```
 
-Helper auth tạo JWT secret ngẫu nhiên khi còn placeholder, không in secret. Các lệnh copy dành cho clone mới; không ghi đè `.env` đang dùng.
-
-Khởi động PostgreSQL. Ví dụ tạo DB mới với tài khoản PostgreSQL của bạn (`createdb` cần có trong PATH):
-
-```powershell
-createdb -h localhost -U postgres -W brewlite_dev
-```
-
-Chỉnh `DATABASE_URL` trong `.env` theo user/password thực và DB vừa tạo. URL-encode phần password nếu có ký tự đặc biệt. Giữ `NODE_ENV=development` và `PAYMENT_PROVIDER_MODE=MOCK`.
+Helper tạo secret ngẫu nhiên nếu giá trị còn thiếu/placeholder, giữ secret đã có và không in secret ra terminal. Sau khi cấu hình, kiểm tra Prisma và khởi động:
 
 ```powershell
 npm run db:validate
 npm run db:generate
-npm run db:migrate:deploy
-# Chỉ seed khi chủ động chuẩn bị DB development/demo mới:
-npm run db:seed
 npm run dev
 ```
 
-Migration áp dụng schema hiện có; không dùng reset để setup. Seed tạo catalog/khuyến mãi mẫu, **không tạo tài khoản/giao dịch**; seed có thể cập nhật catalog nên không chạy tùy tiện trên DB đang sử dụng. Đăng ký Customer qua UI. Provision Admin/Staff là bước riêng: [hướng dẫn vận hành](Docs/NORMAL_SANDBOX_MODE.md).
+Chờ launcher báo `READY`, mở **http://localhost:3000**. Backend chạy tại `http://127.0.0.1:3001`; liveness tại `http://127.0.0.1:3001/health`. Giữ terminal launcher mở; không chạy thêm server trên cùng port. Nếu PowerShell chặn `npm.ps1`, thay `npm` bằng `npm.cmd`.
 
-Chờ `READY`, mở **http://localhost:3000**. Backend `http://localhost:3001`, health `http://localhost:3001/health`. Giữ terminal launcher mở; không chạy thêm workspace server trên cùng port.
+### Kết nối database dùng chung
+
+Nhóm dùng **một database Neon PostgreSQL 18**, tên **`brewlite_dev`**, qua **Prisma 7**. Schema, migrations và dữ liệu đã được chuyển lên Neon; thành viên **không cần tạo tài khoản Neon riêng, tạo database Neon mới hoặc tạo PostgreSQL database localhost**.
+
+Ví dụ trong root `.env` — các giá trị dưới đây chỉ là placeholder:
+
+```dotenv
+DATABASE_URL="postgresql://USER:PASSWORD@HOST-POOLER/brewlite_dev?sslmode=require"
+DIRECT_URL="postgresql://USER:PASSWORD@HOST-DIRECT/brewlite_dev?sslmode=require"
+```
+
+- `DATABASE_URL`: pooled connection cho backend/Prisma Client.
+- `DIRECT_URL`: direct connection cho Prisma CLI/migration.
+- Cả hai phải trỏ tới **cùng database Neon hiện tại** và bật TLS. Password có ký tự đặc biệt phải được URL-encode.
+- Connection string thật do người quản lý dự án cấp qua kênh riêng. Không công khai URL thật trên GitHub và **không commit `.env`**; [.env.example](.env.example) chỉ giữ giá trị mẫu.
+
+Mọi backend cùng kết nối database này sẽ đọc/ghi **dữ liệu dùng chung**: thay đổi sản phẩm, tồn kho hoặc đơn hàng trên một máy có thể được thấy từ máy khác. Chỉ người được phân công quản lý database áp dụng migration/schema change đã duyệt. Quy trình clone thông thường **không chạy migration, reset, seed hoặc restore** lên Neon. Không dùng database chung cho destructive/financial automated tests.
+
+Chi tiết: [Neon development](Docs/NEON_DEVELOPMENT.md). Tài khoản Admin/Staff được provision riêng theo [hướng dẫn vận hành](Docs/NORMAL_SANDBOX_MODE.md).
 
 ## 8. Environment Configuration
+
+Checkout có `/cart` và `/checkout` riêng; Order mới có thời hạn thanh toán 10 phút, UNKNOWN vẫn giữ để xác minh. Phiên Customer/Admin/Staff khôi phục qua HttpOnly session 7 ngày, JWT trong memory. Migration hiện tại đã được người quản lý triển khai trên Neon chung; thành viên chỉ validate/generate theo mục 7. [Chi tiết nghiệp vụ](Docs/CHECKOUT_SESSION_UPDATE.md). Auth browser dùng proxy cùng origin `/api/auth/*`; `API_INTERNAL_BASE_URL` mặc định `http://127.0.0.1:3001`.
 
 | File | Nơi đọc / mục đích |
 | --- | --- |
 | Root `.env` từ [.env.example](.env.example) | NestJS, Prisma config, CLI và launcher local |
 | Root `.env.vnpay.local` từ [example](.env.vnpay.local.example) | Overlay private chỉ cho `dev:vnpay`; MOCK không đọc |
-| `frontend/.env.local` từ [example](frontend/.env.local.example) | Frontend độc lập; launcher tự cấp API URL local |
+| `frontend/.env.local` từ [example](frontend/.env.local.example) | Override public API URL cho frontend; development mặc định `http://127.0.0.1:3001`, launcher cấp cùng URL |
 
 Backend không yêu cầu `backend/.env`. Không đặt secrets trong `NEXT_PUBLIC_*`. File private được ignore, không đưa lên GitHub.
+
+Next.js đọc `.env*` trong `frontend/`, không đọc root `.env`. Mọi Customer API dùng chung `NEXT_PUBLIC_API_BASE_URL` qua `src/lib/env.ts`. `next.config.ts` cấp URL mặc định chỉ trong development; cấu hình riêng có thể đặt trong `frontend/.env.local`. Với `next build`, phải cấp public API URL trước lúc build (launcher đã cấp); đổi biến khi chạy `next start` không thay URL đã nhúng trong browser bundle, cần build lại. Giữ browser tại `http://localhost:3000` cho đúng `FRONTEND_ORIGIN`/CORS.
+
+Sau khi sửa cấu hình, Next dev tự restart; refresh trang để nạp bundle mới. Nếu chạy frontend standalone khác, restart riêng frontend bằng `npm run dev:frontend`; backend/callback không cần restart cho thay đổi này. Không dừng launcher VNPAY khi còn UNKNOWN cần callback.
 
 | Biến | Ý nghĩa / cấu hình local |
 | --- | --- |
 | `NODE_ENV` | `development`; Sandbox hiện từ chối production |
 | `PORT` | Backend `3001`; frontend `3000` |
 | `FRONTEND_ORIGIN` | `http://localhost:3000`, đúng browser origin cho CORS/Return |
-| `DATABASE_URL` | Placeholder: `postgresql://postgres:YOUR_LOCAL_PASSWORD@localhost:5432/brewlite_dev?schema=public` |
+| `DATABASE_URL` | Neon pooled endpoint, database `brewlite_dev`, TLS; backend Prisma Client |
+| `DIRECT_URL` | Neon direct endpoint cùng database, TLS; Prisma CLI/migration và restore |
 | `JWT_SECRET` | Random tối thiểu 32 byte; dùng helper ở bước cài đặt |
 | `JWT_EXPIRES_IN` | `3600` giây, policy một giờ |
 | `PAYMENT_PROVIDER_MODE` | Mặc định `MOCK`; tùy chọn `VNPAY_SANDBOX` |
@@ -126,6 +147,8 @@ Backend không yêu cầu `backend/.env`. Không đặt secrets trong `NEXT_PUBL
 | `VNPAY_ACCEPT_NEW_PAYMENTS` | `false`: DRAIN_ONLY; `true`: nhận mới khi config/health cho phép |
 
 Launcher chọn provider theo lệnh, cố định port/origin local và quản lý hai cờ Sandbox: bắt đầu DRAIN_ONLY, mở admission sau callback checks. Sửa file không phải hot-toggle và không bỏ qua readiness.
+
+`npm run dev` (MOCK) và `npm run dev:vnpay` đều hỗ trợ Neon. Với VNPAY, đặt `BREWLITE_CALLBACK_ROLE=owner` trên đúng một máy nhận IPN của nhóm; các máy khác dùng `member`, cùng database/profile/IPN/Return đã đăng ký và không mở tunnel riêng. [Cấu hình và kiểm chứng](Docs/VNPAY_NEON.md).
 
 ## 9. Payment Setup — MOCK
 
@@ -142,6 +165,8 @@ npm run dev:restart-backend
 Không cần Merchant, ngrok, public callback hay credentials owner. Ví/Thẻ là giả lập; client không gửi kết quả thành công. Đọc trạng thái đơn để đối chiếu kết quả server.
 
 ## 10. Payment Setup — VNPAY Sandbox (tùy chọn)
+
+Dùng chung Neon **không tự làm VNPAY hoạt động trên mọi máy**. Vẫn cần merchant credentials và callback/IPN hợp lệ, máy callback owner đang sẵn sàng và cấu hình member đúng. `npm run dev` chọn MOCK rõ ràng; chỉ dùng `npm run dev:vnpay` khi Sandbox đã cấu hình và callback có thể kiểm chứng. Sandbox lỗi phải báo lỗi/giữ trạng thái chờ; không tự chuyển MOCK hoặc hiển thị thanh toán thành công.
 
 ### A. Merchant Sandbox
 
@@ -170,7 +195,7 @@ VNPAY_RESULT_URL=http://localhost:3000/payments/vnpay/result
 BREWLITE_NGROK_CONFIG=C:/path/to/private/ngrok.yml
 ```
 
-Ba cờ đầu diễn tả Sandbox sẵn sàng; launcher vẫn tự chuyển DRAIN_ONLY → nhận mới sau checks. `VNPAY_RESULT_URL` tùy chọn nhưng nếu đặt phải đúng URL trên. `VNPAY_ATTEMPT_TTL_SECONDS` hỗ trợ `900` theo contract: hạn từng Attempt, không phải hạn chạy ứng dụng.
+Ba cờ đầu diễn tả Sandbox sẵn sàng; launcher vẫn tự chuyển DRAIN_ONLY → nhận mới sau checks. `VNPAY_RESULT_URL` tùy chọn nhưng nếu đặt phải đúng URL trên. `VNPAY_ATTEMPT_TTL_SECONDS`, nếu khai báo, dùng `600`; Order mới có deadline10 phút cố định. Attempt cũ giữ expiry đã lưu. [Cart độc lập, timeout an toàn và session sau reload](Docs/CHECKOUT_SESSION_UPDATE.md).
 
 `VNPAY_IPN_URL` dùng kiểm tra profile/đăng ký callback, **không gửi dưới dạng `vnp_IpnUrl` trong payment initiation**. `BREWLITE_VNPAY_ENV_FILE` chọn overlay riêng; `BREWLITE_NGROK_BIN` chọn executable khi ngrok không trong PATH. Token ngrok chỉ nằm trong private config.
 
@@ -197,7 +222,7 @@ Nếu MOCK đang chạy, dùng `dev:stop`, chờ dừng an toàn rồi chọn mo
 ### E. Kiểm thử trên giao diện
 
 1. Chỉ bắt đầu khi status báo `READY`, provider `VNPAY_SANDBOX`, `acceptingNewPayments=true`, callback healthy.
-2. Đăng nhập, thêm món; kiểm tra size/topping, promotion, điểm và **tổng cuối cùng** ở Checkout trong trang Giỏ hàng.
+2. Đăng nhập, thêm món tại `/cart`; mở `/checkout` và kiểm tra size/topping, promotion, điểm cùng **tổng cuối cùng**.
 3. Nhấn thanh toán một lần; hoàn tất trên Sandbox bằng thẻ TEST.
 4. Xem result/lịch sử. **Verified IPN** mới settlement; Return chỉ điều hướng/đọc trạng thái.
 5. Hủy được xác minh đưa về Home với thông báo/link xem đơn. Nếu còn `PAYMENT_FAILED`, chỉ retry khi backend cho phép hoặc hủy unpaid hợp lệ để tạo đơn mới. `CANCELLED` cần checkout intent/key mới.
@@ -253,24 +278,24 @@ npm run lint
 npm run build
 ```
 
-Database integration: `npm run test:database`. Suite tạo schema test riêng, cần PostgreSQL local, cấu hình development/test hợp lệ và DB tên kết thúc `_dev` hoặc `_test`. Đọc [database test config](backend/jest.database.config.cjs) và [foundation tests](backend/test/database/foundation.spec.ts) trước khi chạy; đây không phải kiểm tra tài liệu read-only. Generate Prisma Client trước typecheck backend.
+Database integration chỉ dành cho người chuẩn bị môi trường test PostgreSQL **cô lập**, không phải bước clone/chạy ứng dụng. Không chạy `test:database` hoặc browser harness tạo dữ liệu trên Neon chung. Các suite có điều kiện database/schema riêng; đọc [database test config](backend/jest.database.config.cjs) và [foundation tests](backend/test/database/foundation.spec.ts) trước khi cấu hình. Generate Prisma Client trước typecheck backend.
 
 Browser harness/reconciliation có điều kiện riêng, không chạy tùy tiện trên database demo. Con số PASS lịch sử không bảo đảm kết quả trên máy mới. Không cần chạy migrations, seed hay gateway transactions để kiểm tra tài liệu.
 
 ## 14. Git Workflow / Đóng góp
 
-Sau khi repository đã tích hợp và đồng bộ:
+Làm việc trên nhánh được phân công, kiểm tra diff và chỉ stage các file hợp lệ:
 
 ```powershell
-git switch -c docs/ten-cong-viec
+git switch sang
 # Kiểm tra diff và chọn đúng từng path để stage
 git add README.md
 git diff --cached
-git commit -m "docs: mo ta thay doi"
-git push -u origin docs/ten-cong-viec
+git commit -m "docs: update BrewLite setup guide"
+git push -u origin sang
 ```
 
-Tạo Pull Request, review trước merge `main`. Không commit secrets, dump, log/generated artifacts. Không `git add .` khi worktree còn thay đổi chưa phân loại. Lần chuẩn bị này không commit/push; owner quyết định tích hợp hai lịch sử Git trước.
+Review trước khi merge `sang` vào `main`; tuân thủ branch protection và quy trình của nhóm. Không force push, không bỏ qua conflict. Không commit secrets, `.env`, dump, log hoặc generated artifacts; không `git add .` khi worktree còn thay đổi chưa phân loại.
 
 ## 15. Trạng thái dự án
 

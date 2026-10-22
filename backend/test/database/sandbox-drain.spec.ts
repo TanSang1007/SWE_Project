@@ -142,6 +142,54 @@ test.each(['UNKNOWN', 'REVIEW'])('drain preserves%s and reservations, without un
   expect(await snapshot()).toEqual(before);
   expect((await db.product.findUniqueOrThrow({ where: { id: s.f.product } })).stock).toBe(9);
 });
+
+test.each(['expired AWAITING', 'UNKNOWN'])('%s does not block another customer; old Order stays protected and accepts late IPN', async state => {
+  // Move only the test clock at initiation: persisted expiry is immutable.
+  if (state === 'expired AWAITING') jest.useFakeTimers({ now: Date.now() - 20 * 60 * 1000,
+    doNotFake: ['nextTick', 'queueMicrotask', 'hrtime', 'performance', 'setImmediate', 'clearImmediate', 'setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'] });
+  const old = await (async () => { try { return await started(); } finally { jest.useRealTimers(); } })();
+  if (state === 'UNKNOWN') {
+    expect((await ipn(event(old.a, { vnp_ResponseCode: '00', vnp_TransactionStatus: '01' }))).body as unknown).toMatchObject({ RspCode: '99' });
+  }
+  const oldSnapshot = async () => ({
+    order: await db.order.findUniqueOrThrow({ where: { id: old.orderId } }),
+    attempts: await db.paymentAttempt.findMany({ where: { orderId: old.orderId }, orderBy: { id: 'asc' } }),
+    payments: await db.payment.findMany({ where: { orderId: old.orderId } }),
+    receipts: await db.paymentVerification.findMany({ where: { attemptId: old.a.attempt.id }, orderBy: { id: 'asc' } }),
+    loyalty: await db.loyaltyEntry.findMany({ where: { userId: old.f.user }, orderBy: { sequence: 'asc' } }),
+    user: await db.user.findUniqueOrThrow({ where: { id: old.f.user } }),
+    product: await db.product.findUniqueOrThrow({ where: { id: old.f.product } }),
+    cart: await db.cart.findUniqueOrThrow({ where: { userId: old.f.user }, include: { items: true } }),
+  });
+  const before = await oldSnapshot();
+  drain(); await restart();
+  expect(await oldSnapshot()).toEqual(before);
+  settings.set('VNPAY_ACCEPT_NEW_PAYMENTS', true);
+  const status = await request(app.getHttpServer()).get(`/payments/attempts/${old.a.attempt.id}`).set('Authorization', old.f.auth).expect(200);
+  expect(status.body as unknown).toMatchObject({ effectiveState: 'UNKNOWN', canResume: false, canRetry: false, canCancel: false });
+  await initiate(old.f, old.orderId).expect(409);
+  await request(app.getHttpServer()).post(`/orders/${old.orderId}/cancel`).set('Authorization', old.f.auth).expect(409);
+
+  const other = await started(40000, 0);
+  const raw = callback(other.a);
+  expect((await ipn(raw)).body as unknown).toMatchObject({ RspCode: '00' });
+  const paid = await snapshot(); await ipn(raw); expect(await snapshot()).toEqual(paid);
+  expect((await db.order.findUniqueOrThrow({ where: { id: other.orderId } })).status).toBe('PAID');
+  expect(await db.payment.count({ where: { orderId: other.orderId, status: 'SUCCEEDED' } })).toBe(1);
+  expect(await oldSnapshot()).toEqual(before);
+  expect(before.order).toMatchObject({ status: 'PENDING', redemptionState: 'RESERVED' });
+  expect(before.product.stock).toBe(9);
+
+  // Genuine-verification path exercised with a synthetic signature only in the
+  // isolated local database; independent admission must not strand the old IPN.
+  const late = callback(old.a);
+  expect((await ipn(late)).body as unknown).toMatchObject({ RspCode: '00' });
+  expect((await db.order.findUniqueOrThrow({ where: { id: old.orderId } })).status).toBe('PAID');
+  expect((await db.product.findUniqueOrThrow({ where: { id: old.f.product } })).stock).toBe(9);
+  expect(await db.payment.count({ where: { orderId: old.orderId, status: 'SUCCEEDED' } })).toBe(1);
+  expect(await db.loyaltyAward.count({ where: { orderId: old.orderId } })).toBe(1);
+  const settled = await snapshot(); await ipn(late); expect(await snapshot()).toEqual(settled);
+});
 test('Return after drain and signed success remains strictly read-only; status is owner-authorized', async () => {
   const s = await started(); drain(); const before = await snapshot();
   const r = await request(app.getHttpServer()).get('/payments/vnpay/return?' + callback(s.a)).expect(303);

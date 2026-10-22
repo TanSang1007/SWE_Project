@@ -1,5 +1,7 @@
 # BrewLite — REST API
 
+**Amendment được người dùng duyệt 2026-10-22:** [Checkout/session contract](CHECKOUT_SESSION_UPDATE.md) supersede Cart lock/success-clear, Attempt900s và auth không khôi phục phiên ở các baseline lịch sử dưới đây. API mới: GET /orders/active; POST /orders/:id/payment-resume; POST /auth/session, POST /auth/logout. Order DTO bổ sung deadline/server clock; login thêm HttpOnly session và CSRF/origin check. Không thay permission Customer/Admin/Staff hoặc verified-IPN settlement.
+
 Tài liệu mô tả contracts hiện có; các bảng baseline/mock được bổ sung bằng gateway/loyalty/operator contracts. Blueprint PLANNED trong A00/P00 không tự trở thành endpoint đã triển khai. Source controllers là mapping hiện tại, [Traceability](TRACEABILITY_MATRIX.md) ghi phạm vi nghiệm thu.
 
 ## Gateway và Loyalty — mapping hiện hành

@@ -78,7 +78,7 @@ test('detail renders historical options/discount/final money/metadata and never 
   assert.match(render(OrderDetailContent, { order: { ...detail, total: '999999999999' } }), /999\.999\.999\.999/);
 });
 test('unpaid details link to known-ID checkout; cancellation does not claim refund or permit payment', () => {
-  assert(render(OrderDetailContent, { order: { ...detail, status: 'PAYMENT_FAILED', paidAt: null, earnedPoints: null, paymentStatus: 'FAILED' } }).includes(`/cart?orderId=${id}`));
+  assert(render(OrderDetailContent, { order: { ...detail, status: 'PAYMENT_FAILED', paidAt: null, earnedPoints: null, paymentStatus: 'FAILED' } }).includes(`/checkout?orderId=${id}`));
   const cancelled = render(OrderDetailContent, { order: { ...detail, status: 'CANCELLED', earnedPoints: 0 } }); assert(cancelled.includes('không xác nhận việc hoàn tiền')); assert(!cancelled.includes('Tiếp tục tại giỏ hàng'));
 });
 test('known-ID resume never replaces an uncertain original create/payment transport context', () => {

@@ -12,6 +12,7 @@ import { effect, lockOrder, persistEffects, reconcileAccount, validateRedemption
 import { assertGatewayClear, gatewayBlocks, lockAttempts } from '../payments/gateway-policy';
 import { assertVnpayMinimum, effectivePaymentProvider } from '../payments/minimum-payment-policy';
 import { assertPaymentAdmission } from '../payments/payment-admission';
+import { PAYMENT_WINDOW_MS } from '../payments/payment-deadline';
 
 export function normalizeItems(items: OrderItemDto[]) {
   const map = new Map<string, OrderItemDto>();
@@ -50,6 +51,8 @@ function response(order: OrderRow) {
       toppings: item.toppings.map((t) => ({ name: t.toppingNameSnapshot, price: t.priceSnapshot.toFixed(0) })) })),
     subtotal: order.subtotal.toFixed(0), discountAmount: order.discountAmount.toFixed(0), total: order.total.toFixed(0),
     promotionCode: order.promotionCodeSnapshot, createdAt: order.createdAt.toISOString(),
+    paymentStartedAt: order.paymentStartedAt?.toISOString() ?? null, expiresAt: order.paymentExpiresAt?.toISOString() ?? null,
+    paymentExpiredAt: order.paymentExpiredAt?.toISOString() ?? null, cancellationReason: order.cancellationReason ?? null, serverNow: new Date().toISOString(),
     redeemedPoints: order.redeemedPoints, loyaltyDiscountAmount: order.loyaltyDiscountAmount.toFixed(0),
     redemptionState: order.redemptionState, estimatedEarnedPoints: order.total.dividedBy(10000).floor().toNumber() };
 }
@@ -66,7 +69,7 @@ export class OrderService {
     return this.db.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT set_config('lock_timeout', '200ms', true), set_config('statement_timeout', '300ms', true), set_config('TimeZone', 'UTC', true)`;
       return work(tx);
-    }, { maxWait: 50, timeout: 400 });
+    }, this.db.transactionOptions ?? { maxWait: 50, timeout: 400 });
   }
   async create(userId: string, key: string | undefined, input: CreateOrderDto) {
     requireIdempotencyKey(key);
@@ -100,7 +103,10 @@ export class OrderService {
             data: { stock: { decrement: demand.qty }, version: { increment: 1 }, updatedAt: new Date() } });
           if (updated.count !== 1) throw conflict();
         }
+        // VNPAY timestamps have whole-second precision; retain exactly 600s.
+        const startedAt = new Date(Math.floor(Date.now() / 1000) * 1000);
         const order = await tx.order.create({ data: { id, orderCode: `BL-${id.toUpperCase()}`, userId, status: 'PENDING',
+          paymentStartedAt: startedAt, paymentExpiresAt: new Date(startedAt.getTime() + PAYMENT_WINDOW_MS),
           subtotal: priced.subtotal, discountAmount: priced.discountAmount, total: loyalty.total, redeemedPoints: r, loyaltyDiscountAmount: loyalty.discount,
           redemptionState: r > 0 ? 'RESERVED' : 'NONE', reservationCycle: r > 0 ? 1 : 0,
           promotionId: promotion?.id ?? null, promotionCodeSnapshot: promotion?.code ?? null,
@@ -108,6 +114,9 @@ export class OrderService {
             basePrice: item.basePrice, sizeExtraPrice: item.sizeExtraPrice, unitPrice: item.unitPrice, qty: item.qty, lineTotal: item.lineTotal,
             toppings: { create: item.toppings.map((t) => ({ toppingId: t.id, toppingNameSnapshot: t.name, priceSnapshot: t.price })) } })) } }, include });
         if (effects.length) await persistEffects(tx, before, account, effects);
+        // Entire Cart was matched to this snapshot under the user lock. Later
+        // Cart writes cannot be included in this deletion or touched by settlement.
+        await tx.cartItem.deleteMany({ where: { cart: { userId } } });
         const body = response(order);
         await tx.idempotencyRequest.update({ where: { id: claim.id }, data: { state: 'COMPLETED', orderId: id,
           responseStatus: 201, responseBody: body, completedAt: new Date() } });
@@ -151,7 +160,7 @@ export class OrderService {
           earnedPoints: loyalty.total.dividedBy(10000).floor().toNumber(), availablePoints: Number(account.available),
           availablePointsAfterReservation: Number(account.available)-r, reservedPoints: Number(account.reserved),
           outstandingReversalPoints: account.debt.toString(), maxRedeemablePoints: cap };
-      }, { isolationLevel: 'RepeatableRead', maxWait: 50, timeout: 400 });
+      }, { isolationLevel: 'RepeatableRead', ...(this.db.transactionOptions ?? { maxWait: 50, timeout: 400 }) });
     } catch (error) { if (error instanceof HttpException) throw error; throw workflowUnavailable(); }
   }
   async get(userId: string, id: string) {
@@ -160,6 +169,10 @@ export class OrderService {
       if (!order) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
       return detail(order);
     } catch (error) { if (error instanceof HttpException) throw error; throw new ServiceUnavailableException(); }
+  }
+  async active(userId: string) {
+    const order = await this.db.order.findFirst({ where: { userId, status: { in: ['PENDING', 'PAYMENT_FAILED'] } }, include });
+    return { order: order ? detail(order) : null, serverNow: new Date().toISOString() };
   }
   async history(userId: string) {
     try {
@@ -170,7 +183,7 @@ export class OrderService {
         total: order.total.toFixed(0), redeemedPoints: order.redeemedPoints, loyaltyDiscountAmount: order.loyaltyDiscountAmount.toFixed(0), redemptionState: order.redemptionState, currency: 'VND', createdAt: order.createdAt.toISOString(), earnedPoints: earnedPoints(order) })) };
     } catch (error) { if (error instanceof HttpException) throw error; throw new ServiceUnavailableException(); }
   }
-  async cancel(userId: string, id: string) {
+  async cancel(userId: string, id: string, timeout = false) {
     try {
       return await this.transaction(async (tx) => {
         await lockUser(tx, userId);
@@ -178,14 +191,21 @@ export class OrderService {
         const order = await tx.order.findFirst({ where: { id, userId }, include });
         if (!order) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
         if (order.status === 'CANCELLED') return detail(order);
+        if (timeout && (!order.paymentExpiresAt || order.paymentExpiresAt > new Date() || !['PENDING', 'PAYMENT_FAILED'].includes(order.status))) return detail(order);
         if (!['PENDING', 'PAYMENT_FAILED'].includes(order.status)) throw new ConflictException({ code: 'INVALID_ORDER_STATE', message: 'Only unpaid orders can be cancelled' });
-        await lockAttempts(tx, id); assertGatewayClear(await gatewayBlocks(tx, id));
+        await lockAttempts(tx, id);
+        const blocks = await gatewayBlocks(tx, id);
+        if (timeout) {
+          if (!order.paymentExpiredAt) await tx.order.update({ where: { id }, data: { paymentExpiredAt: new Date() } });
+          // Time proves URL expiry, never a financial failure. Preserve late IPN.
+          if (blocks.pending || blocks.receipt || blocks.review) return detail(order);
+        } else assertGatewayClear(blocks);
         const account = await reconcileAccount(tx, userId); const before = { ...account };
         const effects = order.status === 'PENDING' && order.redeemedPoints > 0 ? [effect(account, 'RELEASE', order.redeemedPoints, { orderId: id, cycle: order.reservationCycle })] : [];
         assertTransition(order.status, 'CANCELLED');
         if (order.version >= 2147483647) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Order version bounds exceeded' });
         const changed = await tx.order.updateMany({ where: { id, userId, status: order.status, version: order.version },
-          data: { status: 'CANCELLED', redemptionState: order.redeemedPoints > 0 ? 'RELEASED' : 'NONE', version: { increment: 1 }, updatedAt: new Date() } });
+          data: { status: 'CANCELLED', ...(timeout ? { cancellationReason: 'PAYMENT_TIMEOUT' } : {}), redemptionState: order.redeemedPoints > 0 ? 'RELEASED' : 'NONE', version: { increment: 1 }, updatedAt: new Date() } });
         if (changed.count !== 1) throw conflict();
         if (order.status === 'PENDING') await this.restoreStock(tx, order);
         if (effects.length) await persistEffects(tx, before, account, effects);

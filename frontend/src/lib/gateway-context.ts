@@ -22,8 +22,8 @@ export function gatewayPermission(order: Pick<Order, 'status' | 'total'>, status
   if (!status) return order.status === 'PENDING';
   if (status.requiresReview) return false;
   if (status.effectiveState === 'FAILED') return status.canRetry;
-  const matching = saved && (!saved.attemptId || saved.attemptId === status.attemptId);
-  return status.effectiveState === 'AWAITING' && status.canResume && !!matching;
+  void saved;
+  return status.effectiveState === 'AWAITING' && status.canResume;
 }
 export function nextGatewayIntent(userId: string, order: Pick<Order, 'id' | 'total'>, status: AttemptStatus | null, saved: GatewayContext | null): GatewayContext {
   if (!saved || (status?.effectiveState === 'FAILED' && status.canRetry && !status.requiresReview && saved.attemptId === status.attemptId)) {

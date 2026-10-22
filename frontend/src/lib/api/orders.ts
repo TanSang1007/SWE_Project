@@ -26,6 +26,13 @@ export function parseOrder(value: unknown): Order {
   const money = (v: unknown) => typeof v === 'string' && /^(0|[1-9]\d{0,11})$/.test(v);
   if (!value || typeof value !== 'object') throw new OrderError('UNAVAILABLE');
   const o = value as Order;
+  if (o.expiresAt !== undefined) {
+    const date = (v: unknown) => typeof v === 'string' && Number.isFinite(Date.parse(v));
+    if (!(o.expiresAt === null || date(o.expiresAt)) || !(o.paymentStartedAt === null || date(o.paymentStartedAt))
+      || !date(o.serverNow) || !(o.paymentExpiredAt === null || date(o.paymentExpiredAt))
+      || !(o.cancellationReason === null || typeof o.cancellationReason === 'string')
+      || (o.expiresAt !== null && (!o.paymentStartedAt || Date.parse(o.expiresAt) - Date.parse(o.paymentStartedAt) !== 600000))) throw new OrderError('UNAVAILABLE');
+  }
   if (typeof o.id !== 'string' || !/^[0-9a-f-]{36}$/i.test(o.id) || typeof o.orderCode !== 'string'
     || !['PENDING', 'PAYMENT_FAILED', 'CANCELLED', 'PAID', 'PREPARING', 'READY', 'COMPLETED'].includes(o.status)
     || o.currency !== 'VND' || !money(o.subtotal) || !money(o.discountAmount) || !money(o.total)
@@ -46,7 +53,9 @@ export function parseOrder(value: unknown): Order {
       toppings: i.toppings.map((t) => ({ name: t.name, price: t.price })) };
   });
   return { id: o.id, orderCode: o.orderCode, status: o.status, currency: o.currency, items, subtotal: o.subtotal,
-    discountAmount: o.discountAmount, total: o.total, promotionCode: o.promotionCode, createdAt: o.createdAt, ...loyalty };
+    discountAmount: o.discountAmount, total: o.total, promotionCode: o.promotionCode, createdAt: o.createdAt,
+    ...(o.expiresAt !== undefined ? { paymentStartedAt: o.paymentStartedAt, expiresAt: o.expiresAt, serverNow: o.serverNow,
+      paymentExpiredAt: o.paymentExpiredAt, cancellationReason: o.cancellationReason } : {}), ...loyalty };
 }
 export function orderErrorMessage(error: unknown) {
   const code = error instanceof OrderError ? error.code : 'UNAVAILABLE';

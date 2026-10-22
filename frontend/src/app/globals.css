@@ -226,3 +226,7 @@ button:disabled { opacity: .55; cursor: default; }
   .operations-topbar { padding:14px 20px; } .operations-content { padding:24px 20px; } .operations-root h1 { font-size:28px; }
   .operations-root .order-history-list,.overview-links { grid-template-columns:1fr; }
 }
+/* Pending-order controls remain separate from Cart editing. */
+.pending-order-banner { margin-block: 1.25rem; padding: 1rem; border: 1px solid var(--border, #d6cabc); border-radius: 1rem; }
+dialog[open] { width: min(92vw, 38rem); max-height: 85dvh; overflow: auto; padding: 1.5rem; border: 1px solid #d6cabc; border-radius: 1rem; }
+dialog::backdrop { background: rgb(0 0 0 / 45%); }

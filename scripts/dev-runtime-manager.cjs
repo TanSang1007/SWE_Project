@@ -1,7 +1,9 @@
 const { shouldAccept } = require('./dev-runtime-lib.cjs');
 
 class RuntimeCoordinator {
-  constructor(mode, io) { this.mode = mode; this.io = io; this.draining = false; this.accepting = false; this.status = 'STARTING'; }
+  constructor(mode, io) { this.mode = mode; this.io = io; this.drainReason = null; this.accepting = false; this.status = 'STARTING'; }
+  get draining() { return this.drainReason !== null; }
+  get stopRequested() { return this.drainReason === 'STOP_REQUESTED'; }
   async start() {
     if (this.mode === 'MOCK' && (await this.io.dependencies()).needsCallbacks) throw Error('OUTSTANDING_GATEWAY_USE_VNPAY');
     await this.io.startBackend(false);
@@ -24,15 +26,16 @@ class RuntimeCoordinator {
     }
   }
   async drain() {
-    this.draining = true;
+    // A later drain command must not hide an outstanding shutdown request.
+    if (!this.stopRequested) this.drainReason = 'OPERATOR_DRAIN';
     if (this.mode === 'VNPAY_SANDBOX' && this.accepting) await this.restart(false);
-    this.status = 'DRAIN_ONLY';
+    this.status = this.stopRequested ? 'DRAINING_CALLBACKS_RETAINED' : 'DRAIN_ONLY';
   }
   async check() {
     try {
       await this.io.verifyServices();
       if (shouldAccept({ mode:this.mode, servicesHealthy:true, draining:this.draining }) && !this.accepting) await this.restart(true);
-      this.status = this.draining ? 'DRAIN_ONLY' : 'READY';
+      this.status = this.stopRequested ? 'DRAINING_CALLBACKS_RETAINED' : this.draining ? 'DRAIN_ONLY' : 'READY';
     } catch {
       this.status = 'DEGRADED';
       if (this.mode === 'VNPAY_SANDBOX' && this.accepting) {
@@ -41,6 +44,7 @@ class RuntimeCoordinator {
     }
   }
   async stop() {
+    this.drainReason = 'STOP_REQUESTED';
     await this.drain();
     if (this.mode === 'VNPAY_SANDBOX') {
       const audit = await this.io.dependencies();
@@ -51,7 +55,10 @@ class RuntimeCoordinator {
   }
   async recover() {
     if (this.mode === 'VNPAY_SANDBOX') await this.io.startCallbacks();
-    await this.io.verifyServices(); this.draining = false;
+    // Explicit recovery cancels the operator's drain/stop intent only after
+    // readiness succeeds. Financial dependencies still govern teardown, not
+    // admission of independent Orders; their guards remain in the backend.
+    await this.io.verifyServices(); this.drainReason = null;
     await this.check();
   }
 }

@@ -8,7 +8,7 @@ interface AuthState {
   accessToken: string | null; user: PublicUser | null; expiresAt: number | null;
   signIn: (response: LoginResponse) => void; clear: () => void;
 }
-// Memory only: no persist middleware, cookies, localStorage or sessionStorage.
+// Access JWT stays in memory; HttpOnly session restoration is managed by AuthSession.
 export const useAuthStore = create<AuthState>((set) => ({
   accessToken: null, user: null, expiresAt: null,
   signIn: (response) => {

@@ -167,6 +167,7 @@ model User {
   loyaltyAwards       LoyaltyAward[]
   idempotencyRequests IdempotencyRequest[]
   loyaltyEntries      LoyaltyEntry[]
+  authSessions        AuthSession[]
 
   @@map("users")
 }
@@ -245,6 +246,10 @@ model Promotion {
 }
 
 model Order {
+  paymentStartedAt     DateTime? @map("payment_started_at") @db.Timestamptz(6)
+  paymentExpiresAt     DateTime? @map("payment_expires_at") @db.Timestamptz(6)
+  paymentExpiredAt     DateTime? @map("payment_expired_at") @db.Timestamptz(6)
+  cancellationReason   String? @map("cancellation_reason") @db.VarChar(64)
   paymentAttempts       PaymentAttempt[]
   id                    String                 @id @default(uuid()) @db.Uuid
   orderCode             String                 @unique @map("order_code") @db.Text
@@ -274,6 +279,20 @@ model Order {
 
   @@index([userId, createdAt(sort: Desc), id(sort: Desc)])
   @@map("orders")
+}
+
+model AuthSession {
+  id                String @id @default(uuid()) @db.Uuid
+  userId            String @map("user_id") @db.Uuid
+  tokenHash         String @map("token_hash") @db.Char(64)
+  previousTokenHash String? @map("previous_token_hash") @db.Char(64)
+  expiresAt         DateTime @map("expires_at") @db.Timestamptz(6)
+  revokedAt         DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user              User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@map("auth_sessions")
 }
 
 model OrderItem {

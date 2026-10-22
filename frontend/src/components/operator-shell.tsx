@@ -1,8 +1,9 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useSyncExternalStore, type ReactNode } from 'react';
-import { getAccessToken, useAuthStore } from '../lib/auth-store';
+import { useSyncExternalStore, type ReactNode } from 'react';
+import { useAuthStore } from '../lib/auth-store';
+import { logoutSession } from '../lib/auth-session';
 import { shellAccess } from '../lib/role-policy';
 import type { UserRole } from '../types/auth';
 
@@ -32,10 +33,9 @@ export function OperatorShellContent({ ready, role, authenticated, allowed, path
       <div className="operations-content">{children}</div></div></section>;
 }
 export function OperatorShell({ allowed, children }: { allowed: readonly UserRole[]; children: ReactNode }) {
-  const { user, accessToken, expiresAt, clear } = useAuthStore(); const pathname = usePathname(); const router = useRouter();
+  const { user, accessToken } = useAuthStore(); const pathname = usePathname(); const router = useRouter();
   const ready = useSyncExternalStore(subscribe, clientSnapshot, serverSnapshot);
-  useEffect(() => { getAccessToken(); }, [accessToken]);
-  useEffect(() => { if (!expiresAt) return; const timer = setTimeout(clear, Math.max(0, expiresAt - Date.now())); return () => clearTimeout(timer); }, [expiresAt, clear]);
-  return <OperatorShellContent ready={ready} role={user?.role} email={user?.email} logout={() => { clear(); router.replace('/login'); }} authenticated={!!accessToken} allowed={allowed} pathname={pathname}>
+
+  return <OperatorShellContent ready={ready} role={user?.role} email={user?.email} logout={() => { void logoutSession().then(() => router.replace('/login')).catch(() => window.alert('Chưa đăng xuất được. Vui lòng thử lại.')); }} authenticated={!!accessToken} allowed={allowed} pathname={pathname}>
     {children}</OperatorShellContent>;
 }

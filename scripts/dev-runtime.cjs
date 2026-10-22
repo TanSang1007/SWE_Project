@@ -63,8 +63,9 @@ async function start(mode) {
   const report = () => ({ mode, status:coordinator?.status || 'BUILDING', launcherPid:process.pid,
     acceptingNewPayments:coordinator?.accepting ?? false, backend:backendSnapshot,
     processes:Object.fromEntries(Object.entries(owned).map(([kind,c]) => [kind,{pid:c.pid,alive:alive(c)}])),
-    frontend:'http://localhost:3000', callback, automaticSessionExpiry:false, attemptLimit:null,
-    draining:coordinator?.draining ?? false });
+    frontend:'http://localhost:3000', callbackRole:config?.callbackRole, callback, automaticSessionExpiry:false, attemptLimit:null,
+    draining:coordinator?.draining ?? false, drainReason:coordinator?.drainReason ?? null,
+    stopRequested:coordinator?.stopRequested ?? stopRequested });
   function own(kind, executable, args, env, ipc = false, cwd = root) {
     if (alive(owned[kind])) throw runtimeError('OWNED_PROCESS_ALREADY_RUNNING_' + kind);
     const options = { cwd, env, windowsHide:true, detached:process.platform === 'win32', stdio:ipc ? ['ignore','pipe','pipe','ipc'] : ['ignore','pipe','pipe'] };
@@ -93,6 +94,10 @@ async function start(mode) {
     backendSnapshot = { ...ready, pid:child.pid }; await health('http://127.0.0.1:3001');
   }
   async function startCallbacks() {
+    if (config.callbackRole === 'member') {
+      callback = await callbackSmoke(config.callbackOrigin);
+      return;
+    }
     if (!alive(owned.ingress)) {
       await assertPortsFree([3102]); own('ingress',path.join(root,'backend/dist/callback-ingress/main.js'),[],config.env);
       const deadline=Date.now()+10000;
@@ -115,7 +120,7 @@ async function start(mode) {
     const front = await fetch('http://127.0.0.1:3000',{signal:AbortSignal.timeout(5000)});await front.body?.cancel();
     if(front.status!==200)throw runtimeError('FRONTEND_HEALTH_FAILED');
     if (mode === 'VNPAY_SANDBOX') {
-      if(!alive(owned.ingress)||!alive(owned.ngrok))throw runtimeError('OWNED_CALLBACK_EXITED');
+      if(config.callbackRole === 'owner' && (!alive(owned.ingress)||!alive(owned.ngrok)))throw runtimeError('OWNED_CALLBACK_EXITED');
       const r=await fetch(config.callbackOrigin+'/payments/vnpay/return',{redirect:'manual',headers:{Accept:'application/json'},signal:AbortSignal.timeout(6000)});await r.body?.cancel();
       if(r.status!==303||r.headers.get('location')!=='http://localhost:3000/payments/vnpay/result')throw runtimeError('PUBLIC_CALLBACK_UNHEALTHY');
       callback={healthy:true,checkedAt:new Date().toISOString()};
@@ -136,8 +141,9 @@ async function start(mode) {
     void serialize(async()=>{const r=await shutdown();if(!r.stopped)console.log('STOP REFUSED: drain enabled; callbacks retained. Use npm run dev:status.');});
   });
   try {
-    await assertPortsFree(mode==='VNPAY_SANDBOX'?[3000,3001,3102,4040]:[3000,3001]);
-    const baseEnv={...process.env,NEXT_PUBLIC_API_BASE_URL:'http://localhost:3001',NEXT_TELEMETRY_DISABLED:'1'};delete baseEnv.NODE_OPTIONS;
+    // Callback ports are checked only by the designated owner in startCallbacks.
+    await assertPortsFree([3000,3001]);
+    const baseEnv={...process.env,NEXT_PUBLIC_API_BASE_URL:'http://127.0.0.1:3001',NEXT_TELEMETRY_DISABLED:'1'};delete baseEnv.NODE_OPTIONS;
     await build('prisma/build/index.js',['generate'],path.join(root,'backend'),baseEnv,'prisma-client');
     await build('@nestjs/cli/bin/nest.js',['build'],path.join(root,'backend'),baseEnv,'backend');
     config=loadConfiguration(root,mode);frontendBuild=sourceCopy();

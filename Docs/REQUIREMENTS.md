@@ -1,5 +1,7 @@
 # BrewLite — Yêu cầu và phạm vi
 
+**User-approved amendment 2026-10-22:** [Checkout/session update](CHECKOUT_SESSION_UPDATE.md) triển khai thời hạn600s, Cart vẫn CRUD trong lúc có unpaid Order (chỉ chặn checkout mới cùng user), `/checkout` riêng và khôi phục phiên Customer/Admin/Staff. Các mô tả Cart khóa/payment-success-clear và JWT memory-only bên dưới là baseline lịch sử đã được amendment supersede; PDF không sửa.
+
 PDF là baseline bất biến. Các bảng FR01–16/NFR01–10/BR01–14 và graph dưới đây giữ nội dung nguồn đã phân tích; chúng không đồng nghĩa tất cả đã nghiệm thu.
 
 **Thiết kế hiện hành được owner duyệt bổ sung:** B08 Cart authenticated PostgreSQL thay strategy client persistence; D31 một active unpaid Order/user; A01–A06/UI01 mở rộng CUSTOMER/STAFF/ADMIN; L00/L01 redemption/journal/debt; P00/P01 VNPAY Sandbox optional. A07 Campaign/Admin Promotion Management đã hủy, promotion B13 vẫn còn. Các giới hạn “không staff/đổi điểm/webhook” ở phần baseline chỉ mô tả phạm vi PDF trước extension, không phủ nhận source hiện tại.

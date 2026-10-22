@@ -1,5 +1,7 @@
 # BrewLite — Cấu trúc repository
 
+Amendment2026-10-22: Customer có thêm `/checkout` độc lập `/cart`; `auth/session.service.ts`, `orders/payment-expiration.worker.ts`, `payments/payment-receipt.worker.ts`, frontend `auth-session`, `checkout-view`, `pending-order`, `payment-countdown`. [Contract/source/test mapping](CHECKOUT_SESSION_UPDATE.md).
+
 Cây dưới đây mô tả source hiện có, không phải blueprint tạo thư mục trong tương lai.
 Một npm workspace root quản lý hai ứng dụng; không có Dockerfile/Compose hoặc CI workflow trong cây hiện tại.
 

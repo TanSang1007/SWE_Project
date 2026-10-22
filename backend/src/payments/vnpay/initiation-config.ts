@@ -20,12 +20,15 @@ export function initiationSettings(values: Record<string, unknown>): {
         if (values.VNPAY_INITIATION_TEST_ONLY !== undefined && values.VNPAY_INITIATION_TEST_ONLY !== 'false')
             throw Error('Incompatible VNPAY test configuration');
         let database: URL;
-        try { database = new URL(String(values.DATABASE_URL)); } catch { throw Error('Invalid local Sandbox database'); }
-        if (!['postgresql:', 'postgres:'].includes(database.protocol) || !['localhost', '127.0.0.1', '[::1]'].includes(database.hostname))
-            throw Error('Sandbox development requires a local database');
+        try { database = new URL(String(values.DATABASE_URL)); } catch { throw Error('Invalid Sandbox database'); }
+        const local = ['localhost', '127.0.0.1', '[::1]'].includes(database.hostname);
+        const neon = database.hostname.endsWith('.neon.tech') && database.hostname.includes('-pooler.')
+            && database.pathname === '/brewlite_dev' && ['require', 'verify-full'].includes(database.searchParams.get('sslmode') ?? '');
+        if (!['postgresql:', 'postgres:'].includes(database.protocol) || !(local || neon))
+            throw Error('Sandbox development requires a local database or TLS pooled Neon brewlite_dev');
         if (Number(values.PORT ?? 3001) !== 3001 || (values.FRONTEND_ORIGIN ?? 'http://localhost:3000') !== 'http://localhost:3000'
             || (values.VNPAY_RESULT_URL !== undefined && values.VNPAY_RESULT_URL !== 'http://localhost:3000/payments/vnpay/result')
-            || (values.VNPAY_ATTEMPT_TTL_SECONDS !== undefined && values.VNPAY_ATTEMPT_TTL_SECONDS !== '900'))
+            || (values.VNPAY_ATTEMPT_TTL_SECONDS !== undefined && values.VNPAY_ATTEMPT_TTL_SECONDS !== '600'))
             throw Error('Invalid local Sandbox result or validity configuration');
         return { PAYMENT_PROVIDER_MODE: mode, VNPAY_INITIATION_CONFIG: parseVnpayConfig(env), VNPAY_SANDBOX_ENABLED: true,
             VNPAY_ACCEPT_NEW_PAYMENTS: accept === 'true' || accept === true };
@@ -48,7 +51,7 @@ export function initiationSettings(values: Record<string, unknown>): {
     const config = parseVnpayConfig(env);
     if (config.merchantCode !== 'TEST0001' || !config.hashSecret.startsWith('synthetic-b2a-')
         || new URL(config.returnUrl).hostname !== 'callback.example.org'
-        || (values.VNPAY_ATTEMPT_TTL_SECONDS !== undefined && values.VNPAY_ATTEMPT_TTL_SECONDS !== '900'))
+        || (values.VNPAY_ATTEMPT_TTL_SECONDS !== undefined && values.VNPAY_ATTEMPT_TTL_SECONDS !== '600'))
         throw deny();
     return { PAYMENT_PROVIDER_MODE: mode, VNPAY_INITIATION_CONFIG: config,
         VNPAY_ACCEPT_NEW_PAYMENTS: accept === undefined || accept === 'true' || accept === true };

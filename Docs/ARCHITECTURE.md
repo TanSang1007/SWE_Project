@@ -1,5 +1,7 @@
 # BrewLite — Kiến trúc hệ thống
 
+**Amendment hiện hành 2026-10-22:** [Checkout/session](CHECKOUT_SESSION_UPDATE.md) bổ sung DB deadline + expiration/verified-receipt workers, Cart tách khỏi settlement và session HttpOnly có rotation/revocation qua Next same-origin proxy. Các mô tả Cart lock/memory-only auth bên dưới cần đọc cùng amendment; QueryDr external vẫn OFF.
+
 ## 1. Kiến trúc hiện hành
 
 BrewLite là modular monolith: Next.js App Router gọi REST/JSON NestJS; Prisma dùng PostgreSQL qua adapter-pg. Một repository, hai npm workspaces, một database. Không có queue/cache/microservice hoặc distributed transaction.
@@ -8,7 +10,7 @@ BrewLite là modular monolith: Next.js App Router gọi REST/JSON NestJS; Prisma
 flowchart LR
     Browser[Browser localhost:3000] --> FE[Next.js]
     Browser --> BE[NestJS loopback:3001]
-    BE --> DB[(PostgreSQL local)]
+    BE --> DB[(PostgreSQL 18: Neon shared / local)]
     Browser --> VNPAY[VNPAY Sandbox]
     VNPAY --> HTTPS[Registered HTTPS callback]
     HTTPS --> Ingress[Callback ingress loopback:3102]
@@ -16,6 +18,10 @@ flowchart LR
 ```
 
 Ingress chỉ chuyển tiếp hai callback GET, không công khai API business/Admin/database. Return browser và IPN provider có cùng transport nhưng khác quyền settlement. Xem [boundary ingress](P01D1_LOCAL_CALLBACK_INGRESS.md).
+
+Development dùng Neon hỗ trợ cả MOCK và VNPAY Sandbox. Với Merchant dùng chung, một máy `owner` duy trì callback HTTPS/ingress và nhận IPN cho mọi thành viên; các máy `member` chạy frontend/backend riêng, cùng Neon và cùng verification profile, chỉ kiểm tra endpoint HTTPS chung. Return tới callback owner rồi điều hướng về localhost trên browser của người trả tiền. [Chi tiết Neon](VNPAY_NEON.md).
+
+Normal launcher tách admission khỏi teardown safety: UNKNOWN/receipt/reservation giữ `safeToStop=false` nhưng không tự đóng admission cho Order độc lập. Explicit drain/stop có lý do riêng, giữ đóng qua monitor; `dev:recover` là thao tác operator hủy ý định drain/stop sau readiness checks, không phải financial reconciliation. Backend vẫn áp guards theo Order và owner. [Quy trình phục vụ lại và cập nhật launcher](NORMAL_SANDBOX_MODE.md).
 
 ## 2. Module và quyền ghi
 
