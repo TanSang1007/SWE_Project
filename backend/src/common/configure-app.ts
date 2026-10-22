@@ -33,7 +33,7 @@ export function configureApp(app: NestExpressApplication): void {
   });
   app.enableCors({
     origin: config.getOrThrow<string>('FRONTEND_ORIGIN'),
-    allowedHeaders: ['Authorization', 'Content-Type', 'Idempotency-Key'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'Idempotency-Key', 'X-BrewLite-CSRF'],
     exposedHeaders: ['Idempotency-Replayed'],
   });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));

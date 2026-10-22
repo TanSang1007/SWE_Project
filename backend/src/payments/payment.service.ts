@@ -9,6 +9,7 @@ import { requireIdempotencyKey, replayResult } from '../common/idempotency';
 import { assertTransition } from '../orders/order-state';
 import { effect, lockOrder, persistEffects, reconcileAccount, reservationGate, type Effect } from '../loyalty/loyalty-accounting';
 import { ConfigService } from '@nestjs/config';
+import { assertPaymentWindow } from './payment-deadline';
 import { lockAttempts } from './gateway-policy';
 const maxInt = 2147483647;
 const conflict = () => new ConflictException({ code: 'CONCURRENT_UPDATE', message: 'Data changed; read the current order and try again' });
@@ -22,7 +23,7 @@ export class PaymentService {
     return this.db.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT set_config('lock_timeout', '200ms', true), set_config('statement_timeout', '300ms', true), set_config('TimeZone', 'UTC', true)`;
       return work(tx);
-    }, { maxWait: 50, timeout: 400 });
+    }, this.db.transactionOptions ?? { maxWait: 50, timeout: 400 });
   }
   private async transition(tx: Prisma.TransactionClient, order: Order, status: 'PENDING' | 'PAID' | 'PAYMENT_FAILED') {
     assertTransition(order.status, status);
@@ -45,18 +46,6 @@ export class PaymentService {
         data: { stock: restore ? { increment: qty } : { decrement: qty }, version: { increment: 1 }, updatedAt: new Date() } });
       if (changed.count !== 1) throw conflict();
     }
-  }
-  private async clearPurchased(tx: Prisma.TransactionClient, order: Order) {
-    const cart = await tx.cart.findUnique({ where: { userId: order.userId } });
-    if (!cart) throw unavailable();
-    for (const item of order.items) {
-      const configurationKey = [item.productId, item.size, ...item.toppings.map((t) => t.toppingId).sort()].join(':');
-      const row = await tx.cartItem.findUnique({ where: { cartId_configurationKey: { cartId: cart.id, configurationKey } } });
-      if (!row || row.qty < item.qty) throw unavailable();
-      if (row.qty === item.qty) await tx.cartItem.delete({ where: { id: row.id } });
-      else await tx.cartItem.update({ where: { id: row.id }, data: { qty: { decrement: item.qty } } });
-    }
-    await tx.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } });
   }
   async pay(userId: string, key: string | undefined, input: PaymentDto) {
     requireIdempotencyKey(key);
@@ -83,6 +72,7 @@ export class PaymentService {
         }
         if (['PAID', 'PREPARING', 'READY', 'COMPLETED'].includes(order.status)) throw new ConflictException({ code: 'ORDER_ALREADY_PAID', message: 'Read the current order; payment already succeeded' });
         if (!['PENDING', 'PAYMENT_FAILED'].includes(order.status)) throw new ConflictException({ code: 'INVALID_ORDER_STATE', message: 'Order does not allow payment' });
+        assertPaymentWindow(order);
         const account = await reconcileAccount(tx, userId); const before = { ...account };
         reservationGate(account, order.redeemedPoints);
         if (order.redeemedPoints > 0 && order.status === 'PAYMENT_FAILED' && account.available < BigInt(order.redeemedPoints)) {
@@ -113,7 +103,6 @@ export class PaymentService {
           awardedPoints = points.toNumber(); // Exact integer within PostgreSQL INTEGER bounds.
           await tx.loyaltyAward.create({ data: { orderId: order.id, userId, points: awardedPoints } });
           credit = effect(account, 'EARN', awardedPoints, { orderId: order.id, paymentId }); effects.push(credit);
-          await this.clearPurchased(tx, order);
         } else await this.stock(tx, order, true);
         if (effects.length) await persistEffects(tx, before, account, effects);
         const body = { payment: { id: payment.id, orderId: order.id, status: payment.status, amount: payment.amount.toFixed(0), method: payment.method,

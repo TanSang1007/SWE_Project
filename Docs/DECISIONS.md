@@ -1,5 +1,19 @@
 # BrewLite — Quyết định thiết kế
 
+## Checkout expiry, independent Cart, persistent auth — ACCEPTED USER / TECHNICAL (2026-10-22)
+
+Người dùng giao triển khai deadline10 phút, Cart độc lập và persistent auth cho3 roles. [Contract cập nhật](CHECKOUT_SESSION_UPDATE.md) supersede D19/B07 memory-only session, D31/B10 khóa Cart và clear Cart khi Payment success, cùng P00 TTL900s. Snapshot và lấy các CartItem hiện tại diễn ra atomically ở create Order; settlement không chạm Cart mới. PostgreSQL lưu deadline, worker catch-up sau restart, không force FAILED/CANCELLED UNKNOWN. VNPAY expiry GMT+7 và verified-IPN/QueryDr OFF giữ nguyên. Quyết định kỹ thuật: JWT3600s memory + opaque HttpOnly rotating session absolute7 ngày, hash DB, sid revocation, same-origin Next auth proxy + exact Origin/custom CSRF header. Migration additive, không đổi PDF hoặc cập nhật dữ liệu tài chính lịch sử.
+
+## VNPAY Sandbox + Neon — ACCEPTED USER / TECHNICAL (2026-10-21)
+
+Owner giao mở VNPAY Sandbox development với database Neon dùng chung trên `sang`. Thay giới hạn hostname-local bằng local **hoặc** pooled Neon `.neon.tech`, database `brewlite_dev`, TLS require/verify-full. Production và synthetic-test gate giữ nguyên; Prisma CLI tiếp tục direct `DIRECT_URL`. Merchant dùng một callback HTTPS đã đăng ký và một backend owner; member không chạy ngrok riêng. Chọn vai trò qua private `BREWLITE_CALLBACK_ROLE` khi dùng Neon, không có stage/Gate/session/Attempt quota.
+
+Đo 20 SELECT tuần tự trên Neon: 626 ms, nên deadline local 400 ms không phù hợp remote I/O. Order/payment/Attempt/IPN/zero/Return trên Neon dùng bounded maxWait 2000 ms, transaction timeout 5000 ms; local giữ 50/400 ms. SQL lock timeout 200 ms, statement timeout 300 ms, UTC và mọi lock order/idempotency/OCC/constraint/rollback/receipt/UNKNOWN/REVIEW giữ nguyên; không auto retry hoặc network gateway trong transaction. Đây là điều chỉnh kỹ thuật cho latency, không thay money/state contract hay tuyên bố NFR01 đạt trên Neon. Không đổi schema/migrations, không seed/restore hoặc test-write lên Neon. [Bằng chứng và thao tác](VNPAY_NEON.md).
+
+## Neon development dùng chung — ACCEPTED USER (2026-10-21)
+
+Owner giao chuyển nguyên database local `brewlite_dev` sang Neon PostgreSQL 18 trên branch `sang`. Backend giữ PrismaPg với pooled `DATABASE_URL`; Prisma 7 CLI dùng direct `DIRECT_URL` theo [Prisma connection documentation](https://docs.prisma.io/docs/orm/prisma-client/setup-and-configuration/databases-connections). Launcher MOCK cho phép Neon có TLS. VNPAY Sandbox giữ guard database local; không đổi financial contract, schema, migrations hoặc business logic. Local giữ nguyên làm dự phòng. Không seed/migrate lại database đã restore; thành viên nhận credentials qua kênh riêng. [Kết quả và cách dùng](NEON_DEVELOPMENT.md).
+
 Giữ ID để truy vết quyết định người dùng và quyết định kỹ thuật. Các D29/D30 có nhãn theo checkpoint (B04/B07 và B08/B09); dùng cả tên/nhãn để phân biệt. Không xem ACCEPTED design là bằng chứng test/implementation.
 
 Thứ tự đọc hiện hành: D35/D40 mở rộng role/operator; D43/D44 thêm redemption/journal; D46 hủy A07; P00 + attribution amendment + minimum/admission bên dưới mở rộng gateway; Normal launcher thay cơ chế one-attempt/30 phút cho vận hành local. PDF và state graph không đổi.
@@ -408,3 +422,19 @@ are optional for VNPAY; default MOCK reads no merchant overlay and uses no tunne
 No default remote DB/production gate relaxation or staging deployment. Unsafe stop
 retains callbacks/profile; service recovery never forces a payment outcome.
 [Operation](NORMAL_SANDBOX_MODE.md), tests (báo cáo/evidence lịch sử đã dọn; hướng dẫn hiện hành tại [Normal Mode](NORMAL_SANDBOX_MODE.md)).
+
+## Normal Sandbox admission and safe shutdown — ACCEPTED USER (2026-10-21)
+
+Owner requests that an unresolved Attempt must not interrupt independent customers.
+Existing financial contracts and per-Order guards remain unchanged. Dependency
+counts govern safe teardown, not healthy VNPAY admission. AWAITING expired/UNKNOWN
+retains inventory/redemption reservations and callback verification; another Order
+may proceed under its own stock, ownership, idempotency and gateway guards.
+
+Coordinator records OPERATOR_DRAIN versus STOP_REQUESTED; healthy monitoring must
+preserve active stop intent and callback-retention status. Explicit dev:recover
+cancels operator drain/stop intent after callback/service readiness checks, even
+when safeToStop=false. Automatic health recovery never cancels explicit intent.
+No financial writes, QueryDr activation, quota or session gate is part of recovery.
+Existing running parent is not hot-reloaded; use its existing recovery path and
+defer replacing it until safe shutdown. See [operation](NORMAL_SANDBOX_MODE.md).

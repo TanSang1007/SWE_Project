@@ -9,7 +9,7 @@ import { formatVnd } from '../lib/money';
 import type { Cart, CartInput, CartItem } from '../types/cart';
 import type { ProductDetail } from '../types/catalog';
 import { CartOptions } from './cart-options';
-import { OrderCheckout } from './order-checkout';
+import { PendingOrderBanner } from './pending-order';
 export function CartView({ orderId }: { orderId?: string } = {}) {
   const token = useAuthStore((s) => s.accessToken);
   return <CartSession key={`${token ?? 'guest'}:${orderId ?? ''}`} orderId={orderId} />;
@@ -17,7 +17,6 @@ export function CartView({ orderId }: { orderId?: string } = {}) {
 function CartSession({ orderId }: { orderId?: string }) {
   const token = useAuthStore((s) => s.accessToken); const cart = useCartStore((s) => s.cart);
   const [busy, setBusy] = useState(false); const [error, setError] = useState('');
-  const [orderLocked, setOrderLocked] = useState(false);
   const [editing, setEditing] = useState<{ item: CartItem; product: ProductDetail } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   useEffect(() => { if (token) void useCartStore.getState().load().catch((e) => { if (useAuthStore.getState().accessToken === token) setError(cartErrorMessage(e)); }); }, [token]);
@@ -45,8 +44,9 @@ function CartSession({ orderId }: { orderId?: string }) {
     <button disabled={busy} onClick={() => { setError(''); void useCartStore.getState().load().catch((e) => setError(cartErrorMessage(e))); }}>Tải lại giỏ</button>
     {!cart && !error && <p role="status">Đang tải giỏ…</p>}
     {pendingDelete && <aside role="alert"><p>Cấu hình mới đã được thêm. Dòng cũ chưa xóa được; cả hai vẫn còn trong giỏ.</p><button disabled={busy} onClick={() => void mutate('DELETE', pendingDelete)}>Thử xóa dòng cũ</button></aside>}
-    {cart && <CartItems cart={cart} locked={busy || orderLocked || !!pendingDelete || !!editing} onQuantity={(item, qty) => void mutate('PATCH', item.id, qty)} onEdit={(item) => void beginEdit(item)} onRemove={(item) => void mutate('DELETE', item.id)} />}
-    <OrderCheckout cart={cart} disabled={busy || !!pendingDelete || !!editing} onLock={setOrderLocked} resumeOrderId={orderId} />
+    {cart && <CartItems cart={cart} locked={busy || !!pendingDelete || !!editing} onQuantity={(item, qty) => void mutate('PATCH', item.id, qty)} onEdit={(item) => void beginEdit(item)} onRemove={(item) => void mutate('DELETE', item.id)} />}
+    <PendingOrderBanner />
+    <Link className="button" href="/checkout">Tiến hành thanh toán</Link>
     {editing && <section className="cart-editor"><h2>Chỉnh sửa {editing.item.productName}</h2>
       <CartOptions key={editing.item.id} product={editing.product} initial={{ productId: editing.item.productId, size: editing.item.size, toppingIds: editing.item.toppings.map((t) => t.id), qty: editing.item.qty }} busy={busy} showQuantity={false} onConfirm={(input) => void edit(input)} label="Lưu thay đổi" />
       <button disabled={busy} onClick={() => setEditing(null)}>Hủy chỉnh sửa</button></section>}

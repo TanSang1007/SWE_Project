@@ -106,7 +106,7 @@ test('network timeout/replay preserves exact intent; no key replacement for unce
   assert.equal(ctx.nextGatewayIntent(id, order, null, saved), saved);
   assert.equal(ctx.nextGatewayIntent(id, order, pending, saved), saved);
   for (const state of ['UNKNOWN', 'REVIEW']) assert.equal(ctx.gatewayPermission(order, { ...pending, effectiveState: state, canRetry: true, canResume: true }, saved), false);
-  assert(ctx.gatewayPermission(order, pending, saved)); assert(!ctx.gatewayPermission(order, pending, null));
+  assert(ctx.gatewayPermission(order, pending, saved)); assert(ctx.gatewayPermission(order, pending, null)); // Backend resume restores the existing URL without a stored key.
 });
 test('new intent only for explicit backend-authorized terminal retry, zero is separate', () => {
   const failed = { ...pending, effectiveState: 'FAILED', canRetry: true, applicationState: 'APPLIED', paymentId: other };

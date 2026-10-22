@@ -15,6 +15,11 @@ type AuthRequest = Request & {
 @Roles('CUSTOMER')
 export class AttemptController {
     constructor(private readonly attempts: AttemptService) { }
+    @Post('orders/:id/payment-resume')
+    @Header('Cache-Control', 'private, no-store, max-age=0')
+    resume(@Req() req: AuthRequest, @Param() p: AttemptOrderParamsDto, @Body() body: AttemptEmptyDto, @Query() query: AttemptEmptyDto) {
+        void body; void query; return this.attempts.resume(req.user.id, p.id.toLowerCase());
+    }
     @Post('payments/vnpay/attempts')
     @Header('Cache-Control', 'private, no-store, max-age=0')
     async initiate(

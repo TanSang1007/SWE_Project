@@ -34,7 +34,8 @@ test('successful login parses only public user fields and writes memory state', 
   let requested;
   globalThis.fetch = async (url, options) => { requested = { url, options }; return new Response(JSON.stringify({ ...response, user: { ...user, passwordHash: 'discarded' } })); };
   const result = await api.login(credentials); assert.deepEqual(result, response);
-  assert.equal(requested.url, 'http://example.invalid/auth/login'); assert.equal(requested.options.method, 'POST');
+  assert.equal(requested.url, '/api/auth/login'); assert.equal(requested.options.method, 'POST');
+  assert.equal(requested.options.credentials, 'same-origin'); assert.equal(requested.options.headers['X-BrewLite-CSRF'], '1');
   assert.equal(JSON.parse(requested.options.body).password, credentials.password);
   useAuthStore.getState().signIn(result); assert.equal(getAccessToken(), token); assert.deepEqual(useAuthStore.getState().user, user);
   useAuthStore.getState().clear(); assert.equal(getAccessToken(), null);

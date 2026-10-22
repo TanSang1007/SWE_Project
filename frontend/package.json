@@ -8,7 +8,7 @@
     "start": "next start --hostname 127.0.0.1 --port 3000",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/catalog.test.mjs test/auth.test.mjs test/cart.test.mjs test/orders.test.mjs test/payments.test.mjs test/checkout.test.mjs test/promotions.test.mjs test/loyalty.test.mjs test/order-history.test.mjs test/rbac.test.mjs test/operator-orders.test.mjs test/operator-workflow.test.mjs test/admin-products.test.mjs test/ui01.test.mjs test/admin-options.test.mjs test/admin-inventory.test.mjs test/loyalty-redemption.test.mjs test/gateway-payments.test.mjs",
+    "test": "node --test test/env.test.mjs test/auth-session.test.mjs test/catalog.test.mjs test/auth.test.mjs test/cart.test.mjs test/orders.test.mjs test/payments.test.mjs test/checkout.test.mjs test/promotions.test.mjs test/loyalty.test.mjs test/order-history.test.mjs test/rbac.test.mjs test/operator-orders.test.mjs test/operator-workflow.test.mjs test/admin-products.test.mjs test/ui01.test.mjs test/admin-options.test.mjs test/admin-inventory.test.mjs test/loyalty-redemption.test.mjs test/gateway-payments.test.mjs",
     "test:loyalty-redemption:browser": "node test/browser-verify.mjs --loyalty-redemption --evidence-prefix=L01",
     "test:inventory:browser": "node test/browser-verify.mjs --inventory --evidence-prefix=A06",
     "test:options:browser": "node test/browser-verify.mjs --options --evidence-prefix=A05",

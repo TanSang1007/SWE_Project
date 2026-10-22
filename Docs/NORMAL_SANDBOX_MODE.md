@@ -4,7 +4,7 @@
 
 ## 1. Setup và lệnh sử dụng
 
-Làm [setup clone mới trong README](../README.md) trước: Node/npm đúng engines, `npm ci`, PostgreSQL local, root `.env`, JWT secret riêng, Prisma generate/migrations và catalog seed khi chủ động chuẩn bị DB demo mới. Launcher không migrate/seed/reset database.
+Làm [setup clone mới trong README](../README.md) trước: Node/npm đúng engines, `npm ci`, root `.env`, JWT secret riêng, Prisma generate và database Neon đã được cấp quyền (hoặc PostgreSQL local riêng). Database chung đã có schema/dữ liệu; không seed/migrate/reset lại để setup. Launcher không migrate/seed/reset database.
 
 Chạy từ npm workspace root trong PowerShell:
 
@@ -37,19 +37,23 @@ Cần Merchant được cấp quyền, `VNPAY_ENV=SANDBOX`, `VNPAY_VERSION=2.1.0
 
 Cài ngrok và cấu hình token riêng, đặt `BREWLITE_NGROK_CONFIG` trỏ private agent config. `BREWLITE_NGROK_BIN` tùy chọn khi không có trong PATH. Không ghi token, key hay signed payment URL vào tài liệu/log. `.env.vnpay.local.example` chỉ có hostname/path placeholder.
 
-`VNPAY_RESULT_URL` tùy chọn, nếu đặt phải đúng `http://localhost:3000/payments/vnpay/result`. `VNPAY_ATTEMPT_TTL_SECONDS=900` là hạn từng Attempt, không phải hạn ứng dụng. Sandbox hiện chỉ cho development/local DB; production guard vẫn từ chối. Không bật external QueryDr.
+`VNPAY_RESULT_URL` tùy chọn, nếu đặt phải đúng `http://localhost:3000/payments/vnpay/result`. `VNPAY_ATTEMPT_TTL_SECONDS=900` là hạn từng Attempt, không phải hạn ứng dụng. Sandbox chỉ cho development với database local hoặc Neon pooled `brewlite_dev` có TLS; production guard vẫn từ chối. Không bật external QueryDr.
 
-Không đổi key/callback/profile khi còn Attempt cần verification bằng profile cũ. Mỗi thành viên phải có callback được đăng ký tương ứng; launcher không đăng ký URL hoặc chọn Merchant thay người dùng.
+Không đổi key/callback/profile khi còn Attempt cần verification bằng profile cũ. Với Neon, bắt buộc chọn `BREWLITE_CALLBACK_ROLE=owner|member`: đúng một máy owner dùng ngrok config private và giữ IPN/Return Merchant hiện có; các máy khác dùng member, cùng database/merchant/key/callback profile, không mở ngrok/ingress riêng. Launcher member kiểm tra HTTPS chung trước admission và khi monitor/recover. Không cần ngrok config trên máy member. Launcher không đăng ký URL hoặc chọn Merchant thay người dùng. Xem [VNPAY + Neon](VNPAY_NEON.md).
 
 ## 3. Startup, admission và continuity
 
 1. Build Prisma Client/backend/frontend từ source, không migration/seed/gateway initiation.
 2. VNPAY backend bắt đầu `DRAIN_ONLY` (`VNPAY_ACCEPT_NEW_PAYMENTS=false`).
-3. Ingress độc lập bind `127.0.0.1:3102`, upstream cố định `127.0.0.1:3001`.
-4. Ngrok chỉ expose exact GET `/payments/vnpay/ipn` và `/payments/vnpay/return`; public smoke xác minh HTTPS, reject invalid-signature và allowlist/Return.
+3. Máy owner chạy ingress độc lập bind `127.0.0.1:3102`, upstream cố định `127.0.0.1:3001`; máy member không chạy ingress/tunnel.
+4. Ngrok của owner chỉ expose exact GET `/payments/vnpay/ipn` và `/payments/vnpay/return`; cả owner/member kiểm tra HTTPS callback chung và allowlist/Return bằng unsigned smoke.
 5. Backend-only restart mở admission khi checks PASS; không restart ingress/ngrok để làm bước này.
 
 Mode và cờ enable/admission do launcher quản lý qua environment child process; cấu hình private hợp lệ vẫn bắt buộc. Admission theo config/provider/service health và explicit drain, không theo số giao dịch hay thời gian chạy. Monitor mỗi 30 giây; service/callback failure yêu cầu drain, giữ các handle callback độc lập. Recovery tự động khi lỗi tạm thời đã hết có thể mở lại; explicit operator drain chỉ mở qua `dev:recover` khi healthy. Lệnh recover cũng có thể khởi động lại callback process đã chết.
+
+`dev:status` phân biệt `drainReason=OPERATOR_DRAIN` (lệnh `dev:drain`), `drainReason=STOP_REQUESTED`/`stopRequested=true` (lệnh stop hoặc signal dừng) và `drainReason=null` (không có explicit drain/stop). UNKNOWN/reservation không tự tạo yêu cầu drain; dependency counts dùng để quyết định có được teardown hay không. Khi readiness hợp lệ và không có yêu cầu drain/stop, admission vẫn mở cho các Order độc lập dù `safeToStop=false`. Order cũ vẫn giữ reservation, chặn retry/cancel không an toàn và tiếp tục nhận IPN theo profile cũ.
+
+Sau một stop bị từ chối, monitor giữ `DRAINING_CALLBACKS_RETAINED` khi services khỏe và không tự mở admission. Nếu operator **hủy ý định dừng và muốn tiếp tục phục vụ**, chạy `npm run dev:recover`, rồi `npm run dev:status`: recover kiểm tra callback/services trước khi xóa yêu cầu drain/stop và mở admission. Không cần `safeToStop=true` để tiếp tục phục vụ; cần điều kiện này để dừng. Nếu readiness thất bại, không mở admission. Nếu vẫn muốn dừng, giữ callback và xử lý dependencies thật; không chạy recover để tiếp tục phục vụ.
 
 `dev:status` phải báo `READY`, `servicesHealthy=true`, `providerMode=VNPAY_SANDBOX`, `acceptingNewPayments=true` và callback healthy trước giao dịch mới. Public `GET /payments/config` không trả flag true khi đang mở: `{providerMode:"VNPAY_SANDBOX"}`; khi đóng mới thêm `acceptingNewPayments:false`. Không dùng riêng sự tồn tại của process để kết luận payment ready.
 
@@ -62,6 +66,8 @@ Local controller bind loopback/random port, token ngẫu nhiên ở ignored `.br
 Giữ terminal, máy và mạng hoạt động; đọc Order/Attempt thật, chờ genuine callback/approved recovery. Chạy stop lại khi an toàn. Không force PAID/CANCELLED/FAILED, tự QueryDr, xóa reservation/history hay chuyển MOCK để mở khóa Checkout.
 
 Launcher local không phải durable hosting: mất điện/mạng, đóng/kill parent hoặc OS vẫn có thể làm mất continuity. Dead/stale launcher không cho phép kill listener chưa xác minh ownership. Recovery pending cần giữ đúng profile và owner xử lý trạng thái thực tế.
+
+Thay đổi launcher cần được nạp ở lần khởi động launcher tiếp theo; `dev:restart-backend` không nạp lại coordinator trong parent. Runtime Normal cũ đã hỗ trợ `dev:recover` để hủy explicit drain và phục vụ lại khi healthy, dù chưa có các trường lý do mới. Khi còn dependencies, dùng recovery tại chỗ để giữ ingress/ngrok; không stop/kill parent chỉ để cập nhật status fields. Sau khi an toàn mới `dev:stop` rồi `dev:vnpay` để nạp launcher mới.
 
 ## 5. Checkout, cancellation và retry
 

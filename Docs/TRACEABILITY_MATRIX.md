@@ -1,5 +1,13 @@
 # BrewLite — Ma trận truy vết
 
+| Amendment user2026-10-22 | Requirement liên quan | Source / evidence |
+| --- | --- | --- |
+| Deadline600s, safe expiry/IPN recovery | FR06–14/16 | orders/payment-expiration.worker.ts; payments/attempt.service.ts, payment-receipt.worker.ts, ipn.service.ts; checkout-lifecycle integration |
+| Independent Cart, guarded checkout | FR03/06/08/13–14 | cart.service.ts; order.service.ts; `/cart`, `/checkout`, pending-order; checkout-lifecycle + Edge isolated browser |
+| Persistent3-role session | FR05/NFR02/05 | auth/session.service.ts, jwt.strategy.ts; Next auth proxy, auth-session; auth-session.test.mjs + checkout-lifecycle + Edge3-role reload |
+
+[Amendment và giới hạn nghiệm thu](CHECKOUT_SESSION_UPDATE.md); không thay PDF.
+
 PDF [BrewLite-CongNghePhanMem.pdf](BrewLite-CongNghePhanMem.pdf) là baseline; FR/NFR/BR tại [Requirements](REQUIREMENTS.md). “Có source/tests” nghĩa có hiện thực để review, không phải full DoD hoặc đã đạt mọi NFR. Không tạo FR mới từ extension.
 
 ## 1. Functional requirements
@@ -20,6 +28,8 @@ PDF [BrewLite-CongNghePhanMem.pdf](BrewLite-CongNghePhanMem.pdf) là baseline; F
 
 ## 2. Extension được owner duyệt
 
+P01/B03/B19 có thêm deployment configuration development với Neon dùng chung, callback owner/member và network transaction deadlines; không thêm FR hoặc đổi schema/API. [Thay đổi, bằng chứng và giới hạn](VNPAY_NEON.md); financial suites chạy database local cô lập, không test-write trên Neon.
+
 | Phạm vi | Thiết kế và implementation | Giới hạn |
 | --- | --- | --- |
 | A01–A06/UI01 | [A00](A00_ADMIN_STAFF_CONTRACT.md), [role UI](UI01_ROLE_BASED_INTERFACE_CONTRACT.md); auth/catalog/operator/admin controllers và UI | A07 bị hủy; không Campaign/Admin Promotion, A08/A09 chưa duyệt |
@@ -28,7 +38,7 @@ PDF [BrewLite-CongNghePhanMem.pdf](BrewLite-CongNghePhanMem.pdf) là baseline; F
 | IPN settlement | [T1/T2](P01B2B_VNPAY_IPN_SETTLEMENT_IMPLEMENTATION.md); ipn.service/verification; database fixture tests | Verified evidence + binding trước effects; unique/replay; Return không settle |
 | Return/cancel UX | [Return](P01C1_VNPAY_BROWSER_RETURN.md), [Checkout](P01C2_VNPAY_CUSTOMER_CHECKOUT.md); result/cancel notice và read-only failureReason DTO | Không tin Return query; UNKNOWN/REVIEW không giả FAILED; cancelled Order cần intent mới |
 | Zero/reconcile | [zero](P01B2C2_ZERO_TOTAL_INTERNAL_CONFIRMATION.md), [QueryDr](P01B2C1_VNPAY_QUERYDR_RECONCILIATION.md) | Explicit zero; external QueryDr OFF, không scheduler/batch/force |
-| Normal local runtime | [guide](NORMAL_SANDBOX_MODE.md), scripts/dev-runtime*.cjs, scripts/test/dev-runtime.test.cjs | No one-attempt/30-minute quota; callback health/drain/shutdown guards vẫn giữ |
+| Normal local runtime | [guide](NORMAL_SANDBOX_MODE.md), scripts/dev-runtime*.cjs, scripts/test/dev-runtime.test.cjs; backend/test/database/sandbox-drain.spec.ts | Independent admission despite UNKNOWN; explicit drain/stop reason and recovery; per-Order guards, late IPN and safe teardown preserved; no one-attempt/30-minute quota |
 
 ## 3. Non-functional requirements và bàn giao
 

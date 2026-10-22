@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Prisma, } from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import type { AddCartItemDto } from './cart.dto';
-import { assertNoActiveOrder, lockUser } from '../orders/order-policy';
+import { lockUser } from '../orders/order-policy';
 const invalid = () => new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Cart bounds exceeded or invalid quantity/toppings' });
 const maxMoney = new Prisma.Decimal('999999999999');
 function money(value: Prisma.Decimal): string {
@@ -32,7 +32,6 @@ export class CartService {
   private async lock(tx: Prisma.TransactionClient, userId: string) {
     // One local row lock serializes writes/merge for this user; no inventory lock/write.
     await lockUser(tx, userId);
-    await assertNoActiveOrder(tx, userId);
   }
   private async validateOptions(tx: Prisma.TransactionClient, productId: string, size: string, toppingIds: string[]) {
     // Serialize validated Cart writes with lifecycle changes and full-product

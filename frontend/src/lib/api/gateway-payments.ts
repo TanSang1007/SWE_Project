@@ -4,7 +4,7 @@ import { OrderError } from './orders';
 
 export type ProviderMode = 'MOCK' | 'VNPAY_SANDBOX';
 export interface AttemptStatus {
-  attemptId: string; orderId: string; amount: string; currency: 'VND'; provider: 'VNPAY_SANDBOX';
+  expiresAt?: string; serverNow?: string; attemptId: string; orderId: string; amount: string; currency: 'VND'; provider: 'VNPAY_SANDBOX';
   effectiveState: 'AWAITING' | 'SUCCEEDED' | 'FAILED' | 'UNKNOWN' | 'REVIEW';
   applicationState: 'PENDING' | 'APPLIED' | 'REVIEW'; orderStatus: string; paymentId: string | null;
   canResume: boolean; canRetry: boolean; canCancel: boolean; requiresReview: boolean; messageCode?: string;
@@ -82,4 +82,9 @@ export async function confirmZero(orderId: string, key: string) {
   if (!v?.payment || v.payment.orderId !== orderId || v.payment.provider !== 'INTERNAL_ZERO' || v.payment.method !== 'ZERO_TOTAL'
     || v.payment.amount !== '0' || v.payment.status !== 'SUCCEEDED' || v.order?.id !== orderId || v.order.status !== 'PAID' || v.loyalty?.awardedPoints !== 0) throw new OrderError('UNAVAILABLE');
   return v;
+}
+
+export async function resumePayment(orderId: string) {
+  const value = await request('/orders/' + orderId + '/payment-resume', 'POST') as { paymentUrl: unknown };
+  return authorizedGatewayUrl(value.paymentUrl);
 }
