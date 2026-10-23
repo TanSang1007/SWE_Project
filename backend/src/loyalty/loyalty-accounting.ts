@@ -28,8 +28,8 @@ function check(condition: boolean) {
     if (!condition)
         throw accountingFault();
 }
-// Read-only proof under the caller's owner lock, or a consistent read snapshot.
-// No repair/grant, independent commit, or fallback from unexplained shortage to debt.
+
+
 export async function reconcileAccount(tx: Prisma.TransactionClient, userId: string): Promise<Account> {
     const user = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { loyaltyPoints: true, loyaltyDebt: true } });
     const entries = await tx.loyaltyEntry.findMany({ where: { userId }, orderBy: { sequence: 'asc' } });
@@ -152,17 +152,17 @@ export function validateRedemption(account: Account, points: number, totalAfterP
     if (!Number.isInteger(points) || points < 0 || BigInt(points) > maxPoints)
         throw accountingFault();
     if (points > 0 && account.debt > 0n)
-        throw new ConflictException({ code: 'LOYALTY_REVERSAL_OUTSTANDING', message: 'Cancel the unpaid order to release points toward outstanding reversal' });
+        throw new ConflictException({ code: 'LOYALTY_REVERSAL_OUTSTANDING', message: 'Huy don hang chua thanh toan de hoan lai diem thuong cho giao dich dao nguoc chua xu ly' });
     if (BigInt(points) > account.available)
-        throw new ConflictException({ code: 'LOYALTY_INSUFFICIENT_POINTS', message: 'Insufficient available loyalty points' });
+        throw new ConflictException({ code: 'LOYALTY_INSUFFICIENT_POINTS', message: 'Khong du diem thuong kha dung' });
     const discount = new Prisma.Decimal(points).times(100);
     if (discount.gt(totalAfterPromotion))
-        throw new ConflictException({ code: 'LOYALTY_REDEMPTION_EXCEEDS_TOTAL', message: 'Selected points exceed the payable total' });
+        throw new ConflictException({ code: 'LOYALTY_REDEMPTION_EXCEEDS_TOTAL', message: 'So diem da chon vuot qua tong so tien can thanh toan' });
     return { discount, total: totalAfterPromotion.minus(discount) };
 }
 export function reservationGate(account: Account, points: number) {
     if (points > 0 && account.debt > 0n)
-        throw new ConflictException({ code: 'LOYALTY_REVERSAL_OUTSTANDING', message: 'Cancel the unpaid order to release points toward outstanding reversal' });
+        throw new ConflictException({ code: 'LOYALTY_REVERSAL_OUTSTANDING', message: 'Huy don hang chua thanh toan de hoan lai diem thuong cho giao dich dao nguoc chua xu ly' });
 }
 type Source = {
     orderId: string;

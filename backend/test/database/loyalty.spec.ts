@@ -33,7 +33,7 @@ beforeAll(async () => {
   app = module.createNestApplication<NestExpressApplication>({ bodyParser: false }); configureApp(app); await app.init(); jwt = app.get(JwtService);
 });
 beforeEach(() => { mode = 'SUCCESS'; });
-afterAll(async () => { if (app) await app.close(); await prisma.$disconnect(); await client.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`); await client.end(); });
+afterAll(async () => {  if (app) await app.close(); await prisma.$disconnect(); await client.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`); await client.end(); });
 async function user() {
   const row = await prisma.user.create({ data: { email: `${randomUUID()}@example.invalid`, passwordHash: 'test-only' } });
   return { id: row.id, token: jwt.sign({ sub: row.id }) };
@@ -98,7 +98,7 @@ test('JWT isolation, invalid/expired tokens and injected owner/body/query never 
   await request(app.getHttpServer()).get('/loyalty').expect(401);
   for (const token of ['invalid', jwt.sign({ sub: a.id }, { expiresIn: -1 })]) await request(app.getHttpServer()).get('/loyalty').set('Authorization', `Bearer ${token}`).expect(401);
 });
-test('concurrent payments produce one award; balance matches ledger and reads do not add points', async () => {
+test('concurrent  payments produce one award; balance matches ledger and reads do not add points', async () => {
   const a = await user(); const o = await order(a); const rs = await Promise.all([pay(a, o.id), pay(a, o.id)]);
   expect(rs.map((r) => r.status).sort()).toEqual([200, 409]);
   const s = await ledger(a); expect(s.awards).toHaveLength(1); expect(s.user.loyaltyPoints).toBe(9);
