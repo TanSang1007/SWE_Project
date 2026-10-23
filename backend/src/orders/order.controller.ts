@@ -12,10 +12,14 @@ type AuthRequest = Request & { user: { id: string } };
 export class OrderController {
   constructor(private readonly orders: OrderService) {}
   @Post()
+  @Header('Cache-Control', 'private, no-store, max-age=0')
   async create(@Req() req: AuthRequest, @Headers('idempotency-key') key: string | undefined, @Body() body: CreateOrderDto,
     @Query() query: OrderEmptyDto, @Res({ passthrough: true }) res: Response) {
-    void query; const result = await this.orders.create(req.user.id, key, body);
-    if (result.replayed) res.setHeader('Idempotency-Replayed', 'true'); return result.body;
+    void query;
+    res.vary('Authorization');
+    const result = await this.orders.create(req.user.id, key, body);
+    if (result.replayed) res.setHeader('Idempotency-Replayed', 'true');
+    return result.body;
   }
   @Post('preview')
   @Header('Cache-Control', 'private, no-store, max-age=0')
@@ -31,8 +35,9 @@ export class OrderController {
   }
   @Get('active')
   @Header('Cache-Control', 'private, no-store, max-age=0')
-  active(@Req() req: AuthRequest, @Query() query: OrderEmptyDto, @Body() body: OrderEmptyDto) {
-    void query; void body; return this.orders.active(req.user.id);
+  active(@Req() req: AuthRequest, @Query() query: OrderEmptyDto, @Body() body: OrderEmptyDto,
+    @Res({ passthrough: true }) res: Response) {
+    void query; void body; res.vary('Authorization'); return this.orders.active(req.user.id);
   }
   @Get(':id')
   @Header('Cache-Control', 'private, no-store, max-age=0')
@@ -41,6 +46,10 @@ export class OrderController {
     void query; void body; res.vary('Authorization'); return this.orders.get(req.user.id, params.id);
   }
   @Post(':id/cancel')
+  @Header('Cache-Control', 'private, no-store, max-age=0')
   async cancel(@Req() req: AuthRequest, @Param() params: OrderParamsDto, @Body() body: OrderEmptyDto, @Query() query: OrderEmptyDto,
-    @Res({ passthrough: true }) res: Response) { void body; void query; res.status(200); return this.orders.cancel(req.user.id, params.id); }
+    @Res({ passthrough: true }) res: Response) {
+    void body; void query; res.status(200); res.vary('Authorization');
+    return this.orders.cancel(req.user.id, params.id);
+  }
 }
