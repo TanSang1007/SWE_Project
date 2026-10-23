@@ -1,3 +1,4 @@
+import './cart.css';
 import { CartView } from '../../components/cart-view';
 import { validOrderId } from '../../lib/order-display';
 export default async function CartPage({ searchParams }: { searchParams: Promise<{ orderId?: string | string[] }> }) {

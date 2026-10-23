@@ -18,6 +18,7 @@ Trạng thái căn cứ source và contract hiện có; checkbox implementation 
 - [ ] **B02** Nhóm xác nhận thành viên/PO/SM/phân công, backlog/sprint và evidence Scrum thực tế.
 - [x] **B03–B07** npm workspaces, DB/catalog/menu/options/auth; source và contract tương ứng trong Docs.
 - [x] Cart validation hardening: service validates qty 1..99 (including merged qty), topping count <=10, and each monetary component before addition. Unit regression + pricing: 61 tests pass; backend TypeScript and focused ESLint pass. Database integration not run; no Neon access.
+- [x] Cart UI: responsive item images/quantity controls and separate summary; checkout blocked during load/edit/write/recovery, on empty cart or unavailable items. Existing two-request option editing and server pricing preserved. Frontend 248 tests, typecheck and focused ESLint pass. Production build blocked locally by missing Linux native CSS dependencies; visual/browser interaction verification pending.
 - [x] **B08** Cart authenticated PostgreSQL, merge/options/qty/ownership và khóa active unpaid.
 - [x] **B09–B10** Server pricing, Order snapshot/PENDING, stock OCC/idempotency, unpaid cancel.
 - [x] **B11–B12** MOCK payment, atomic PAID/award, checkout/replay/retry UI.

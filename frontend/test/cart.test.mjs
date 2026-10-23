@@ -76,3 +76,20 @@ test('unchanged edit does not merge own quantity; malformed money and API errors
   await api.editCartItem(item, { ...input, size: 'M', toppingIds: ['a'] }); assert.deepEqual(calls, ['GET']);
   globalThis.fetch = async () => new Response('', { status: 401 }); await assert.rejects(api.cartRequest(), { code: 'UNAUTHORIZED' }); assert.equal(useAuthStore.getState().accessToken, null);
 });
+
+test('cart summary shows server total and only enables checkout without a blocking reason', () => {
+  const { CartSummary } = require('../src/components/cart-view.tsx');
+  const ready = renderToStaticMarkup(React.createElement(CartSummary, { cart, reason: '' }));
+  assert.match(ready, /100\.000/); assert.match(ready, /href="\/checkout"/);
+  for (const reason of ['Thêm đồ uống để tiếp tục.', 'Đang cập nhật giỏ hàng…', 'Hãy lưu hoặc hủy chỉnh sửa trước khi tiếp tục.', 'Hãy chỉnh sửa hoặc xóa món hiện không thể đặt.']) {
+    const html = renderToStaticMarkup(React.createElement(CartSummary, { cart, reason }));
+    assert.match(html, /disabled/); assert(html.includes(reason)); assert.doesNotMatch(html, /href="\/checkout"/);
+  }
+});
+
+test('unavailable item allows edit/delete but disables quantity changes', () => {
+  const html = renderItems({ ...cart, items: [{ ...item, available: false }] });
+  assert.match(html, /role="alert"/);
+  assert.match(html, /aria-label="Giảm Latte" disabled/); assert.match(html, /aria-label="Tăng Latte" disabled/);
+  assert.doesNotMatch(html, /aria-label="Chỉnh sửa Latte" disabled/); assert.doesNotMatch(html, /aria-label="Xóa Latte" disabled/);
+});
