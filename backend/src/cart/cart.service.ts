@@ -1,13 +1,19 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, } from '../generated/prisma/client';
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import type { AddCartItemDto } from './cart.dto';
 import { lockUser } from '../orders/order-policy';
 const invalid = () => new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Cart bounds exceeded or invalid quantity/toppings' });
 const maxMoney = new Prisma.Decimal('999999999999');
+function validMoney(value: Prisma.Decimal): Prisma.Decimal {
+  if (!value.isFinite() || !value.isInteger() || value.isNegative() || value.greaterThan(maxMoney)) throw invalid();
+  return value;
+}
 function money(value: Prisma.Decimal): string {
-  if (value.isNegative() || value.greaterThan(maxMoney)) throw invalid();
-  return value.toFixed(0);
+  return validMoney(value).toFixed(0);
+}
+function validateQuantity(qty: number): void {
+  if (!Number.isInteger(qty) || qty < 1 || qty > 99) throw invalid();
 }
 @Injectable()
 export class CartService {
@@ -19,7 +25,13 @@ export class CartService {
     } });
     let subtotal = new Prisma.Decimal(0); let totalQuantity = 0;
     const items = rows.map((row) => {
-      const unitPrice = row.product.price.plus(row.productSize.extraPrice).plus(row.toppings.reduce((sum, entry) => sum.plus(entry.topping.price), new Prisma.Decimal(0)));
+      // Validate each price before adding: invalid values must not cancel out or round.
+      const basePrice = validMoney(row.product.price);
+      const sizeExtraPrice = validMoney(row.productSize.extraPrice);
+      const toppingTotal = row.toppings.reduce(
+        (sum, entry) => sum.plus(validMoney(entry.topping.price)), new Prisma.Decimal(0),
+      );
+      const unitPrice = validMoney(basePrice.plus(sizeExtraPrice).plus(toppingTotal));
       const lineTotal = unitPrice.times(row.qty); subtotal = subtotal.plus(lineTotal); totalQuantity += row.qty;
       return { id: row.id, productId: row.productId, productName: row.product.name, imageUrl: row.product.imageUrl,
         available: row.product.isActive && row.product.stock > 0 && row.productSize.isActive && ['S', 'M', 'L'].includes(row.productSize.size)
@@ -48,6 +60,8 @@ export class CartService {
   }
   add(userId: string, input: AddCartItemDto) {
     return this.prisma.$transaction(async (tx) => {
+      validateQuantity(input.qty);
+      if (input.toppingIds.length > 10) throw invalid();
       await this.lock(tx, userId);
       const productId = input.productId.toLowerCase(); const toppingIds = input.toppingIds.map((id) => id.toLowerCase()).sort();
       if (new Set(toppingIds).size !== toppingIds.length) throw invalid();
@@ -56,7 +70,7 @@ export class CartService {
       const configurationKey = [productId, input.size, ...toppingIds].join(':');
       const existing = await tx.cartItem.findUnique({ where: { cartId_configurationKey: { cartId: cart.id, configurationKey } } });
       const qty = (existing?.qty ?? 0) + input.qty;
-      if (qty > 99) throw invalid();
+      validateQuantity(qty);
       if (existing) await tx.cartItem.update({ where: { id: existing.id }, data: { qty } });
       else {
         if (await tx.cartItem.count({ where: { cartId: cart.id } }) >= 50) throw invalid();
@@ -73,6 +87,7 @@ export class CartService {
   }
   update(userId: string, id: string, qty: number) {
     return this.prisma.$transaction(async (tx) => {
+      validateQuantity(qty);
       await this.lock(tx, userId); const item = await this.owned(tx, userId, id);
       await this.validateOptions(tx, item.productId, item.size, item.toppings.map((t) => t.toppingId));
       await tx.cartItem.update({ where: { id: item.id }, data: { qty } });
