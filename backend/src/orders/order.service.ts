@@ -15,8 +15,11 @@ import { assertPaymentAdmission } from '../payments/payment-admission';
 import { PAYMENT_WINDOW_MS } from '../payments/payment-deadline';
 
 export function normalizeItems(items: OrderItemDto[]) {
+  if (!Array.isArray(items) || items.length === 0) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Cart must not be empty' });
   const map = new Map<string, OrderItemDto>();
   for (const item of items) {
+    // Internal service callers also pass through normalization, without a DTO pipe.
+    if (!Number.isInteger(item.qty) || item.qty < 1 || item.qty > 99) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Invalid quantity' });
     const toppingIds = [...item.toppingIds].sort();
     if (new Set(toppingIds).size !== toppingIds.length) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Duplicate toppings' });
     const key = [item.productId, item.size, ...toppingIds].join(':');
@@ -29,6 +32,12 @@ export function normalizeItems(items: OrderItemDto[]) {
 }
 const conflict = () => new ConflictException({ code: 'CONCURRENT_UPDATE', message: 'Data changed; reload and confirm again' });
 const workflowUnavailable = () => new ServiceUnavailableException({ code: 'SERVICE_UNAVAILABLE', message: 'Order workflow could not be committed' });
+function isConcurrencyError(error: unknown) {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return false;
+  const adapter = error.meta?.driverAdapterError as { cause?: { originalCode?: string } } | undefined;
+  const sqlState = typeof error.meta?.code === 'string' ? error.meta.code : adapter?.cause?.originalCode ?? '';
+  return ['P2028', 'P2034'].includes(error.code) || ['55P03', '57014', '40P01', '40001'].includes(sqlState);
+}
 const include = { items: { orderBy: { id: 'asc' as const }, include: { toppings: { orderBy: { toppingId: 'asc' as const } } } },
   loyaltyAward: true, payments: { orderBy: [{ createdAt: 'desc' as const }, { id: 'desc' as const }], take: 1 } };
 type OrderRow = Prisma.OrderGetPayload<{ include: typeof include }>;
@@ -128,7 +137,7 @@ export class OrderService {
       try { const previous = await this.transaction((tx) => tx.idempotencyRequest.findUnique({ where }));
         if (previous) return replayResult(previous, hash);
       } catch (recovery) { if (recovery instanceof HttpException) throw recovery; }
-      if (error instanceof Prisma.PrismaClientKnownRequestError && ['P2002', 'P2028', 'P2034', 'P2010'].includes(error.code)) {
+      if (isConcurrencyError(error) || (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')) {
         throw new ConflictException({ code: 'IDEMPOTENCY_IN_PROGRESS', message: 'Retry the same key later' });
       }
       throw new ServiceUnavailableException();
@@ -213,7 +222,7 @@ export class OrderService {
       });
     } catch (error) {
       if (error instanceof HttpException) throw error;
-      if (error instanceof Prisma.PrismaClientKnownRequestError && ['P2028', 'P2034', 'P2010'].includes(error.code)) throw conflict();
+      if (isConcurrencyError(error)) throw conflict();
       throw new ServiceUnavailableException();
     }
   }
@@ -297,13 +306,7 @@ export class OrderService {
       });
     } catch (error) {
       if (error instanceof HttpException) throw error;
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        // Prisma 7 adapter-pg carries SQLSTATE under driverAdapterError.cause;
-        // other engines expose meta.code. Only recognized concurrency faults map409.
-        const adapter = error.meta?.driverAdapterError as { cause?: { originalCode?: string } } | undefined;
-        const sqlState = typeof error.meta?.code === 'string' ? error.meta.code : adapter?.cause?.originalCode ?? '';
-        if (['P2028', 'P2034'].includes(error.code) || ['55P03', '57014', '40P01', '40001'].includes(sqlState)) throw conflict();
-      }
+      if (isConcurrencyError(error)) throw conflict();
       throw workflowUnavailable();
     }
   }
