@@ -79,26 +79,14 @@
   .cart-page .cart-text-button { padding-inline:8px; }
   .cart-page .cart-editor { padding:18px; }
 }
-
-/* Thống nhất font và hiển thị dấu tiếng Việt rõ hơn */
-.cart-page {
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-.cart-page h1,
-.cart-page h2,
-.cart-page h3 {
-  font-family: inherit;
-  letter-spacing: normal;
-  line-height: 1.4;
-}
-
-.cart-page h1 {
-  font-weight: 700;
-}
-
-.cart-summary h2,
-.cart-empty h2,
-.cart-item-content h2 {
-  font-weight: 600;
-}
+/* Confirm deletion before sending the request. */
+.cart-page .cart-remove-confirmation { padding:22px; margin-bottom:18px; border:1px solid #d9b9a4; border-radius:12px; background:#fff6ef; overflow-wrap:anywhere; }
+.cart-remove-confirmation h2 { font-size:19px; font-weight:600; }
+.cart-remove-confirmation p { font-size:14px; line-height:1.7; }
+.cart-remove-confirmation .cart-remove-detail { color:var(--muted); font-size:13px; }
+.cart-page .cart-confirm-remove { margin:0; min-height:44px; background:#903e30; }
+/* Keep Vietnamese headings consistent with the rest of the cart. */
+.cart-page { font-family:Arial,Helvetica,sans-serif; }
+.cart-page h1,.cart-page h2,.cart-page h3 { font-family:inherit; letter-spacing:normal; line-height:1.4; }
+.cart-page h1 { font-weight:700; }
+.cart-summary h2,.cart-empty h2,.cart-item-content h2 { font-weight:600; }
