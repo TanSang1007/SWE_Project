@@ -142,6 +142,8 @@ test.each([
   { email, password: "" },
   { email: "   ", password },
   { email, password: "   " },
+  {},
+  { email: null, password: null },
 ])("rejects invalid DTO case %# without echoes of values", async (data) => {
   const response = await request(app.getHttpServer())
     .post("/auth/register")
@@ -150,6 +152,16 @@ test.each([
 
   expect(response.body).toMatchObject({ error: { code: "VALIDATION_ERROR" } });
   expect(response.text).not.toContain(password);
+});
+
+// BỔ SUNG: Test validation riêng cho route /auth/login
+test("login rejects empty credentials with 400 VALIDATION_ERROR", async () => {
+  const response = await request(app.getHttpServer())
+    .post("/auth/login")
+    .send({ email: "", password: "" })
+    .expect(400);
+
+  expect(response.body).toMatchObject({ error: { code: "VALIDATION_ERROR" } });
 });
 
 test("UTF-8 72-byte boundary is accepted without bcrypt truncation", async () => {
