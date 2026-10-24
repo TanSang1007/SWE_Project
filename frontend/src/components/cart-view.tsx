@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '../lib/auth-store';
 import { useCartStore } from '../lib/cart-store';
 import { cartErrorMessage, cartRequest, editCartItem } from '../lib/api/cart';
@@ -9,6 +9,7 @@ import { formatVnd } from '../lib/money';
 import type { Cart, CartInput, CartItem } from '../types/cart';
 import type { ProductDetail } from '../types/catalog';
 import { CartOptions } from './cart-options';
+import { CartRemoveConfirmation } from './cart-remove-confirmation';
 import { ProductImage } from './product-image';
 import { PendingOrderBanner } from './pending-order';
 export function CartView({ orderId }: { orderId?: string } = {}) {
@@ -20,6 +21,14 @@ function CartSession({ orderId }: { orderId?: string }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false); const [error, setError] = useState('');
   const [editing, setEditing] = useState<{ item: CartItem; product: ProductDetail } | null>(null);
+  const [removing, setRemoving] = useState<CartItem | null>(null);
+  const removeTrigger = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!removing && removeTrigger.current) {
+      removeTrigger.current.focus();
+      removeTrigger.current = null;
+    }
+  }, [removing]);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
@@ -37,7 +46,7 @@ function CartSession({ orderId }: { orderId?: string }) {
   async function mutate(method: string, id: string, qty?: number) {
     setBusy(true); setError('');
     try { const result = await cartRequest(method, `/cart/items/${id}`, qty === undefined ? undefined : { qty });
-      if (useAuthStore.getState().accessToken === token) { useCartStore.getState().setCart(result); if (id === pendingDelete) setPendingDelete(null); }
+      if (useAuthStore.getState().accessToken === token) { useCartStore.getState().setCart(result); if (id === pendingDelete) setPendingDelete(null); if (method === 'DELETE') setRemoving(null); }
     } catch (e) { setError(cartErrorMessage(e)); await useCartStore.getState().load().catch(() => {}); }
     finally { setBusy(false); }
   }
@@ -54,10 +63,11 @@ function CartSession({ orderId }: { orderId?: string }) {
     finally { setBusy(false); }
   }
   if (!token) return <section className="cart-page"><div className="state-panel"><p className="eyebrow">BrewLite / Giỏ hàng</p><h1>Giỏ hàng của bạn</h1><p>Đăng nhập để tải giỏ đã lưu của bạn.</p><Link className="button" href={orderId ? '/login?returnTo=' + encodeURIComponent(`/cart?orderId=${orderId}`) : '/login?returnTo=/cart'}>Đăng nhập</Link></div></section>;
-  const locked = busy || loading || !!pendingDelete || !!editing;
+  const locked = busy || loading || !!pendingDelete || !!editing || !!removing;
   const checkoutReason = loading ? 'Đang cập nhật giỏ hàng…'
     : error ? 'Vui lòng tải lại giỏ để kiểm tra dữ liệu trước khi tiếp tục.'
     : pendingDelete ? 'Hãy xử lý dòng cũ trước khi tiếp tục.'
+    : removing ? 'Hãy xác nhận xóa hoặc chọn giữ lại món.'
     : editing ? 'Hãy lưu hoặc hủy chỉnh sửa trước khi tiếp tục.'
     : busy ? 'Đang cập nhật giỏ hàng…'
     : !cart || cart.items.length === 0 ? 'Thêm đồ uống để tiếp tục.'
@@ -70,7 +80,8 @@ function CartSession({ orderId }: { orderId?: string }) {
       <div className="cart-section-heading"><h2>Đồ uống đã chọn {cart ? `(${cart.totalQuantity})` : ''}</h2><button className="cart-text-button" disabled={locked} onClick={() => void reload()}>{loading ? 'Đang tải…' : 'Tải lại giỏ'}</button></div>
       {loading && <p className="cart-notice" role="status">Đang tải giỏ…</p>}
       {busy && <p className="cart-progress" role="status">Đang cập nhật giỏ hàng…</p>}
-      {cart && <CartItems cart={cart} locked={locked} onQuantity={(item, qty) => void mutate('PATCH', item.id, qty)} onEdit={(item) => void beginEdit(item)} onRemove={(item) => void mutate('DELETE', item.id)} />}
+      {removing && <CartRemoveConfirmation item={removing} busy={busy} onCancel={() => setRemoving(null)} onConfirm={() => { if (!busy) void mutate('DELETE', removing.id); }} />}
+      {cart && <CartItems cart={cart} locked={locked} onQuantity={(item, qty) => void mutate('PATCH', item.id, qty)} onEdit={(item) => void beginEdit(item)} onRemove={(item) => { removeTrigger.current = document.activeElement as HTMLElement | null; setRemoving(item); }} />}
       {!cart && !loading && error && <div className="state-panel"><h2>Chưa tải được giỏ hàng</h2><p>Kiểm tra kết nối rồi chọn “Tải lại giỏ”.</p></div>}
       {editing && <section className="cart-editor" aria-labelledby="cart-editor-title"><p className="eyebrow">Tùy chỉnh đồ uống</p><h2 id="cart-editor-title">Chỉnh sửa {editing.item.productName}</h2><p>Số lượng giữ nguyên: {editing.item.qty} ly.</p>
         <CartOptions key={editing.item.id} product={editing.product} initial={{ productId: editing.item.productId, size: editing.item.size, toppingIds: editing.item.toppings.map((t) => t.id), qty: editing.item.qty }} busy={busy} showQuantity={false} onConfirm={(input) => void edit(input)} label="Lưu thay đổi" />
@@ -97,7 +108,21 @@ export function CartItems({ cart, locked, onQuantity, onEdit, onRemove }: {
     <div className="cart-item-content"><h2>{item.productName}</h2><p className="cart-item-options">Size {item.size} · {item.toppings.map((t) => t.name).join(', ') || 'Không topping'}</p>
       <p className="cart-unit-price">Đơn giá: {formatVnd(item.unitPrice)}</p>
       {!item.available && <p className="cart-item-warning" role="alert">Món hoặc tùy chọn hiện chưa thể đặt hàng. Vui lòng chỉnh sửa hoặc xóa món.</p>}
-      <div className="cart-actions"><div className="cart-quantity" role="group" aria-label={`Số lượng ${item.productName}`}><button aria-label={`Giảm ${item.productName}`} disabled={locked || item.qty <= 1 || !item.available} onClick={() => onQuantity(item, item.qty - 1)}>−</button><span className="cart-qty">{item.qty}</span><button aria-label={`Tăng ${item.productName}`} disabled={locked || item.qty >= 99 || !item.available} onClick={() => onQuantity(item, item.qty + 1)}>+</button></div>
+      <div className="cart-actions"><div className="cart-quantity" role="group" aria-label={`Số lượng ${item.productName}`}>
+        <button
+          aria-label={`Giảm ${item.productName}`}
+          disabled={locked || (!item.available && item.qty > 1)}
+          onClick={() => {
+            if (item.qty === 1) {
+              onRemove(item);
+            } else {
+              onQuantity(item, item.qty - 1);
+            }
+          }}
+        >
+          −
+        </button>
+        <span className="cart-qty">{item.qty}</span><button aria-label={`Tăng ${item.productName}`} disabled={locked || item.qty >= 99 || !item.available} onClick={() => onQuantity(item, item.qty + 1)}>+</button></div>
         <button className="cart-text-button" aria-label={`Chỉnh sửa ${item.productName}`} disabled={locked} onClick={() => onEdit(item)}>Chỉnh sửa</button><button className="cart-text-button cart-remove" aria-label={`Xóa ${item.productName}`} disabled={locked} onClick={() => onRemove(item)}>Xóa</button></div>
     </div><div className="cart-line-total"><span>Thành tiền</span><strong>{formatVnd(item.lineTotal)}</strong></div>
   </li>)}</ul>;

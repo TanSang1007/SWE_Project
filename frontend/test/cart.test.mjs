@@ -93,3 +93,18 @@ test('unavailable item allows edit/delete but disables quantity changes', () => 
   assert.match(html, /aria-label="Giảm Latte" disabled/); assert.match(html, /aria-label="Tăng Latte" disabled/);
   assert.doesNotMatch(html, /aria-label="Chỉnh sửa Latte" disabled/); assert.doesNotMatch(html, /aria-label="Xóa Latte" disabled/);
 });
+
+test('delete confirmation identifies the complete configuration and keeps actions enabled', () => {
+  const { CartRemoveConfirmation } = require('../src/components/cart-remove-confirmation.tsx');
+  const html = renderToStaticMarkup(React.createElement(CartRemoveConfirmation, { item, busy: false, onCancel() {}, onConfirm() {} }));
+  for (const text of ['Latte', 'Size M', 'Kem', 'Số lượng: 2', 'Giữ lại', 'Xóa món', 'Toàn bộ số lượng']) assert(html.includes(text));
+  assert.doesNotMatch(html, /disabled/);
+});
+
+test('delete in progress disables both actions and product names are escaped', () => {
+  const { CartRemoveConfirmation } = require('../src/components/cart-remove-confirmation.tsx');
+  const html = renderToStaticMarkup(React.createElement(CartRemoveConfirmation, { item: { ...item, productName: '<script>bad</script>', toppings: [] }, busy: true, onCancel() {}, onConfirm() {} }));
+  assert.equal((html.match(/disabled=""/g) || []).length, 2);
+  assert.match(html, /Đang xóa/); assert.match(html, /Không topping/);
+  assert.doesNotMatch(html, /<script>/); assert.match(html, /&lt;script&gt;/);
+});
