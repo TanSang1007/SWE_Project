@@ -34,7 +34,7 @@ beforeAll(async () => {
     .overrideProvider(MockPaymentService).useValue({ result: () => mode }).compile();
   app = module.createNestApplication<NestExpressApplication>({ bodyParser: false }); configureApp(app); await app.init(); jwt = app.get(JwtService);
 });
-beforeEach(() => { mode = 'SUCCESS'; });
+beforeEach(() => { mode =  'SUCCESS' ; });
 afterAll(async () => { if (app) await app.close(); await prisma.$disconnect(); await client.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`); await client.end(); });
 async function fixture(discount = '10000', price = '52001') {
   const user = await prisma.user.create({ data: { email: `${randomUUID()}@example.invalid`, passwordHash: 'test-only' } });
