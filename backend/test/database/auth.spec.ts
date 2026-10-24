@@ -18,6 +18,28 @@ import { PrismaService } from "../../src/database/prisma.service";
 import { PrismaClient } from "../../src/generated/prisma/client";
 import { configureApp } from "../../src/common/configure-app";
 import { JwtAuthGuard } from "../../src/auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../src/auth/guards/roles.guard";
+import { Roles } from "../../src/auth/roles.decorator";
+
+@Controller("test-rbac-protected")
+@UseGuards(JwtAuthGuard, RolesGuard)
+class RbacHarness {
+  @Get("customer")
+  @Roles("CUSTOMER")
+  customerOnly() {
+    return { allowed: true, role: "CUSTOMER" };
+  }
+  @Get("staff")
+  @Roles("STAFF", "ADMIN")
+  staffAndAdmin() {
+    return { allowed: true, role: "STAFF_OR_ADMIN" };
+  }
+  @Get("admin")
+  @Roles("ADMIN")
+  adminOnly() {
+    return { allowed: true, role: "ADMIN" };
+  }
+}
 
 @Controller("test-auth-protected")
 class GuardHarness {
@@ -65,7 +87,7 @@ beforeAll(async () => {
     );
   const module = await Test.createTestingModule({
     imports: [AppModule],
-    controllers: [GuardHarness],
+    controllers: [GuardHarness, RbacHarness],
   })
     .overrideProvider(PrismaService)
     .useValue(prisma)
@@ -164,6 +186,61 @@ test("login rejects empty credentials with 400 VALIDATION_ERROR", async () => {
   expect(response.body).toMatchObject({ error: { code: "VALIDATION_ERROR" } });
 });
 
+test("RBAC enforces role permissions for CUSTOMER, STAFF, and ADMIN", async () => {
+  // Tạo 1 tài khoản STAFF và 1 tài khoản ADMIN trực tiếp trong DB test
+  const staffEmail = `staff_${randomUUID()}@example.invalid`;
+  const adminEmail = `admin_${randomUUID()}@example.invalid`;
+  const pwHash = await prisma.user
+    .findUniqueOrThrow({ where: { email } })
+    .then((u) => u.passwordHash);
+
+  const staff = await prisma.user.create({
+    data: { email: staffEmail, passwordHash: pwHash, role: "STAFF" },
+  });
+  const admin = await prisma.user.create({
+    data: { email: adminEmail, passwordHash: pwHash, role: "ADMIN" },
+  });
+
+  const jwt = app.get(JwtService);
+  const customerToken = await loginToken();
+  const secret = app.get(ConfigService).getOrThrow<string>("JWT_SECRET");
+  const staffToken = await jwt.signAsync({ sub: staff.id }, { secret, expiresIn: 3600 });
+  const adminToken = await jwt.signAsync({ sub: admin.id }, { secret, expiresIn: 3600 });
+
+  // 1. Customer: vào được customerOnly, bị 403 ở staff và admin
+  await request(app.getHttpServer())
+    .get("/test-rbac-protected/customer")
+    .set("Authorization", `Bearer ${customerToken}`)
+    .expect(200);
+
+  await request(app.getHttpServer())
+    .get("/test-rbac-protected/admin")
+    .set("Authorization", `Bearer ${customerToken}`)
+    .expect(403);
+
+  // 2. Staff: vào được staffAndAdmin, bị 403 ở customerOnly và adminOnly
+  await request(app.getHttpServer())
+    .get("/test-rbac-protected/staff")
+    .set("Authorization", `Bearer ${staffToken}`)
+    .expect(200);
+
+  await request(app.getHttpServer())
+    .get("/test-rbac-protected/admin")
+    .set("Authorization", `Bearer ${staffToken}`)
+    .expect(403);
+
+  // 3. Admin: vào được cả staffAndAdmin và adminOnly
+  await request(app.getHttpServer())
+    .get("/test-rbac-protected/staff")
+    .set("Authorization", `Bearer ${adminToken}`)
+    .expect(200);
+
+  await request(app.getHttpServer())
+    .get("/test-rbac-protected/admin")
+    .set("Authorization", `Bearer ${adminToken}`)
+    .expect(200);
+});
+
 test("UTF-8 72-byte boundary is accepted without bcrypt truncation", async () => {
   const boundaryEmail = `${randomUUID()}@example.invalid`;
   const boundaryPassword = randomBytes(12).toString("hex") + "é".repeat(24);
@@ -173,6 +250,8 @@ test("UTF-8 72-byte boundary is accepted without bcrypt truncation", async () =>
     .expect(201);
   await request(app.getHttpServer())
     .post("/auth/login")
+    .set("Origin", "http://localhost:3000")
+    .set("X-BrewLite-CSRF", "1")
     .send({ email: boundaryEmail, password: boundaryPassword })
     .expect(200);
 });
@@ -180,6 +259,8 @@ test("UTF-8 72-byte boundary is accepted without bcrypt truncation", async () =>
 async function loginToken(): Promise<string> {
   const response = await request(app.getHttpServer())
     .post("/auth/login")
+    .set("Origin", "http://localhost:3000")
+    .set("X-BrewLite-CSRF", "1")
     .send({ email, password })
     .expect(200);
   const body = response.body as { accessToken: string };
@@ -201,7 +282,7 @@ test("login creates HS256 sub/iat/exp JWT with exact lifetime and no credential 
     iat: number;
     exp: number;
   }>(token, { secret, algorithms: ["HS256"] });
-  expect(Object.keys(payload).sort()).toEqual(["exp", "iat", "sub"]);
+  expect(Object.keys(payload).sort()).toEqual(["exp", "iat", "sid", "sub"]);
   expect(payload.sub).toBe(userId);
   expect(payload.exp - payload.iat).toBe(3600);
 });
@@ -212,7 +293,12 @@ test("unknown email and wrong password share identical 401 code/message", async 
       { email, password: randomBytes(20).toString("hex") },
       { email: `${randomUUID()}@example.invalid`, password },
     ].map((body) =>
-      request(app.getHttpServer()).post("/auth/login").send(body).expect(401),
+      request(app.getHttpServer())
+        .post("/auth/login")
+        .set("Origin", "http://localhost:3000")
+        .set("X-BrewLite-CSRF", "1")
+        .send(body)
+        .expect(401),
     ),
   );
   for (const result of results)
