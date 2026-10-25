@@ -1,6 +1,10 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, UnauthorizedException, UnprocessableEntityException } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 
+type PricingProduct = Prisma.ProductGetPayload<{
+  include: { sizes: true; toppings: { include: { topping: true } } };
+}>;
+
 // B10 supplies its transaction and JWT-derived identity. No transaction or write is started here.
 export type PricingReader = Pick<Prisma.TransactionClient, 'user' | 'cart' | 'product' | 'promotion'>;
 export interface ValidatedItem {
@@ -47,35 +51,48 @@ export class PricingService {
       if (!product.isActive) throw new ConflictException({ code: 'PRODUCT_UNAVAILABLE', message: 'Product is no longer sold; adjust or remove the cart item' });
       if (!Number.isInteger(product.stock) || product.stock < 0 || product.stock > 2147483647) throw invalid();
       if (product.stock === 0) throw new ConflictException({ code: 'OUT_OF_STOCK', message: 'Product unavailable' });
-      const size = product.sizes.find((entry) => entry.productId === product.id && entry.size === item.size);
-      if (!size || !size.isActive || !['S', 'M', 'L'].includes(item.size)) throw optionsInvalid();
-      const toppings = ids.map((id) => {
-        const relation = product.toppings.find((entry) => entry.productId === product.id && entry.toppingId === id);
-        if (!relation || relation.topping.id !== id || !relation.topping.isActive) throw optionsInvalid();
-        return { id, name: relation.topping.name, price: money(relation.topping.price) };
-      });
-      const basePrice = money(product.price); const sizeExtraPrice = money(size.extraPrice);
-      const unitPrice = money(toppings.reduce((sum, topping) => sum.plus(topping.price), basePrice.plus(sizeExtraPrice)));
-      const lineTotal = money(unitPrice.times(item.qty)); subtotal = money(subtotal.plus(lineTotal));
+      const price = this.calculateItemPrice(product, item.size, ids, item.qty);
+      subtotal = money(subtotal.plus(price.lineTotal));
       const current = demand.get(product.id);
       demand.set(product.id, { productId: product.id, qty: (current?.qty ?? 0) + item.qty, stock: product.stock, version: product.version });
       return { cartItemId: item.id, productId: product.id, productName: product.name, size: item.size, qty: item.qty,
-        basePrice, sizeExtraPrice, toppings, unitPrice, lineTotal };
+        ...price };
     });
     const stockRequirements = [...demand.values()].sort((a, b) => a.productId.localeCompare(b.productId));
     if (stockRequirements.some((entry) => entry.qty > entry.stock)) throw new ConflictException({ code: 'OUT_OF_STOCK', message: 'Product quantity exceeds current stock' });
-    let configuredDiscount = new Prisma.Decimal(0);
-    if (promotionId !== undefined) {
-      // Order creation resolves the optional public code; this engine validates its DB configuration.
-      const promotion = await db.promotion.findUnique({ where: { id: promotionId } });
-      if (!promotion || !promotion.isActive || now < promotion.startsAt || now >= promotion.endsAt
-        || subtotal.lt(promotionMoney(promotion.minimumSubtotal))) {
-        throw promotionInvalid();
-      }
-      configuredDiscount = promotionMoney(promotion.discountAmount, true);
-    }
+    const configuredDiscount = await this.getConfiguredDiscount(db, promotionId, subtotal, now);
     const discountAmount = Prisma.Decimal.min(subtotal, configuredDiscount);
-    const finalAmount = Prisma.Decimal.max(0, subtotal.minus(configuredDiscount));
+    const finalAmount = subtotal.minus(discountAmount);
     return { cartId: cart.id, items, stockRequirements, subtotal, configuredDiscount, discountAmount, finalAmount, currency: 'VND' as const };
   }
+
+  // Compute one configured drink from catalog prices, without changing stock.
+  private calculateItemPrice(product: PricingProduct, sizeName: string, toppingIds: string[], qty: number) {
+    const size = product.sizes.find(entry => entry.productId === product.id && entry.size === sizeName);
+    if (!size || !size.isActive || !['S', 'M', 'L'].includes(sizeName)) throw optionsInvalid();
+
+    const toppings = toppingIds.map(id => {
+      const relation = product.toppings.find(entry => entry.productId === product.id && entry.toppingId === id);
+      if (!relation || relation.topping.id !== id || !relation.topping.isActive) throw optionsInvalid();
+      return { id, name: relation.topping.name, price: money(relation.topping.price) };
+    });
+    const basePrice = money(product.price);
+    const sizeExtraPrice = money(size.extraPrice);
+    const unitPrice = money(toppings.reduce((sum, topping) => sum.plus(topping.price), basePrice.plus(sizeExtraPrice)));
+    const lineTotal = money(unitPrice.times(qty));
+    return { basePrice, sizeExtraPrice, toppings, unitPrice, lineTotal };
+  }
+
+  // The caller resolves the public promotion code; this checks its DB policy.
+  private async getConfiguredDiscount(db: PricingReader, promotionId: string | undefined, subtotal: Prisma.Decimal, now: Date) {
+    if (promotionId === undefined) return new Prisma.Decimal(0);
+
+    const promotion = await db.promotion.findUnique({ where: { id: promotionId } });
+    if (!promotion || !promotion.isActive || now < promotion.startsAt || now >= promotion.endsAt
+      || subtotal.lt(promotionMoney(promotion.minimumSubtotal))) {
+      throw promotionInvalid();
+    }
+    return promotionMoney(promotion.discountAmount, true);
+  }
+
 }
