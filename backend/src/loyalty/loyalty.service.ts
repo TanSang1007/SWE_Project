@@ -10,7 +10,7 @@ export class LoyaltyService {
   async balance(userId: string) {
     try {
       return await this.db.$transaction(async tx => {
-        await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY');
+        await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY') ;
         const user = await tx.user.findUnique({ where: { id: userId }, select: { loyaltyPoints: true, loyaltyDebt: true } });
         if (!user) throw new UnauthorizedException();
         const held = await tx.order.aggregate({ where: { userId, redemptionState: 'RESERVED' }, _sum: { redeemedPoints: true } });
@@ -40,8 +40,8 @@ export class LoyaltyService {
             debtOffsetPoints: (e.debtDelta < 0n ? -e.debtDelta : 0n).toString(), debtCreatedPoints: (e.debtDelta > 0n ? e.debtDelta : 0n).toString(),
             createdAt: e.createdAt.toISOString() };
         });
-        return { scope: 'SINCE_L01_CUTOVER', items, nextCursor: rows.length > limit ? encodeCursor(secret,userId,upper,page[page.length-1].sequence) : null };
-      }, { isolationLevel: 'RepeatableRead' });
+        return { scope: 'SINCE_L01_CUTOVER', items, nextCursor: rows.length > limit ? encodeCursor(secret,userId,upper,page[page.length-1].sequence ) : null };
+      },  { isolationLevel: 'RepeatableRead' });
     } catch (error) { if (error instanceof HttpException) throw error; throw new ServiceUnavailableException(); }
   }
 }
