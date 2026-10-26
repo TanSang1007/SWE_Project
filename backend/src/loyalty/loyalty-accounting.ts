@@ -15,12 +15,14 @@ export type Effect = {
     reservedDelta: number;
     debtDelta: bigint;
 };
+
 export type Account = {
     userId: string;
     available: bigint;
     debt: bigint;
     reserved: bigint;
 };
+
 export async function lockOrder(tx: Prisma.TransactionClient, id: string) {
     await tx.$queryRaw `SELECT id FROM orders WHERE id=${id}::uuid FOR UPDATE`;
 }
@@ -178,7 +180,9 @@ export function effect(account: Account, kind: Exclude<LoyaltyEntryKind, 'OPENIN
     if (kind === 'RESERVE') {
         reservationGate(account, points);
         if (account.available < n)
-            throw new ConflictException({ code: 'LOYALTY_INSUFFICIENT_POINTS', message: 'Insufficient available loyalty points' });
+            throw new ConflictException({ 
+                code: 'LOYALTY_INSUFFICIENT_POINTS', 
+                message: 'Khong du diem tich luy kha dung' });
         availableDelta = -n;
         reservedDelta = n;
     }

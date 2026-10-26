@@ -14,6 +14,8 @@ const transitions: Record<OrderStatus, readonly OrderStatus[]> = {
 
 export function assertTransition(from: OrderStatus, to: OrderStatus): void {
   if ( !transitions[from]?.includes(to) ) {
-    throw new ConflictException({ code: 'INVALID_ORDER_STATE', message: 'Khong the chuyen trang thai don hang nay' });
+    throw new ConflictException({
+      code: 'INVALID_ORDER_STATE',
+      message: 'Khong the chuyen trang thai don hang nay' });
   }
 }
