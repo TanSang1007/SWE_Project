@@ -8,6 +8,10 @@
 
 [Amendment và giới hạn nghiệm thu](CHECKOUT_SESSION_UPDATE.md); không thay PDF.
 
+FR06/08/13–14, B09/B10 snapshot regression2026-10-26 → `backend/src/orders/order.service.ts` và `backend/test/database/orders.spec.ts`: ghi Order/Item/Topping theo lô trong cùng transaction; kiểm tra50 cấu hình với đúng topping/giá snapshot và rollback parent/stock/claim khi insert topping lỗi, cùng key retry không trùng. Không thay DTO/bounds hoặc protocol đo NFR01.
+
+Regression fixes2026-10-26: FR05/NFR02 → `backend/test/auth-session.spec.ts` (malformed UUID/401/logout); FR06–14/NFR05 → `frontend/test/checkout-recovery.test.mjs`, checkout/gateway fixtures (timeout, terminal/uncertain context, retry URL); FR06–14/16 → `backend/test/payment-workers.spec.ts` (51 rows, timestamp ties, processed anchor, scan failure/wrap); A04–A06/NFR04 → `backend/test/admin-transaction-policy.spec.ts` (Neon round trip >400ms); B03/B19/P01 → `scripts/test/dev-runtime.test.cjs` (failed startup/recover/UI/admission/stop guards); NFR04/08 setup → `frontend/test/env.test.mjs` (một root env, public-only config/shell override). Mapping requirement không đổi; lựa chọn bỏ env template ghi ở REQUIREMENTS/DECISIONS. Các fixtures không thay financial integration hoặc browser acceptance.
+
 PDF [BrewLite-CongNghePhanMem.pdf](BrewLite-CongNghePhanMem.pdf) là baseline; FR/NFR/BR tại [Requirements](REQUIREMENTS.md). “Có source/tests” nghĩa có hiện thực để review, không phải full DoD hoặc đã đạt mọi NFR. Không tạo FR mới từ extension.
 
 ## 1. Functional requirements

@@ -114,14 +114,21 @@ export class OrderService {
         }
         // VNPAY timestamps have whole-second precision; retain exactly 600s.
         const startedAt = new Date(Math.floor(Date.now() / 1000) * 1000);
-        const order = await tx.order.create({ data: { id, orderCode: `BL-${id.toUpperCase()}`, userId, status: 'PENDING',
+        await tx.order.create({ data: { id, orderCode: `BL-${id.toUpperCase()}`, userId, status: 'PENDING',
           paymentStartedAt: startedAt, paymentExpiresAt: new Date(startedAt.getTime() + PAYMENT_WINDOW_MS),
           subtotal: priced.subtotal, discountAmount: priced.discountAmount, total: loyalty.total, redeemedPoints: r, loyaltyDiscountAmount: loyalty.discount,
           redemptionState: r > 0 ? 'RESERVED' : 'NONE', reservationCycle: r > 0 ? 1 : 0,
-          promotionId: promotion?.id ?? null, promotionCodeSnapshot: promotion?.code ?? null,
-          items: { create: priced.items.map((item) => ({ productId: item.productId, productNameSnapshot: item.productName, size: item.size,
-            basePrice: item.basePrice, sizeExtraPrice: item.sizeExtraPrice, unitPrice: item.unitPrice, qty: item.qty, lineTotal: item.lineTotal,
-            toppings: { create: item.toppings.map((t) => ({ toppingId: t.id, toppingNameSnapshot: t.name, priceSnapshot: t.price })) } })) } }, include });
+          promotionId: promotion?.id ?? null, promotionCodeSnapshot: promotion?.code ?? null } });
+        // Bulk snapshots avoid a nested write for every configuration/topping.
+        // Await each parent batch before its children on this same transaction.
+        const snapshots = priced.items.map(item => ({ id: randomUUID(), item }));
+        await tx.orderItem.createMany({ data: snapshots.map(({ id: itemId, item }) => ({ id: itemId, orderId: id,
+          productId: item.productId, productNameSnapshot: item.productName, size: item.size,
+          basePrice: item.basePrice, sizeExtraPrice: item.sizeExtraPrice, unitPrice: item.unitPrice, qty: item.qty, lineTotal: item.lineTotal })) });
+        const toppings = snapshots.flatMap(({ id: itemId, item }) => item.toppings.map(t => ({ orderItemId: itemId,
+          toppingId: t.id, toppingNameSnapshot: t.name, priceSnapshot: t.price })));
+        if (toppings.length) await tx.orderItemTopping.createMany({ data: toppings });
+        const order = await tx.order.findUniqueOrThrow({ where: { id }, include });
         if (effects.length) await persistEffects(tx, before, account, effects);
         // Entire Cart was matched to this snapshot under the user lock. Later
         // Cart writes cannot be included in this deletion or touched by settlement.
