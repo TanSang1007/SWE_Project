@@ -1,5 +1,25 @@
 # BrewLite — Quyết định thiết kế
 
+## B09/B10 — Ghi snapshot theo lô trong cùng transaction (TECHNICAL, 2026-10-26)
+
+Rà soát DTO và PostgreSQL orders suite tái hiện lỗi ở đơn50 cấu hình: nested create phát nhiều lệnh cha/con, có lượt vượt deadline local400ms; SQL trace cho thấy rollback xảy ra trước các lệnh insert con còn chờ, dẫn tới lỗi FK/503. OrderService đổi sang await tạo Order, createMany OrderItem với UUID gán trước, createMany OrderItemTopping liên kết đúng UUID rồi đọc snapshot. Tất cả vẫn nằm trong transaction hiện có cùng stock, Cart, Loyalty và idempotency claim; không retry ngầm, không đổi deadline local/Neon, schema, API hay bounds sau gộp. DTO giữ nguyên. Orders integration kiểm tra ánh xạ đầy đủ50 cấu hình/topping và fault ở topping rollback cả parent/stock/claim, cùng key retry không nhân đôi. Đây là sửa cách thực thi, không mở admission VNPAY hoặc thay cho nghiệm thu hiệu năng/E2E.
+
+Riêng fixture `test/database/orders.spec.ts` công khai budget transaction maxWait2000/timeout5000ms cho các ca chức năng; SQL lock200ms/statement300ms vẫn do service áp dụng. Các lượt local400ms đã thất bại ở những ca khác nhau khi cold/JIT/host contention, nên không dùng deadline hiệu năng để quyết định kết quả business/rollback trong fixture này. Chính sách runtime local400ms/Neon5000ms không sửa và vẫn có assertion riêng ở `sandbox-gate.spec.ts`. Test pass với budget fixture không chứng minh local400ms hay NFR01<500ms đạt trên máy bàn giao; giữ protocol nghiệm thu hiệu năng riêng.
+
+## Một root .env duy nhất — ACCEPTED USER / TECHNICAL (2026-10-26)
+
+Người dùng yêu cầu chỉ giữ một `.env`, bỏ file env mẫu. Root `.env` private là nguồn cho NestJS, Prisma, CLI, launcher và hai URL frontend; cấu hình callback được chuyển từ overlay vào root sau khi đối chiếu không mất giá trị. Bỏ các template và overlay, giữ `.env`/`.env.*` trong gitignore. Mẫu cấu hình chỉ nằm trong README; không commit credentials. Next config chỉ đọc hai biến URL từ root file, không export secret; shell/launcher overrides giữ ưu tiên cao hơn. Source snapshot nhận root path từ launcher. Provider/admission/UNKNOWN policy không thay đổi. PDF giữ nguyên: yêu cầu env template ở NFR08 được ghi là khác biệt bàn giao theo lựa chọn này, không đánh dấu đạt NFR08.
+
+## B03/B19, A04–A06, checkout/session — correctness fixes (TECHNICAL, 2026-10-26)
+
+Theo yêu cầu sửa sáu finding của đợt rà soát: `dev:recover` bảo đảm frontend được chạy nếu startup dừng ở callback; process còn sống được giữ, port lạ vẫn bị từ chối. Launcher giữ monitor khi phải giữ backend/callback để phục hồi. Admission chỉ mở sau readiness, stop/drain/UNKNOWN guards giữ nguyên. Product/Option/Inventory dùng `PrismaService.transactionOptions`: Neon 2000/5000ms, local 50/400ms; SQL lock/statement limits giữ nguyên.
+
+Hai worker quét tối đa50 bản ghi/lượt theo keyset `(deadline,id)` hoặc `(receivedAt,id)`, tiến qua cả các bản lỗi và quay về đầu sau trang cuối. Cursor chỉ giữ ID trong memory; Prisma đối chiếu timestamp gốc tại DB để không mất microsecond, loại anchor bằng ID thay vì offset skip. Restart đọc lại eligibility từ DB. Không schema, queue, auto financial retry hay tự chuyển UNKNOWN. Frontend giải phóng Mock context khi server xác nhận `PAYMENT_TIMEOUT` hoặc đọc được Order terminal, giữ context khi network outcome chưa rõ/PENDING/PAYMENT_FAILED. Link retry đi `/checkout?orderId=...`. Cookie session phải chứa UUID hợp lệ trước SQL; cookie lỗi trả401/session hoặc được xóa bởi logout. Không đổi role, đường dẫn API, công thức tài chính hoặc PDF.
+
+## B03/B19 — Windows startup compatibility (TECHNICAL, 2026-10-26)
+
+Frontend development, production build và source-snapshot build của launcher dùng `--webpack`. Log local xác nhận Windows Application Control có thể chặn native SWC; khi chỉ còn WASM, Turbopack không build được. Giữ lựa chọn Webpack đã có trong frontend build và áp dụng nhất quán cho các entrypoint. Pin `@nestjs/platform-express` **11.2.7** cùng core/common/testing để npm đặt adapter ở root workspace, nơi Nest tự resolve khi khởi động. Không đổi API, schema, requirement hoặc payment policy. Backend đang chạy và gateway chưa hoàn tất được giữ nguyên khi kiểm tra frontend độc lập.
+
 ## Checkout expiry, independent Cart, persistent auth — ACCEPTED USER / TECHNICAL (2026-10-22)
 
 Người dùng giao triển khai deadline10 phút, Cart độc lập và persistent auth cho3 roles. [Contract cập nhật](CHECKOUT_SESSION_UPDATE.md) supersede D19/B07 memory-only session, D31/B10 khóa Cart và clear Cart khi Payment success, cùng P00 TTL900s. Snapshot và lấy các CartItem hiện tại diễn ra atomically ở create Order; settlement không chạm Cart mới. PostgreSQL lưu deadline, worker catch-up sau restart, không force FAILED/CANCELLED UNKNOWN. VNPAY expiry GMT+7 và verified-IPN/QueryDr OFF giữ nguyên. Quyết định kỹ thuật: JWT3600s memory + opaque HttpOnly rotating session absolute7 ngày, hash DB, sid revocation, same-origin Next auth proxy + exact Origin/custom CSRF header. Migration additive, không đổi PDF hoặc cập nhật dữ liệu tài chính lịch sử.
