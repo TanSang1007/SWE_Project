@@ -2,6 +2,10 @@
 
 **Amendment được người dùng duyệt 2026-10-22:** [Checkout/session contract](CHECKOUT_SESSION_UPDATE.md) supersede Cart lock/success-clear, Attempt900s và auth không khôi phục phiên ở các baseline lịch sử dưới đây. API mới: GET /orders/active; POST /orders/:id/payment-resume; POST /auth/session, POST /auth/logout. Order DTO bổ sung deadline/server clock; login thêm HttpOnly session và CSRF/origin check. Không thay permission Customer/Admin/Staff hoặc verified-IPN settlement.
 
+Clarification2026-10-26: session cookie sai cấu trúc UUID trả401 UNAUTHORIZED tại POST `/auth/session` trước SQL; POST `/auth/logout` vẫn200 và xóa cookie lỗi sau Origin/CSRF check. Đây là sửa thực thi invalid-session contract, không thêm path/DTO/quyền. `PAYMENT_TIMEOUT` vẫn409; frontend đọc lại Order và giải phóng Mock intent bị từ chối, không tự xác nhận financial outcome.
+
+Order review2026-10-27: `GET /orders/active` trả200 `{order: <owned detail>|null, serverNow}`, chỉ CUSTOMER/current DB role, strict empty body/query, private/no-store và Vary Authorization/Origin; lỗi đọc Order trả503 SERVICE_UNAVAILABLE với envelope đã làm sạch, thống nhất GET detail/history. Auth lookup error vẫn theo contract auth hiện có. Customer cancel lọc owner ngay trong SELECT FOR UPDATE: missing/cross-owner luôn404 ORDER_NOT_FOUND kể cả khi đơn của người khác đang khóa; không chờ khóa đơn đó rồi trả409. Nhánh expiration nội bộ trả đúng `paymentExpiredAt` vừa lưu nhưng vẫn giữ PENDING/reservations khi gateway chưa rõ; không thêm tham số timeout ở HTTP hoặc thay settlement.
+
 Tài liệu mô tả contracts hiện có; các bảng baseline/mock được bổ sung bằng gateway/loyalty/operator contracts. Blueprint PLANNED trong A00/P00 không tự trở thành endpoint đã triển khai. Source controllers là mapping hiện tại, [Traceability](TRACEABILITY_MATRIX.md) ghi phạm vi nghiệm thu.
 
 ## Gateway và Loyalty — mapping hiện hành

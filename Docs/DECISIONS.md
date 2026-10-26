@@ -1,5 +1,9 @@
 # BrewLite — Quyết định thiết kế
 
+## Order controller/service review — ownership và lỗi đọc (TECHNICAL, 2026-10-27)
+
+Controller giữ nguyên JWT/current-role CUSTOMER, strict DTO/body/query, route tĩnh trước UUID,200/201 và cache headers. Sửa service theo test tái hiện: active-order DB error trả503 sanitized như detail/history; customer cancel dùng SELECT FOR UPDATE với cả Order ID và owner ID, không khóa/chờ đơn người khác trước khi trả404; expiration giữ đúng marker đã persist trong kết quả trả về khi gateway pending/review/receipt. Lock user → owned Order → Attempts, status/OCC, ledger/stock/idempotency và UNKNOWN safeguards giữ nguyên. Không schema, quyền mới hoặc public timeout input. HTTP tests bao phủ active auth/role/owner/input/no-store/DB fault; PostgreSQL test giữ khóa Order của khách A rồi yêu cầu hủy từ B phải404 và không đổi hai khách; service tests kiểm tra marker mới/cũ và không giải phóng reservation khi chưa rõ kết quả.
+
 ## B09/B10 — Ghi snapshot theo lô trong cùng transaction (TECHNICAL, 2026-10-26)
 
 Rà soát DTO và PostgreSQL orders suite tái hiện lỗi ở đơn50 cấu hình: nested create phát nhiều lệnh cha/con, có lượt vượt deadline local400ms; SQL trace cho thấy rollback xảy ra trước các lệnh insert con còn chờ, dẫn tới lỗi FK/503. OrderService đổi sang await tạo Order, createMany OrderItem với UUID gán trước, createMany OrderItemTopping liên kết đúng UUID rồi đọc snapshot. Tất cả vẫn nằm trong transaction hiện có cùng stock, Cart, Loyalty và idempotency claim; không retry ngầm, không đổi deadline local/Neon, schema, API hay bounds sau gộp. DTO giữ nguyên. Orders integration kiểm tra ánh xạ đầy đủ50 cấu hình/topping và fault ở topping rollback cả parent/stock/claim, cùng key retry không nhân đôi. Đây là sửa cách thực thi, không mở admission VNPAY hoặc thay cho nghiệm thu hiệu năng/E2E.

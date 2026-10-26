@@ -56,7 +56,7 @@ describe('B15 owned Order reads', () => {
     order.findMany.mockResolvedValueOnce([{ ...row(), total: new Prisma.Decimal('999999999999') }]).mockResolvedValueOnce([]);
     expect((await get().expect(200)).body).toMatchObject({ items: [{ total: '999999999999' }] }); expect((await get().expect(200)).body).toEqual({ items: [] });
   });
-  it.each(['/orders/me', `/orders/${id}`])('requires valid JWT on %s', async (path) => {
+  it.each(['/orders/me', '/orders/active', `/orders/${id}`])('requires valid JWT on %s', async (path) => {
     for (const token of [undefined, 'invalid', jwt.sign({ sub: owner }, { expiresIn: -1 }), jwt.sign({ sub: randomUUID() })]) {
       const r = request(app.getHttpServer()).get(path); if (token) r.set('Authorization', `Bearer ${token}`); await r.expect(401);
     }
@@ -74,13 +74,34 @@ describe('B15 owned Order reads', () => {
     const r = await get(`/orders/${id}`, other).expect(404); expect(r.body).toMatchObject({ error: { code: 'ORDER_NOT_FOUND' } });
     expect(order.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id, userId: other } }));
   });
+  it('routes /active before the UUID route and reads only the authenticated owner', async () => {
+    const empty = await get('/orders/active').set('Origin', 'http://localhost:3000').expect(200);
+    expect(empty.body).toEqual({ order: null, serverNow: expect.any(String) as unknown });
+    expect(empty.headers['cache-control']).toBe('private, no-store, max-age=0');
+    expect(empty.headers.vary).toMatch(/Authorization/); expect(empty.headers.vary).toMatch(/Origin/);
+    order.findFirst.mockResolvedValue(row('PENDING', null));
+    const active = await get('/orders/active').expect(200);
+    expect(active.body).toMatchObject({ order: { id, status: 'PENDING', total: '95000' } });
+    expect(order.findFirst).toHaveBeenLastCalledWith(expect.objectContaining({ where: { userId: owner, status: { in: ['PENDING', 'PAYMENT_FAILED'] } } }));
+    expect(active.text).not.toMatch(/userId|version|idempotencyKey|passwordHash/);
+  });
+  it('rejects active-order body and owner query injection before querying Orders', async () => {
+    await get('/orders/active').query({ userId: other }).expect(400);
+    await get('/orders/active').send({ userId: other }).expect(400);
+    expect(order.findFirst).not.toHaveBeenCalled();
+  });
+  it.each(['STAFF', 'ADMIN'])('rejects current DB role %s on customer active-order discovery', async role => {
+    user.findUnique.mockResolvedValue({ id: owner, email: 'fixture@example.invalid', role, loyaltyPoints: 0 });
+    await get('/orders/active').expect(403);
+    expect(order.findFirst).not.toHaveBeenCalled();
+  });
   it('reuses immutable detail snapshot and exposes only contract payment/points metadata', async () => {
     order.findFirst.mockResolvedValue(row()); const r = await get(`/orders/${id}`).expect(200);
     expect(r.body).toMatchObject({ total: '95000', discountAmount: '10000', promotionCode: 'SNAPSHOT', paidAt: '2026-10-07T00:01:00.000Z', earnedPoints: 9,
       paymentStatus: 'SUCCEEDED', items: [{ productName: 'Historical drink', unitPrice: '105000', toppings: [{ name: 'Cream', price: '5000' }] }] });
     expect(r.text).not.toMatch(/userId|version|idempotencyKey|passwordHash/); expect(r.headers['cache-control']).toContain('no-store');
   });
-  it.each(['/orders/me', `/orders/${id}`])('sanitizes database read faults on %s', async (path) => {
+  it.each(['/orders/me', '/orders/active', `/orders/${id}`])('sanitizes database read faults on %s', async (path) => {
     const fault = new Error('Prisma SELECT credential password_hash'); order.findMany.mockRejectedValue(fault); order.findFirst.mockRejectedValue(fault);
     const r = await get(path).expect(503); expect(r.body).toMatchObject({ error: { code: 'SERVICE_UNAVAILABLE', message: 'Internal server error' } });
     expect(r.text).not.toMatch(/Prisma|SELECT|credential|password_hash/);
