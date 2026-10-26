@@ -197,6 +197,20 @@ test('GET/cancel ownership isolation and invalid state/body', async () => {
   await request(app.getHttpServer()).get(`/orders/${order.id}`).expect(401); await cancel(f, order.id).send({ status: 'PAID' }).expect(400);
   await prisma.order.update({ where: { id: order.id }, data: { status: 'PAID' } }); await cancel(f, order.id).expect(409);
 });
+test('cross-owner cancellation stays404 while the other customer Order is locked', async () => {
+  const owner = await fixture(); const caller = await fixture();
+  const order = (await create(owner).expect(201)).body as OrderBody;
+  const beforeOwner = await state(owner); const beforeCaller = await state(caller);
+  const blocker = new Client({ connectionString });
+  try {
+    await blocker.connect(); await blocker.query('BEGIN');
+    await blocker.query(`SELECT id FROM "${schema}".orders WHERE id=$1 FOR UPDATE`, [order.id]);
+    const response = await cancel(caller, order.id).expect(404);
+    expect((response.body as ErrorBody).error.code).toBe('ORDER_NOT_FOUND');
+    expect(await state(owner)).toEqual(beforeOwner); expect(await state(caller)).toEqual(beforeCaller);
+  } finally { await blocker.query('ROLLBACK'); await blocker.end(); }
+});
+
 test('actual PostgreSQL OrderItem failure rolls back stock/order/items/claim and preserves Cart', async () => {
   const f = await fixture(); const before = await state(f);
   await client.query(`CREATE FUNCTION fail_b10_item() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test fault'; END $$`);

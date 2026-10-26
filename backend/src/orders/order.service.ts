@@ -187,8 +187,10 @@ export class OrderService {
     } catch (error) { if (error instanceof HttpException) throw error; throw new ServiceUnavailableException(); }
   }
   async active(userId: string) {
-    const order = await this.db.order.findFirst({ where: { userId, status: { in: ['PENDING', 'PAYMENT_FAILED'] } }, include });
-    return { order: order ? detail(order) : null, serverNow: new Date().toISOString() };
+    try {
+      const order = await this.db.order.findFirst({ where: { userId, status: { in: ['PENDING', 'PAYMENT_FAILED'] } }, include });
+      return { order: order ? detail(order) : null, serverNow: new Date().toISOString() };
+    } catch (error) { if (error instanceof HttpException) throw error; throw new ServiceUnavailableException(); }
   }
   async history(userId: string) {
     try {
@@ -203,7 +205,10 @@ export class OrderService {
     try {
       return await this.transaction(async (tx) => {
         await lockUser(tx, userId);
-        await lockOrder(tx, id);
+        // Exclude another owner's row before PostgreSQL tries to lock it.
+        // Its existence/lock state must not change the customer's404 contract.
+        const owned = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM orders WHERE id=${id}::uuid AND user_id=${userId}::uuid FOR UPDATE`;
+        if (!owned.length) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
         const order = await tx.order.findFirst({ where: { id, userId }, include });
         if (!order) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
         if (order.status === 'CANCELLED') return detail(order);
@@ -212,9 +217,10 @@ export class OrderService {
         await lockAttempts(tx, id);
         const blocks = await gatewayBlocks(tx, id);
         if (timeout) {
-          if (!order.paymentExpiredAt) await tx.order.update({ where: { id }, data: { paymentExpiredAt: new Date() } });
+          const expiredAt = order.paymentExpiredAt ?? new Date();
+          if (!order.paymentExpiredAt) await tx.order.update({ where: { id }, data: { paymentExpiredAt: expiredAt } });
           // Time proves URL expiry, never a financial failure. Preserve late IPN.
-          if (blocks.pending || blocks.receipt || blocks.review) return detail(order);
+          if (blocks.pending || blocks.receipt || blocks.review) return detail({ ...order, paymentExpiredAt: expiredAt });
         } else assertGatewayClear(blocks);
         const account = await reconcileAccount(tx, userId); const before = { ...account };
         const effects = order.status === 'PENDING' && order.redeemedPoints > 0 ? [effect(account, 'RELEASE', order.redeemedPoints, { orderId: id, cycle: order.reservationCycle })] : [];
