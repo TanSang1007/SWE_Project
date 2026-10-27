@@ -114,14 +114,21 @@ export class OrderService {
         }
         // VNPAY timestamps have whole-second precision; retain exactly 600s.
         const startedAt = new Date(Math.floor(Date.now() / 1000) * 1000);
-        const order = await tx.order.create({ data: { id, orderCode: `BL-${id.toUpperCase()}`, userId, status: 'PENDING',
+        await tx.order.create({ data: { id, orderCode: `BL-${id.toUpperCase()}`, userId, status: 'PENDING',
           paymentStartedAt: startedAt, paymentExpiresAt: new Date(startedAt.getTime() + PAYMENT_WINDOW_MS),
           subtotal: priced.subtotal, discountAmount: priced.discountAmount, total: loyalty.total, redeemedPoints: r, loyaltyDiscountAmount: loyalty.discount,
           redemptionState: r > 0 ? 'RESERVED' : 'NONE', reservationCycle: r > 0 ? 1 : 0,
-          promotionId: promotion?.id ?? null, promotionCodeSnapshot: promotion?.code ?? null,
-          items: { create: priced.items.map((item) => ({ productId: item.productId, productNameSnapshot: item.productName, size: item.size,
-            basePrice: item.basePrice, sizeExtraPrice: item.sizeExtraPrice, unitPrice: item.unitPrice, qty: item.qty, lineTotal: item.lineTotal,
-            toppings: { create: item.toppings.map((t) => ({ toppingId: t.id, toppingNameSnapshot: t.name, priceSnapshot: t.price })) } })) } }, include });
+          promotionId: promotion?.id ?? null, promotionCodeSnapshot: promotion?.code ?? null } });
+        // Bulk snapshots avoid a nested write for every configuration/topping.
+        // Await each parent batch before its children on this same transaction.
+        const snapshots = priced.items.map(item => ({ id: randomUUID(), item }));
+        await tx.orderItem.createMany({ data: snapshots.map(({ id: itemId, item }) => ({ id: itemId, orderId: id,
+          productId: item.productId, productNameSnapshot: item.productName, size: item.size,
+          basePrice: item.basePrice, sizeExtraPrice: item.sizeExtraPrice, unitPrice: item.unitPrice, qty: item.qty, lineTotal: item.lineTotal })) });
+        const toppings = snapshots.flatMap(({ id: itemId, item }) => item.toppings.map(t => ({ orderItemId: itemId,
+          toppingId: t.id, toppingNameSnapshot: t.name, priceSnapshot: t.price })));
+        if (toppings.length) await tx.orderItemTopping.createMany({ data: toppings });
+        const order = await tx.order.findUniqueOrThrow({ where: { id }, include });
         if (effects.length) await persistEffects(tx, before, account, effects);
         // Entire Cart was matched to this snapshot under the user lock. Later
         // Cart writes cannot be included in this deletion or touched by settlement.
@@ -180,8 +187,10 @@ export class OrderService {
     } catch (error) { if (error instanceof HttpException) throw error; throw new ServiceUnavailableException(); }
   }
   async active(userId: string) {
-    const order = await this.db.order.findFirst({ where: { userId, status: { in: ['PENDING', 'PAYMENT_FAILED'] } }, include });
-    return { order: order ? detail(order) : null, serverNow: new Date().toISOString() };
+    try {
+      const order = await this.db.order.findFirst({ where: { userId, status: { in: ['PENDING', 'PAYMENT_FAILED'] } }, include });
+      return { order: order ? detail(order) : null, serverNow: new Date().toISOString() };
+    } catch (error) { if (error instanceof HttpException) throw error; throw new ServiceUnavailableException(); }
   }
   async history(userId: string) {
     try {
@@ -196,7 +205,10 @@ export class OrderService {
     try {
       return await this.transaction(async (tx) => {
         await lockUser(tx, userId);
-        await lockOrder(tx, id);
+        // Exclude another owner's row before PostgreSQL tries to lock it.
+        // Its existence/lock state must not change the customer's404 contract.
+        const owned = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM orders WHERE id=${id}::uuid AND user_id=${userId}::uuid FOR UPDATE`;
+        if (!owned.length) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
         const order = await tx.order.findFirst({ where: { id, userId }, include });
         if (!order) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
         if (order.status === 'CANCELLED') return detail(order);
@@ -205,9 +217,10 @@ export class OrderService {
         await lockAttempts(tx, id);
         const blocks = await gatewayBlocks(tx, id);
         if (timeout) {
-          if (!order.paymentExpiredAt) await tx.order.update({ where: { id }, data: { paymentExpiredAt: new Date() } });
+          const expiredAt = order.paymentExpiredAt ?? new Date();
+          if (!order.paymentExpiredAt) await tx.order.update({ where: { id }, data: { paymentExpiredAt: expiredAt } });
           // Time proves URL expiry, never a financial failure. Preserve late IPN.
-          if (blocks.pending || blocks.receipt || blocks.review) return detail(order);
+          if (blocks.pending || blocks.receipt || blocks.review) return detail({ ...order, paymentExpiredAt: expiredAt });
         } else assertGatewayClear(blocks);
         const account = await reconcileAccount(tx, userId); const before = { ...account };
         const effects = order.status === 'PENDING' && order.redeemedPoints > 0 ? [effect(account, 'RELEASE', order.redeemedPoints, { orderId: id, cycle: order.reservationCycle })] : [];

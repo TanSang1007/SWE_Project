@@ -30,7 +30,12 @@ const client = new Client({ connectionString });
 // connection's search_path too, so FOR UPDATE locks the actual fixture user.
 const scopedUrl = new URL(connectionString);
 scopedUrl.searchParams.set('options', `-c search_path=${schema}`);
-const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: utcConnectionString(scopedUrl.toString()) }, { schema }) });
+// Functional rollback/OCC tests need a bounded budget independent of cold
+// Prisma/JIT and host load. Runtime 400ms/5000ms policies are tested separately
+// in sandbox-gate.spec.ts; these assertions do not measure NFR01 latency.
+const prisma = Object.assign(new PrismaClient({ adapter: new PrismaPg({ connectionString: utcConnectionString(scopedUrl.toString()) }, { schema }) }), {
+  transactionOptions: { maxWait: 2000, timeout: 5000 },
+});
 let app: NestExpressApplication; let jwt: JwtService;
 beforeAll(async () => {
   await client.connect(); await client.query(`CREATE SCHEMA "${schema}"`); await client.query(`SET search_path TO "${schema}"`);
@@ -192,6 +197,20 @@ test('GET/cancel ownership isolation and invalid state/body', async () => {
   await request(app.getHttpServer()).get(`/orders/${order.id}`).expect(401); await cancel(f, order.id).send({ status: 'PAID' }).expect(400);
   await prisma.order.update({ where: { id: order.id }, data: { status: 'PAID' } }); await cancel(f, order.id).expect(409);
 });
+test('cross-owner cancellation stays404 while the other customer Order is locked', async () => {
+  const owner = await fixture(); const caller = await fixture();
+  const order = (await create(owner).expect(201)).body as OrderBody;
+  const beforeOwner = await state(owner); const beforeCaller = await state(caller);
+  const blocker = new Client({ connectionString });
+  try {
+    await blocker.connect(); await blocker.query('BEGIN');
+    await blocker.query(`SELECT id FROM "${schema}".orders WHERE id=$1 FOR UPDATE`, [order.id]);
+    const response = await cancel(caller, order.id).expect(404);
+    expect((response.body as ErrorBody).error.code).toBe('ORDER_NOT_FOUND');
+    expect(await state(owner)).toEqual(beforeOwner); expect(await state(caller)).toEqual(beforeCaller);
+  } finally { await blocker.query('ROLLBACK'); await blocker.end(); }
+});
+
 test('actual PostgreSQL OrderItem failure rolls back stock/order/items/claim and preserves Cart', async () => {
   const f = await fixture(); const before = await state(f);
   await client.query(`CREATE FUNCTION fail_b10_item() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test fault'; END $$`);
@@ -376,6 +395,38 @@ test('exactly 50 distinct configurations succeed and consume their aggregated pr
   const response = await create(f, f.key, { items }).expect(201);
   expect((response.body as OrderBody).items).toHaveLength(50);
   expect((await state(f)).product).toMatchObject({ stock: 49, version: 1 }); expect((await state(f)).cart).toMatchObject({ items: [] });
+  const snapshots = await prisma.orderItem.findMany({ where: { orderId: (response.body as OrderBody).id }, include: { toppings: true } });
+  expect(snapshots).toHaveLength(50);
+  for (const item of items) {
+    const snapshot = snapshots.find(row => row.toppings.map(t => t.toppingId).sort().join(':') === item.toppingIds.join(':'));
+    expect(snapshot).toBeDefined();
+    expect(snapshot).toMatchObject({ productId: f.product.id, size: 'M', qty: 1 });
+    expect(snapshot!.toppings).toHaveLength(item.toppingIds.length);
+    for (const topping of snapshot!.toppings) {
+      expect(topping.toppingNameSnapshot).toBe(topping.toppingId === f.topping.id ? 'Cream' : 'Extra');
+      expect(topping.priceSnapshot.toFixed(0)).toBe(topping.toppingId === f.topping.id ? '7000' : '1');
+    }
+  }
+});
+
+test('topping snapshot failure rolls back parent snapshots, stock and claim; the same key can retry', async () => {
+  const f = await fixture(); const before = await state(f);
+  await client.query(`CREATE FUNCTION fail_b10_topping() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'topping snapshot fault'; END $$`);
+  await client.query('CREATE TRIGGER fail_b10_topping BEFORE INSERT ON order_item_toppings FOR EACH ROW EXECUTE FUNCTION fail_b10_topping()');
+  try {
+    const response = await create(f).expect(503);
+    expect(response.text).not.toMatch(/topping snapshot fault|Prisma|password|stack/);
+    expect(await state(f)).toEqual(before);
+  } finally {
+    await client.query('DROP TRIGGER fail_b10_topping ON order_item_toppings');
+    await client.query('DROP FUNCTION fail_b10_topping()');
+  }
+  const order = (await create(f).expect(201)).body as OrderBody;
+  expect(await prisma.orderItem.count({ where: { orderId: order.id } })).toBe(1);
+  expect(await prisma.orderItemTopping.count({ where: { orderItem: { orderId: order.id } } })).toBe(1);
+  const after = await state(f);
+  expect(after.product).toMatchObject({ stock: 8, version: 1 });
+  expect(after.claims).toHaveLength(1); expect(after.orders).toHaveLength(1);
 });
 
 test.each([0, -1, 100, 1.5])('direct OrderService caller cannot bypass quantity bound %p', async qty => {

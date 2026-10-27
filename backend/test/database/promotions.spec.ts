@@ -34,7 +34,7 @@ beforeAll(async () => {
     .overrideProvider(MockPaymentService).useValue({ result: () => mode }).compile();
   app = module.createNestApplication<NestExpressApplication>({ bodyParser: false }); configureApp(app); await app.init(); jwt = app.get(JwtService);
 });
-beforeEach(() => { mode = 'SUCCESS'; });
+beforeEach(() => { mode =  'SUCCESS' ; });
 afterAll(async () => { if (app) await app.close(); await prisma.$disconnect(); await client.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`); await client.end(); });
 async function fixture(discount = '10000', price = '52001') {
   const user = await prisma.user.create({ data: { email: `${randomUUID()}@example.invalid`, passwordHash: 'test-only' } });
@@ -158,7 +158,7 @@ test('database fault after promoted stock write rolls back stock/Order/claim/Car
   finally { await client.query('DROP TRIGGER promotion_fault ON orders'); await client.query('DROP FUNCTION promotion_fault()'); }
   await create(f).expect(201);
 });
-test('demo seed is repeatable and preserves edited promotion configuration and consumed stock', async () => {
+test('demo  seed is  repeatable and preserves edited promotion configuration and consumed stock', async () => {
   const runSeed = () => execFileSync(process.execPath, [resolve(__dirname, '../../prisma/seed.cjs')], { env: { ...process.env, NODE_ENV: 'development', DATABASE_URL: scopedUrl.toString() }, stdio: 'pipe' });
   runSeed();
   const id = '44444444-4444-4444-8444-444444444441'; const productId = '11111111-1111-4111-8111-111111111111';
