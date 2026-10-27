@@ -416,7 +416,7 @@ model CartItem {
   @@index([productId, size])
   @@map("cart_items")
 }
-
+// note
 model CartItemTopping {
   cartItemId String   @map("cart_item_id") @db.Uuid
   toppingId  String   @map("topping_id") @db.Uuid
@@ -447,7 +447,7 @@ model LoyaltyEntry {
   order          Order?           @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   payment        Payment?         @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   paymentAttempt PaymentAttempt?  @relation(fields: [paymentAttemptId], references: [id], onDelete: Restrict)
-
+  
   @@unique([effectKey, kind])
   @@unique([orderId, kind, cycle])
   @@index([userId, sequence(sort: Desc)])
