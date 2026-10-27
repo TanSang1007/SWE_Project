@@ -31,6 +31,12 @@ export class AdminInventoryService {
   private readProduct(tx: Prisma.TransactionClient, id: string) {
     return tx.product.findUnique({ where: { id }, select: { id: true, stock: true, version: true } });
   }
+    /**
+   * Điều chỉnh số lượng tồn kho sản phẩm (Task 10 - Đoàn Hậu):
+   * - Áp dụng Idempotency-Key chống gửi trùng lặp request.
+   * - Áp dụng Optimistic Locking (so khớp expectedVersion) chống xung đột cập nhật đồng thời.
+   * - Kiểm soát biên độ tồn kho: Không cho phép tồn kho âm (stock >= 0) và trong giới hạn số nguyên an toàn.
+   */
   async adjust(userId: string, productId: string, key: string | undefined, input: InventoryAdjustmentDto) {
     requireIdempotencyKey(key);
     const hash = createHash('sha256').update(JSON.stringify({ operation: 'ADJUST_INVENTORY', productId, delta: input.delta, expectedVersion: input.expectedVersion })).digest('hex');
@@ -43,11 +49,19 @@ export class AdminInventoryService {
         await lockUser(tx, userId);
         const completed = await tx.idempotencyRequest.findUnique({ where }); if (completed) return replay(completed);
         const claim = await tx.idempotencyRequest.create({ data: { userId, operation: 'ADJUST_INVENTORY', idempotencyKey: key, requestHash: hash, state: 'PROCESSING' } });
+        
+        // 1. Kiểm tra sản phẩm có tồn tại trong kho không
         const product = await this.readProduct(tx, productId);
         if (!product) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
+
+        // 2. Kiểm tra Optimistic Locking: Nếu phiên bản bị lệch do đơn hàng khác vừa mua -> ném ConflictException
         if (product.version !== input.expectedVersion) throw conflict();
+
+        // 3. Tính toán và kiểm soát tồn kho: Tuyệt đối không cho phép tồn kho bị âm
         const stock = product.stock + input.delta;
-        if (!Number.isSafeInteger(stock) || stock < 0 || stock > maxInt) throw new ConflictException({ code: 'INVALID_STOCK_ADJUSTMENT', message: 'Result stock must be within integer bounds' });
+        if (!Number.isSafeInteger(stock) || stock < 0 || stock > maxInt) {
+          throw new ConflictException({ code: 'INVALID_STOCK_ADJUSTMENT', message: 'Result stock must be within integer bounds' });
+        }
         if (product.version >= maxInt) throw unavailable();
         const changed = await tx.product.updateMany({ where: { id: productId, version: input.expectedVersion }, data: { stock: { increment: input.delta }, version: { increment: 1 }, updatedAt: new Date() } });
         if (changed.count !== 1) throw conflict();

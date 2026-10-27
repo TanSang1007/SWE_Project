@@ -42,7 +42,7 @@ async function seed(client) {
     await client.query('COMMIT');
   } catch (error) { await client.query('ROLLBACK'); throw error; }
 }
-
+// note
 async function main() {
   if (process.env.NODE_ENV !== 'development') throw new Error('Seed requires NODE_ENV=development');
   const client = new Client({ connectionString: process.env.DATABASE_URL });
