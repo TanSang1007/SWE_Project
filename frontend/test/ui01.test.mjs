@@ -26,7 +26,8 @@ test('UI01 STAFF queue/history navigation excludes Admin/customer/future modules
 });
 test('UI01 ADMIN nav includes implemented A05 Topping/A06 inventory and excludes planned Promotion', () => {
   const value = html(OperatorShellContent, { ready:true,role:'ADMIN',authenticated:true,allowed:['ADMIN'],pathname:'/admin/orders',children:'PRIVATE' });
-  for (const path of ['/admin','/admin/orders','/admin/products','/admin/toppings','/admin/inventory']) assert(value.includes(`href="${path}"`));
+  for (const path of ['/admin','/admin/orders','/admin/products','/admin/toppings','/admin/inventory','/admin/receipts']) assert(value.includes(`href="${path}"`));
+  const navigation=value.match(/<nav aria-label="Khu vực quản trị"[^>]*>(.*?)<\/nav>/)[1];assert.equal((navigation.match(/href=/g)??[]).length,6);assert(!navigation.includes('/admin/ingredients'));assert(navigation.includes('Nhập hàng'));
   assert(!value.includes('href="/operator/orders"')); assert(!value.includes('/admin/promotions'));
 });
 test('UI01 STAFF filter has exactly three active states; ADMIN has all seven', () => {

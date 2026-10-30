@@ -1,5 +1,11 @@
 # BrewLite — Yêu cầu và phạm vi
 
+**I03 user amendment2026-10-29:** [Danh mục nhập hàng](I03_RECEIVING_CATALOG.md) gồm3 vật dụng đơn vị cái và9 nguyên liệu theo tên/đơn vị người dùng chỉ định; bổ sung trứng đơn vị quả, cảnh báo dưới10 quả theo câu trả lời người dùng. Lưu danh mục vào DB thật, dùng lại mặt hàng đã có, không đoán tồn ban đầu hoặc xóa lịch sử.
+
+**User amendment I02,2026-10-29:** Admin có sáu mục Tổng quan/Đơn hàng/Sản phẩm/Topping/Tồn kho/Nhập hàng. Tồn kho phân Vật dụng (cái), Nguyên liệu (lít/kg); Nhập hàng có hai nhóm và lịch sử. Sắp hết khi dưới10 cái, dưới5 lít, dưới10 kg; bằng ngưỡng còn hàng,0 hết hàng. Supersede ngưỡng tùy chọn I01, giữ quy trình kiểm kê/duyệt/audit. [Contract I02](I02_INVENTORY_CATEGORIES.md).
+
+**User extension I01,2026-10-29:** Người dùng yêu cầu triển khai quản lý nguyên liệu theo đơn vị thực tế: Admin thêm nguyên liệu/tạo và xác nhận phiếu nhập; Staff kiểm kê, gửi kết quả không tự đổi tồn; Admin approve/reject/recount, chặn snapshot cũ khi có nhập/xuất; lịch sử trước/sau/người/thời gian và chống lặp. [Contract I01](I01_INGREDIENT_INVENTORY_CONTRACT.md). Không thêm/bỏ FR của PDF, không recipe consumption, supplier nâng cao hoặc thay A06 tồn sản phẩm.
+
 **User-approved amendment 2026-10-22:** [Checkout/session update](CHECKOUT_SESSION_UPDATE.md) triển khai thời hạn600s, Cart vẫn CRUD trong lúc có unpaid Order (chỉ chặn checkout mới cùng user), `/checkout` riêng và khôi phục phiên Customer/Admin/Staff. Các mô tả Cart khóa/payment-success-clear và JWT memory-only bên dưới là baseline lịch sử đã được amendment supersede; PDF không sửa.
 
 PDF là baseline bất biến. Các bảng FR01–16/NFR01–10/BR01–14 và graph dưới đây giữ nội dung nguồn đã phân tích; chúng không đồng nghĩa tất cả đã nghiệm thu.

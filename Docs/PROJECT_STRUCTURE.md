@@ -1,5 +1,11 @@
 # BrewLite — Cấu trúc repository
 
+I03 thêm `backend/src/ingredients/ingredient-catalog.ts`, migration `20261029170000_inventory_egg_unit`; sửa policy/DTO/service/controller I01, frontend unit labels/forms/load và tests tương ứng. Script fallback nhận `--egg-unit`, package scripts `db:check:inventory-catalog`/`db:migrate:inventory-catalog`. [Contract](I03_RECEIVING_CATALOG.md).
+
+I02 bổ sung `frontend/src/app/admin/receipts/page.tsx`, `admin/products/inventory/page.tsx`, sửa route kho/nguyên liệu và nav/forms I01 hiện có; migration `20261029150000_inventory_categories` cố định metadata ngưỡng. Script `backend/scripts/apply-ingredient-inventory.cjs --categories` chỉ chọn migration I02; không cài package hoặc đổi cấu trúc backend. [Contract](I02_INVENTORY_CATEGORIES.md).
+
+I01 bổ sung `backend/src/ingredients/{ingredient.module,ingredient.controller,ingredient.service,ingredient.dto,ingredient-policy}.ts`, migration `20261029100000_ingredient_inventory`, unit/database tests nguyên liệu; frontend `components/ingredient-{inventory,forms}.tsx`, `lib/api/ingredients.ts`, `types/ingredient.ts`, CSS riêng và routes `/admin/ingredients`, `/operator/ingredients`. Không chuyển hoặc xây dựng lại cấu trúc cũ. [Contract](I01_INGREDIENT_INVENTORY_CONTRACT.md).
+
 Amendment2026-10-22: Customer có thêm `/checkout` độc lập `/cart`; `auth/session.service.ts`, `orders/payment-expiration.worker.ts`, `payments/payment-receipt.worker.ts`, frontend `auth-session`, `checkout-view`, `pending-order`, `payment-countdown`. [Contract/source/test mapping](CHECKOUT_SESSION_UPDATE.md).
 
 Cây dưới đây mô tả source hiện có, không phải blueprint tạo thư mục trong tương lai.

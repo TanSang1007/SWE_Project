@@ -1,0 +1,12 @@
+export type IngredientUnit = 'KG' | 'G' | 'L' | 'ML' | 'PIECE' | 'EGG';
+export type InventoryCategory = 'supplies' | 'materials';
+export type InventoryActor = { id: string; email: string };
+export type Ingredient = { id: string; name: string; unit: IngredientUnit; quantity: string; lowStockThreshold: string; version: number; status: 'OUT_OF_STOCK' | 'LOW_STOCK' | 'IN_STOCK'; createdBy: InventoryActor; updatedBy: InventoryActor; createdAt: string; updatedAt: string };
+export type IngredientRef = Pick<Ingredient,'id'|'name'|'unit'|'quantity'|'version'>;
+export type IngredientMovement = { id: string; beforeQuantity: string; afterQuantity: string; delta: string; actor: InventoryActor; createdAt: string };
+export type IngredientReceipt = { id: string; status: 'DRAFT'|'CONFIRMED'; note: string; version: number; createdBy: InventoryActor; confirmedBy: InventoryActor|null; createdAt: string; confirmedAt: string|null; lines: { id: string; ingredient: IngredientRef; quantity: string; movement: IngredientMovement|null }[] };
+export type IngredientCount = { id: string; status: 'SUBMITTED'|'APPROVED'|'REJECTED'|'RECOUNT_REQUIRED'; note: string; version: number; createdBy: InventoryActor; reviewedBy: InventoryActor|null; reviewNote: string|null; createdAt: string; reviewedAt: string|null; recountOfId: string|null; replacementId: string|null; lines: { id: string; ingredient: IngredientRef; systemQuantity: string; actualQuantity: string; difference: string; ingredientVersion: number; stale: boolean; note: string; movement: IngredientMovement|null }[] };
+export type MovementRow = IngredientMovement & { ingredient: Pick<Ingredient,'id'|'name'|'unit'>; kind: 'RECEIPT'|'COUNT'; documentId: string };
+export type InventoryPage<T> = { items: T[]; nextCursor: string|null };
+export type IngredientSummary = { totalIngredients:number; inStock:number; lowStock:number; outOfStock:number; pendingCounts:number };
+export type IngredientCommand = { userId: string; role: 'ADMIN'|'STAFF'; path: string; key: string; body: object };

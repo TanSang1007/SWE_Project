@@ -1,5 +1,11 @@
 # BrewLite — Kiến trúc hệ thống
 
+I03 thêm cấu hình danh mục trong IngredientModule, endpoint Admin bảo đảm12 mặt hàng tồn tại và enum EGG. UI Admin khởi tạo có xác thực trước khi đọc lại dữ liệu; Staff chỉ đọc/gửi kiểm kê như cũ. Lỗi khởi tạo không chặn đọc các phần đã có. Không thêm dịch vụ/bảng hoặc nguồn dữ liệu giả. [Contract](I03_RECEIVING_CATALOG.md).
+
+I02: shell Admin có sáu mục; `/admin/inventory` quản lý vật dụng/nguyên liệu, `/admin/receipts` nhập hàng theo hai nhóm và lịch sử. Cùng dùng IngredientModule và sáu bảng I01, phân nhóm theo đơn vị; cảnh báo do backend tính với ngưỡng cố định và strict `<`. A06 giữ API và source, UI chuyển sang `/admin/products/inventory`; `/admin/ingredients` redirect về nhóm nguyên liệu của kho, link cũ có productId chuyển tới tồn sản phẩm. [Contract](I02_INVENTORY_CATEGORIES.md).
+
+I01 extension2026-10-29 thêm IngredientModule độc lập vào monolith, dùng DatabaseModule/AuthModule/guards hiện có;6 bảng nguyên liệu không liên kết Product/Order hoặc payment writes. Frontend thêm `/admin/ingredients` và `/operator/ingredients`, chung OperatorShell với link theo role và CSS scope riêng. Count workflow Staff→database→Admin đồng bộ bằng persisted resources, refresh và cursor; chỉ Admin confirm/review mới ghi balance+journal. [Contract](I01_INGREDIENT_INVENTORY_CONTRACT.md).
+
 **Amendment hiện hành 2026-10-22:** [Checkout/session](CHECKOUT_SESSION_UPDATE.md) bổ sung DB deadline + expiration/verified-receipt workers, Cart tách khỏi settlement và session HttpOnly có rotation/revocation qua Next same-origin proxy. Các mô tả Cart lock/memory-only auth bên dưới cần đọc cùng amendment; QueryDr external vẫn OFF.
 
 ## 1. Kiến trúc hiện hành

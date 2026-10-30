@@ -21,8 +21,8 @@ export function OperatorShellContent({ ready, role, authenticated, allowed, path
   if (access === 'forbidden') return <section className="state-panel"><h1>Không có quyền truy cập</h1>
     <p role="alert">Tài khoản của bạn không có quyền truy cập khu vực này.</p><Link className="button" href="/">Về thực đơn</Link></section>;
   const admin = role === 'ADMIN';
-  const links = admin ? [['/admin', 'Tổng quan'], ['/admin/orders', 'Đơn hàng'], ['/admin/products', 'Sản phẩm'], ['/admin/toppings', 'Topping'], ['/admin/inventory', 'Tồn kho']]
-    : [['/operator/orders', 'Đơn cần xử lý'], ['/operator/orders/completed', 'Đã hoàn thành']];
+  const links = admin ? [['/admin', 'Tổng quan'], ['/admin/orders', 'Đơn hàng'], ['/admin/products', 'Sản phẩm'], ['/admin/toppings', 'Topping'], ['/admin/inventory', 'Tồn kho'], ['/admin/receipts', 'Nhập hàng']]
+    : [['/operator/orders', 'Đơn cần xử lý'], ['/operator/orders/completed', 'Đã hoàn thành'], ['/operator/ingredients', 'Kiểm kê nguyên liệu']];
   return <section className={`operator-shell ${admin ? 'admin-shell' : 'staff-shell'}`}>
     <aside className="operations-sidebar"><Link className="operations-brand" href={admin ? '/admin' : '/operator/orders'}><span className="brand-mark" aria-hidden="true">b.</span>BrewLite</Link>
       <p className="eyebrow">{admin ? 'Quản trị cửa hàng' : 'Khu vực pha chế'}</p>

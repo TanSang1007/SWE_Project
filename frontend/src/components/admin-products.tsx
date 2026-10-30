@@ -100,7 +100,7 @@ function ProductSession() {
     <p>Tồn kho chỉ được hiển thị ở đây. Ngừng bán giữ nguyên tồn kho, giỏ và lịch sử đơn.</p>
     <div className="product-actions"><button onClick={() => void refresh()} disabled={busy}>Tải lại danh sách</button><button className="button" data-product-create disabled={busy || review || !items} onClick={() => { setForm('create'); setDeleting(null); setSuccess(''); setTimeout(() => document.getElementById('product-name')?.focus(), 0); }}>Tạo sản phẩm mới</button></div>
     {busy && <p role="status">Đang tải / xử lý sản phẩm…</p>}{error && <p role="alert">{error}</p>}{success && <p role="status">{success}</p>}
-    {created && <aside role="status"><p>Đã tạo sản phẩm. Tồn kho hiện tại: 0.</p><Link className="button" data-product-inventory href={`/admin/inventory?productId=${created.id}`}>Nhập tồn kho</Link></aside>}
+    {created && <aside role="status"><p>Đã tạo sản phẩm. Tồn kho hiện tại: 0.</p><Link className="button" data-product-inventory href={`/admin/products/inventory?productId=${created.id}`}>Nhập tồn kho</Link></aside>}
     {review && <aside role="alert"><p>Kiểm tra danh sách hiện tại trước khi xác nhận một thao tác mới. Không tự gửi lại yêu cầu vừa rồi.</p><button disabled={busy || !items} onClick={() => { setReview(false); setForm(null); setDeleting(null); setError(''); }}>Đã kiểm tra danh sách, bắt đầu thao tác mới</button></aside>}
     {form && <ProductForm key={form === 'create' ? 'create' : `${form.id}:${form.version}`} product={form === 'create' ? undefined : form} toppings={toppings} busy={busy || review}
       onCancel={() => { setForm(null); heading.current?.focus(); }} onSave={body => void mutate(form === 'create' ? 'POST' : 'PATCH', form === 'create' ? undefined : form.id, body)} />}

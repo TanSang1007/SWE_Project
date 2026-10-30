@@ -1,5 +1,11 @@
 # BrewLite — Ma trận truy vết
 
+I03 user amendment2026-10-29 → [contract](I03_RECEIVING_CATALOG.md), ingredient-catalog/controller/service, enum/check migration, frontend types/helpers/forms/load. Policy/database/frontend/browser tests xác minh12 mặt hàng, tạo thiếu không overwrite/duplicate, quyền, số nguyên quả, ngưỡng10, receipt→count→approve→reload. Giữ mapping I01/I02 và nghiệp vụ tài chính.
+
+I02 user amendment2026-10-29 → [contract](I02_INVENTORY_CATEGORIES.md), IngredientPolicy/Service/DTO, migration ngưỡng, UI kho/nhập hàng/operator shell. Backend policy/database tests kiểm tra ba đơn vị tại0/dưới/bằng/trên ngưỡng, DB CHECK, old replay và quyền; frontend unit + browser kiểm tra đúng6 menu,2 nhóm kho,3 lựa chọn nhập, nhập bổ sung và lịch sử thật. Truy vết I01/NFR02/FR13–14 không đổi nghiệp vụ tài chính.
+
+I01 user extension2026-10-29 (không FR PDF mới): quản lý nguyên liệu/nhập hàng/kiểm kê/duyệt/audit → [contract](I01_INGREDIENT_INVENTORY_CONTRACT.md), backend IngredientModule +6 models/migration, routes UI Admin/Staff, `backend/test/database/ingredients.spec.ts`, `backend/test/ingredient-policy.spec.ts`, `frontend/test/ingredients.test.mjs`, `frontend/test/ingredients-browser.mjs`. Lỗi tải dữ liệu/empty/timeout/thống kê/reload và rollout database thật truy vết tại [báo cáo](I01_INGREDIENT_INVENTORY_IMPLEMENTATION.md). Truy vết an toàn liên quan NFR02/current-role guards, FR13/idempotency và FR14/transaction/version như kỹ thuật tái sử dụng; không thay nghiệp vụ Product/Order/Payment hoặc mapping gốc. Kết quả nghiệm thu cập nhật ở [plan](DEVELOPMENT_PLAN.md).
+
 | Amendment user2026-10-22 | Requirement liên quan | Source / evidence |
 | --- | --- | --- |
 | Deadline600s, safe expiry/IPN recovery | FR06–14/16 | orders/payment-expiration.worker.ts; payments/attempt.service.ts, payment-receipt.worker.ts, ipn.service.ts; checkout-lifecycle integration |

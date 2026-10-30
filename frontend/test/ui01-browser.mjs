@@ -83,7 +83,7 @@ export async function verifyUi01Browser({evaluate,command,waitText,navigate,dela
     assert(await evaluate("!document.querySelector('[data-workflow-target],[data-workflow-cancel]')"));
     await login(admin,'Tổng quan'); await loaded('.overview-grid');assert.equal(await evaluate('location.pathname'),'/admin');
     const rollbackLayouts=[];
-    for (const [path,title] of [['/admin','Tổng quan'],['/admin/orders','Đơn hàng'],['/admin/products','Quản lý sản phẩm'],['/admin/inventory','Quản lý tồn kho']]) {
+    for (const [path,title] of [['/admin','Tổng quan'],['/admin/orders','Đơn hàng'],['/admin/products','Quản lý sản phẩm'],['/admin/products/inventory','Quản lý tồn kho']]) {
       await login(admin,title,path); await loaded('.operations-sidebar');
       for (const [width,height] of [[390,844],[768,1024],[1366,768]]) {
         await command('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});await delay(150);

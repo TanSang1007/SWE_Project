@@ -1,5 +1,31 @@
 # BrewLite — REST API
 
+I03 amendment2026-10-29: POST `/ingredient-inventory/catalog/initialize`, ADMIN JWT/current DB role, strict body/query rỗng,200 `{created,existing}`; private/no-store/Vary Authorization/Origin. Bảo đảm12 mặt hàng tồn tại qua normalizedName unique/transaction/skipDuplicates/post-check; retry không nhân đôi hoặc thay tồn.409 INGREDIENT_UNIT_MISMATCH khi tên có sẵn sai đơn vị, rollback toàn bộ. Không Idempotency-Key cho thao tác cố định này. Frontend Admin gọi khi đọc lại kho/nhập hàng, Staff không gọi. `POST /ingredients` tạo mới chấp nhận thêm EGG (quả) threshold10; EGG thuộc nguyên liệu và chỉ nhận số nguyên trong receipt/count. Read DTO units có thể là EGG. Permission/error khác giữ nguyên. [Danh mục và quy tắc](I03_RECEIVING_CATALOG.md).
+
+I02 amendment2026-10-29: `POST /ingredient-inventory/ingredients` nhận `{name,unit}` mới với unit PIECE/L/KG; backend tự đặt lowStockThreshold tương ứng10/5/10. Field lowStockThreshold cũ tùy chọn, chỉ cho request mới nếu bằng chính sách; khác trả400 VALIDATION_ERROR. G/ML chỉ còn hỗ trợ exact replay request tạo cũ, đọc và các phiếu cho dữ liệu đã có; tạo mới trả400. Exact replay key/hash lịch sử được xét trước chính sách mới. DTO reads giữ nguyên; status LOW_STOCK khi0<quantity<threshold, IN_STOCK khi quantity>=threshold, OUT_OF_STOCK khi0. Summary dùng cùng ranh giới. Không đổi permission, API path hoặc contracts nhập/kiểm kê/duyệt. [I02](I02_INVENTORY_CATEGORIES.md).
+
+## I01 — API nguyên liệu (user extension2026-10-29)
+
+Base `/ingredient-inventory`; JWT/current DB role qua guards hiện có. Mọi response private/no-store, Vary Authorization/Origin. Không thay API cũ. [Contract](I01_INGREDIENT_INVENTORY_CONTRACT.md).
+
+| Endpoint | Quyền, input và kết quả |
+| --- | --- |
+| GET /ingredient-inventory/summary | STAFF/ADMIN, body/query rỗng;200 {totalIngredients,inStock,lowStock,outOfStock,pendingCounts}, số nguyên không âm. Aggregate toàn database; pendingCounts của Staff chỉ phiếu của mình, Admin toàn bộ; không giới hạn bởi trang lịch sử50 dòng |
+| GET /ingredient-inventory/ingredients | STAFF/ADMIN, body/query rỗng;200 {items}, mỗi nguyên liệu có id/name/unit/quantity/lowStockThreshold/version/status, createdBy/updatedBy và timestamps; không credentials |
+| POST /ingredient-inventory/ingredients | ADMIN; Idempotency-Key bắt buộc, name1..120 không trống, unit PIECE/L/KG/EGG cho tạo mới, lowStockThreshold cũ tùy chọn theo amendment I02/I03;201 id. Tồn ban đầu0 |
+| POST /ingredient-inventory/catalog/initialize | ADMIN; body/query rỗng;200 {created,existing}, bảo đảm12 mặt hàng của I03 tồn tại, không đổi tồn/hàng cũ;409 INGREDIENT_UNIT_MISMATCH khi đơn vị khác |
+| GET /ingredient-inventory/receipts | ADMIN; query cursor UUID tùy chọn, body rỗng;200 items/nextCursor, kèm lines/actor/movement |
+| POST /ingredient-inventory/receipts | ADMIN; key bắt buộc, note tùy chọn<=500, lines1..50 distinct {ingredientId,quantity>0};201 DRAFT, chưa ghi tồn |
+| POST /ingredient-inventory/receipts/:id/confirm | ADMIN; {expectedVersion};200 CONFIRMED, một lần cộng tồn và audit. Replay resource đã CONFIRMED không cộng lần nữa |
+| GET /ingredient-inventory/counts | STAFF chỉ own; ADMIN toàn bộ; cursor UUID,200 items/nextCursor, snapshot/difference/current/stale/notes/reviewer/replacement |
+| POST /ingredient-inventory/counts | STAFF; key bắt buộc; note<=500, recountOfId tùy chọn; lines1..50 distinct {ingredientId,expectedVersion,actualQuantity>=0,note<=500}. Backend tự lấy baseline;201 SUBMITTED, không ghi tồn |
+| POST /ingredient-inventory/counts/:id/review | ADMIN; {expectedVersion,action:APPROVE/REJECT/REQUEST_RECOUNT,note<=500}.200 resource; reject/recount note không trống. Approve stale trả409, không rebase/overwrite |
+| GET /ingredient-inventory/movements | ADMIN; cursor UUID,200 items/nextCursor gồm before/after/delta/actor/time/source |
+
+Quantity là chuỗi VND-independent thập phân không âm, tối đa9 chữ số nguyên và3 chữ số lẻ, không exponent/comma/rounding; UI chuyển dấu phẩy trước khi gửi. PIECE phải nguyên. expectedVersion integer0..2147483646; id UUID. GET tài liệu tối đa50 records với cursor kế tiếp; mutations query rỗng. Không nhận actor/status/stock/difference từ client.
+
+Errors envelope cũ:400 VALIDATION_ERROR/MISSING_IDEMPOTENCY_KEY;401 UNAUTHORIZED;403 FORBIDDEN;404 INGREDIENT_NOT_FOUND/DOCUMENT_NOT_FOUND (gồm recount của người khác);409 INGREDIENT_EXISTS/IDEMPOTENCY_KEY_REUSED/INVALID_DOCUMENT_STATE/INVENTORY_CHANGED/CONCURRENT_UPDATE, overflow INVALID_QUANTITY;422 INVALID_QUANTITY cho zero receipt/fractional PIECE;503 SERVICE_UNAVAILABLE sanitized. Client giữ key/body khi network/503/concurrent chưa rõ; không tự tạo key mới. Review lặp cùng action/note đã terminal trả resource, action/note khác409. Không endpoint Staff mutation tồn chính thức.
+
 **Amendment được người dùng duyệt 2026-10-22:** [Checkout/session contract](CHECKOUT_SESSION_UPDATE.md) supersede Cart lock/success-clear, Attempt900s và auth không khôi phục phiên ở các baseline lịch sử dưới đây. API mới: GET /orders/active; POST /orders/:id/payment-resume; POST /auth/session, POST /auth/logout. Order DTO bổ sung deadline/server clock; login thêm HttpOnly session và CSRF/origin check. Không thay permission Customer/Admin/Staff hoặc verified-IPN settlement.
 
 Clarification2026-10-26: session cookie sai cấu trúc UUID trả401 UNAUTHORIZED tại POST `/auth/session` trước SQL; POST `/auth/logout` vẫn200 và xóa cookie lỗi sau Origin/CSRF check. Đây là sửa thực thi invalid-session contract, không thêm path/DTO/quyền. `PAYMENT_TIMEOUT` vẫn409; frontend đọc lại Order và giải phóng Mock intent bị từ chối, không tự xác nhận financial outcome.
