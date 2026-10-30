@@ -5,6 +5,12 @@ export class IngredientError extends Error { constructor(readonly code: string) 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export const unitLabels: Record<IngredientUnit,string> = { KG: 'kg', G: 'g', L: 'lít', ML: 'ml', PIECE: 'cái', EGG:'quả' };
 export const inventoryCategory=(unit:IngredientUnit):InventoryCategory=>unit==='PIECE'?'supplies':'materials';
+export const listedIngredients=(items:Ingredient[])=>items.filter(i=>i.isListed!==false);
+export const ingredientName=(item:Pick<Ingredient,'name'|'displayName'>)=>item.displayName??item.name;
+export function listedIngredientSummary(items:Ingredient[],summary:IngredientSummary):IngredientSummary {
+  const listed=listedIngredients(items);
+  return {...summary,totalIngredients:listed.length,inStock:listed.filter(i=>i.status==='IN_STOCK').length,lowStock:listed.filter(i=>i.status==='LOW_STOCK').length,outOfStock:listed.filter(i=>i.status==='OUT_OF_STOCK').length};
+}
 export const inventoryThresholds:Record<IngredientUnit,string>={PIECE:'10',L:'5',KG:'10',G:'10000',ML:'5000',EGG:'10'};
 export function normalizeQuantity(value: string, unit: IngredientUnit, positive = false): string | null {
   const raw = value.trim().replace(',','.');

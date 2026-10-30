@@ -1,5 +1,7 @@
 # BrewLite — Yêu cầu và phạm vi
 
+**I03 user amendment2026-10-31:** Người dùng yêu cầu quản lý vật tư trong một file, thêm/bỏ/sửa trong file ảnh hưởng frontend. [ingredient-catalog.ts](../backend/src/ingredients/ingredient-catalog.ts) là danh mục hiện hành; thêm dòng tạo phần thiếu tồn0 khi Admin tải lại, bỏ dòng ngừng liệt kê nhưng giữ dữ liệu, `label` đổi tên hiển thị và giữ kho cũ. Áp dụng cho danh sách kho, nhập hàng, kiểm kê mới và thống kê hiển thị; recount/history cũ vẫn hoạt động. Không sửa PDF, schema hoặc chính sách tài chính. [Cách quản lý và acceptance](I03_RECEIVING_CATALOG.md).
+
 **I03 user amendment2026-10-29:** [Danh mục nhập hàng](I03_RECEIVING_CATALOG.md) gồm3 vật dụng đơn vị cái và9 nguyên liệu theo tên/đơn vị người dùng chỉ định; bổ sung trứng đơn vị quả, cảnh báo dưới10 quả theo câu trả lời người dùng. Lưu danh mục vào DB thật, dùng lại mặt hàng đã có, không đoán tồn ban đầu hoặc xóa lịch sử.
 
 **User amendment I02,2026-10-29:** Admin có sáu mục Tổng quan/Đơn hàng/Sản phẩm/Topping/Tồn kho/Nhập hàng. Tồn kho phân Vật dụng (cái), Nguyên liệu (lít/kg); Nhập hàng có hai nhóm và lịch sử. Sắp hết khi dưới10 cái, dưới5 lít, dưới10 kg; bằng ngưỡng còn hàng,0 hết hàng. Supersede ngưỡng tùy chọn I01, giữ quy trình kiểm kê/duyệt/audit. [Contract I02](I02_INVENTORY_CATEGORIES.md).

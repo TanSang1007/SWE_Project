@@ -7,7 +7,7 @@ const require=createRequire(import.meta.url),ts=require('typescript');
 for(const ext of ['.ts','.tsx'])require.extensions[ext]=(module,file)=>module._compile(ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true},fileName:file}).outputText,file);
 require.extensions['.css']=()=>{};
 const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
-const {normalizeQuantity,quantityDifference,ingredientRequest,loadIngredientSections,getIngredientSummary,saveIngredientCommand,readIngredientCommand,clearIngredientCommand,inventoryCategory}=require('../src/lib/api/ingredients.ts');
+const {normalizeQuantity,quantityDifference,ingredientRequest,loadIngredientSections,getIngredientSummary,saveIngredientCommand,readIngredientCommand,clearIngredientCommand,inventoryCategory,listedIngredientSummary}=require('../src/lib/api/ingredients.ts');
 const {IngredientTable,IngredientSummaryCards}=require('../src/components/ingredient-inventory.tsx');
 const {NewIngredientForm,CountForm,ReceiptForm,ReviewCount}=require('../src/components/ingredient-forms.tsx');
 const {useAuthStore}=require('../src/lib/auth-store.ts');
@@ -37,3 +37,31 @@ test('supplies use pieces; materials offer liters/kg/eggs with fixed warnings',(
 test('eggs remain in materials and only whole egg quantities are accepted',()=>{assert.equal(inventoryCategory('EGG'),'materials');assert.equal(normalizeQuantity('12','EGG'),'12.000');assert.equal(normalizeQuantity('1,5','EGG'),null);const markup=html(IngredientTable,{category:'materials',items:[{...item,name:'Trứng',unit:'EGG',quantity:'9.000',lowStockThreshold:'10.000',status:'LOW_STOCK'}]});assert(markup.includes('Trứng'));assert(markup.includes('9 quả'));assert(markup.includes('Sắp hết'));});
 test('unit grouping and low-stock links open correct receiving category',()=>{assert.equal(inventoryCategory('PIECE'),'supplies');for(const unit of ['L','KG','ML','G'])assert.equal(inventoryCategory(unit),'materials');const markup=html(IngredientTable,{category:'supplies',receivingLinks:true,items:[{...item,unit:'PIECE',quantity:'9.000',lowStockThreshold:'10.000',status:'LOW_STOCK'}]});assert(markup.includes('Tồn kho vật dụng'));assert(markup.includes('/admin/receipts?category=supplies'));assert(markup.includes('Cảnh báo khi dưới'));});
 test('malformed summary is an explicit error rather than fabricated zero statistics',async()=>{login();globalThis.fetch=async()=>Response.json({totalIngredients:10,inStock:0,lowStock:0,outOfStock:0,pendingCounts:0});await assert.rejects(()=>getIngredientSummary(),{code:'UNAVAILABLE'});});
+
+test('server catalog controls stock and receipt options without special cases for item names',()=>{
+  const hidden={...item,id:randomUUID(),name:'Mặt hàng bất kỳ đã bỏ',isListed:false};
+  const active={...item,isListed:true,displayName:'Tên hiển thị mới'};
+  for(const component of [IngredientTable,ReceiptForm]){
+    const markup=html(component,{items:[hidden,active],busy:false,submit:()=>{}});
+    assert(!markup.includes(hidden.name));assert(markup.includes(active.displayName));
+  }
+  const markup=html(ReceiptForm,{items:[hidden,active],busy:false,submit:()=>{}});
+  assert(markup.includes(`value="${active.id}" selected=""`));
+  const empty=html(ReceiptForm,{items:[hidden],busy:false,submit:()=>{}});
+  assert(empty.includes('<fieldset disabled=""'));assert(!empty.includes('<option'));
+  assert(html(ReceiptForm,{items:[{...hidden,isListed:true}],busy:false,submit:()=>{}}).includes(hidden.name));
+});
+
+test('visible stock totals follow catalog while pending counts remain supplied by server',()=>{
+  const items=[{...item,isListed:true},{...item,id:randomUUID(),isListed:false,status:'OUT_OF_STOCK'},
+    {...item,id:randomUUID(),isListed:true,status:'LOW_STOCK'}];
+  const summary={totalIngredients:3,inStock:1,lowStock:1,outOfStock:1,pendingCounts:80};
+  assert.deepEqual(listedIngredientSummary(items,summary),{totalIngredients:2,inStock:1,lowStock:1,outOfStock:0,pendingCounts:80});
+  assert.equal(items.length,3);assert.equal(summary.totalIngredients,3);
+});
+
+test('new counts omit delisted items while historical recount still includes its original rows',()=>{
+  const hidden={...item,isListed:false,name:'Hàng ngừng nhập'},props={items:[hidden],busy:false,submit:()=>{},cancel:()=>{}};
+  assert(!html(CountForm,{...props,recount:null}).includes(hidden.name));
+  assert(html(CountForm,{...props,recount:{id:randomUUID(),reviewNote:'Đếm lại',lines:[{ingredient:{id:hidden.id}}]}}).includes(hidden.name));
+});

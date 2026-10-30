@@ -1,7 +1,7 @@
 export type IngredientUnit = 'KG' | 'G' | 'L' | 'ML' | 'PIECE' | 'EGG';
 export type InventoryCategory = 'supplies' | 'materials';
 export type InventoryActor = { id: string; email: string };
-export type Ingredient = { id: string; name: string; unit: IngredientUnit; quantity: string; lowStockThreshold: string; version: number; status: 'OUT_OF_STOCK' | 'LOW_STOCK' | 'IN_STOCK'; createdBy: InventoryActor; updatedBy: InventoryActor; createdAt: string; updatedAt: string };
+export type Ingredient = { id: string; name: string; displayName?: string; isListed?: boolean; unit: IngredientUnit; quantity: string; lowStockThreshold: string; version: number; status: 'OUT_OF_STOCK' | 'LOW_STOCK' | 'IN_STOCK'; createdBy: InventoryActor; updatedBy: InventoryActor; createdAt: string; updatedAt: string };
 export type IngredientRef = Pick<Ingredient,'id'|'name'|'unit'|'quantity'|'version'>;
 export type IngredientMovement = { id: string; beforeQuantity: string; afterQuantity: string; delta: string; actor: InventoryActor; createdAt: string };
 export type IngredientReceipt = { id: string; status: 'DRAFT'|'CONFIRMED'; note: string; version: number; createdBy: InventoryActor; confirmedBy: InventoryActor|null; createdAt: string; confirmedAt: string|null; lines: { id: string; ingredient: IngredientRef; quantity: string; movement: IngredientMovement|null }[] };

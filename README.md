@@ -34,11 +34,11 @@ Phiên bản đang pin trong các `package.json` và `package-lock.json`:
 
 **Staff:** xem hàng đợi được phép, chuyển `PAID → PREPARING → READY → COMPLETED`.
 
-**Danh mục nhập hàng (I03):** có3 vật dụng (thìa nhựa, ly nhựa, ống hút) và9 nguyên liệu đúng tên/đơn vị được chỉ định. Trứng dùng đơn vị quả, chỉ nhận số nguyên và cảnh báo dưới10 quả. Admin mở kho/nhập hàng sẽ bổ sung các mặt hàng còn thiếu vào database với tồn0, dùng lại mặt hàng đã có và giữ nguyên tồn/lịch sử; không cần tự thêm từng tên. [Danh mục đầy đủ, migration và kiểm thử](Docs/I03_RECEIVING_CATALOG.md).
+**Danh mục nhập hàng (I03):** quản lý trong một file [ingredient-catalog.ts](backend/src/ingredients/ingredient-catalog.ts): thêm dòng để bổ sung mặt hàng, bỏ dòng để ẩn khỏi kho/phiếu mới, sửa `label` để đổi tên hiển thị mà giữ tồn cũ. Backend cần nhận bản sửa trước khi Admin mở/tải lại kho để khởi tạo phần thiếu với tồn0; không xóa dữ liệu hay lịch sử. Ban đầu có3 vật dụng và9 nguyên liệu; trứng dùng quả nguyên và cảnh báo dưới10. [Cách chỉnh file, chạy lại backend và kiểm chứng](Docs/I03_RECEIVING_CATALOG.md).
 
 **Tồn kho và nhập hàng (I01/I02):** Admin có sáu mục Tổng quan, Đơn hàng, Sản phẩm, Topping, Tồn kho, Nhập hàng. `/admin/inventory` chia Quản lý vật dụng (cái) và Quản lý nguyên liệu (lít/kg); `/admin/receipts` có Vật dụng, Nguyên liệu, Lịch sử nhập hàng. Cảnh báo khi tồn dưới10 cái, dưới5 lít hoặc dưới10 kg; bằng ngưỡng vẫn còn hàng,0 hết hàng. Thêm mới, nhập kho và lịch sử dùng database thật. Staff gửi kiểm kê tại `/operator/ingredients`; chỉ Admin duyệt/từ chối/yêu cầu kiểm kê lại, không ghi đè phiếu cũ khi tồn đã thay đổi. Tồn sản phẩm bán ra vẫn ở Sản phẩm → Tồn sản phẩm (`/admin/products/inventory`). Chưa trừ theo công thức pha chế. [Contract I01](Docs/I01_INGREDIENT_INVENTORY_CONTRACT.md), [amendment I02](Docs/I02_INVENTORY_CATEGORIES.md).
 
-Database I01 đã được cập nhật trên Neon development. Kho chưa có nguyên liệu thật sẽ hiển thị trống để Admin thêm; giao diện có thống kê và timeout12 giây, lỗi lịch sử không chặn danh sách. [Hướng dẫn migration, danh sách file và kết quả kiểm thử](Docs/I01_INGREDIENT_INVENTORY_IMPLEMENTATION.md).
+Database I01 đã được cập nhật trên Neon development. Admin mở/tải lại kho để bổ sung các mặt hàng có trong file danh mục với tồn0; giao diện có thống kê và timeout12 giây, lỗi lịch sử không chặn danh sách. [Hướng dẫn migration, danh sách file và kết quả kiểm thử I01 ban đầu](Docs/I01_INGREDIENT_INVENTORY_IMPLEMENTATION.md).
 
 **Admin:** quản lý sản phẩm, size/topping và liên kết tùy chọn; điều chỉnh tồn có version/idempotency; xem đơn và hủy PAID theo quyền/contract. Hủy nội bộ không đồng nghĩa hoàn tiền gateway.
 

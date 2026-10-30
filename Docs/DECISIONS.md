@@ -1,5 +1,13 @@
 # BrewLite — Quyết định thiết kế
 
+## I03 — Quản lý vật tư trong một file (ACCEPTED USER / TECHNICAL,2026-10-31)
+
+Người dùng yêu cầu thêm/bỏ/sửa vật tư trong một file và frontend cập nhật theo. Dùng `ingredient-catalog.ts` làm nguồn danh mục; `name`/`unit` so khớp bản ghi kho, `label` tùy chọn đổi tên hiển thị an toàn. GET ingredients bổ sung `isListed`/`displayName` nhưng vẫn trả bản ghi cũ cho recount/history; frontend dùng metadata cho kho, lựa chọn phiếu mới và thống kê các mặt hàng đang liệt kê. Bỏ form thêm thủ công khỏi UI kho. Xóa dòng chỉ ngừng liệt kê, không xóa tồn hoặc chứng từ; thêm lại dùng kho cũ, thêm tên mới tạo tồn0 bằng Admin initializer. Không migration, không thay quyền hoặc chặn API chứng từ cũ. Thay thế điều kiện ẩn riêng từng tên trong ReceiptForm của quyết định2026-10-30 dưới đây. [Hướng dẫn và acceptance](I03_RECEIVING_CATALOG.md).
+
+## I03 — Bỏ lựa chọn “Ly và nắp nhựa” và “sữa (lít)” khỏi phiếu nhập mới (ACCEPTED USER,2026-10-30)
+
+Người dùng yêu cầu bỏ “Ly và nắp nhựa” và sau đó “sữa (lít)” khỏi ô chọn khi tạo phiếu nhập, giữ “Ly nhựa”, “Sữa tươi” và “Sữa đặc”. ReceiptForm lọc riêng tên “Ly và nắp nhựa” với đơn vị PIECE và tên “sữa” với đơn vị L trước khi khởi tạo/chọn/thêm dòng và gửi form; không giới hạn các mặt hàng khác theo danh mục mặc định. Bản ghi kho và chứng từ cũ được giữ nguyên, không xóa/gộp hoặc đổi tồn. Đây là điều chỉnh lựa chọn trên UI, không thay API/schema hoặc chặn thao tác qua API. [Chi tiết](I03_RECEIVING_CATALOG.md).
+
 ## I03 — Danh mục nhập hàng và quả (ACCEPTED USER,2026-10-29)
 
 Người dùng chỉ định12 mặt hàng và xác nhận trứng cảnh báo dưới10 quả. Thêm EGG thuộc nguyên liệu, không dùng chung PIECE để tránh phân trứng vào vật dụng. Tạo danh mục còn thiếu ở quantity0 qua POST Admin có xác thực khi mở trang kho/nhập hàng, dùng đúng actor thực, không ghi quantity giả trong migration. Reuse normalizedName/unit đúng, không chuyển đơn vị hàng cũ; mismatch409 rollback. Giữ các mặt hàng khác và audit. [Contract, danh sách và kiểm chứng](I03_RECEIVING_CATALOG.md).

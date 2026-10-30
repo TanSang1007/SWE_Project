@@ -1,5 +1,7 @@
 # BrewLite — Cấu trúc repository
 
+I03 amendment2026-10-31: `backend/src/ingredients/ingredient-catalog.ts` là file chỉnh danh mục duy nhất, có label hiển thị và kiểm tra cấu hình; IngredientService cung cấp metadata cho frontend, không có import code backend sang frontend. Kiểm thử mới `backend/test/ingredient-catalog.spec.ts`, mở rộng database/frontend tests và browser harness cho luồng danh mục tập trung. [Hướng dẫn](I03_RECEIVING_CATALOG.md).
+
 I03 thêm `backend/src/ingredients/ingredient-catalog.ts`, migration `20261029170000_inventory_egg_unit`; sửa policy/DTO/service/controller I01, frontend unit labels/forms/load và tests tương ứng. Script fallback nhận `--egg-unit`, package scripts `db:check:inventory-catalog`/`db:migrate:inventory-catalog`. [Contract](I03_RECEIVING_CATALOG.md).
 
 I02 bổ sung `frontend/src/app/admin/receipts/page.tsx`, `admin/products/inventory/page.tsx`, sửa route kho/nguyên liệu và nav/forms I01 hiện có; migration `20261029150000_inventory_categories` cố định metadata ngưỡng. Script `backend/scripts/apply-ingredient-inventory.cjs --categories` chỉ chọn migration I02; không cài package hoặc đổi cấu trúc backend. [Contract](I02_INVENTORY_CATEGORIES.md).

@@ -15,6 +15,7 @@ import { configureApp } from '../../src/common/configure-app';
 import { IngredientService } from '../../src/ingredients/ingredient.service';
 import { requestHash } from '../../src/ingredients/ingredient-policy';
 import { ingredientCatalog } from '../../src/ingredients/ingredient-catalog';
+import * as catalog from '../../src/ingredients/ingredient-catalog';
 
 const connectionString=process.env.TEST_DATABASE_URL;
 if(!connectionString)throw Error('Explicit isolated TEST_DATABASE_URL required');
@@ -174,6 +175,25 @@ test('catalog unit conflict is explicit and never rewrites stock, unit or histor
   const before=await db.ingredient.findMany({orderBy:{id:'asc'}});
   try{const response=await api('post','catalog/initialize',admin,{}).expect(409);expect((response.body as {error:{code:string}}).error.code).toBe('INGREDIENT_UNIT_MISMATCH');expect(await db.ingredient.findMany({orderBy:{id:'asc'}})).toEqual(before);}
   finally{await db.ingredient.update({where:{id:egg.id},data:{unit:'EGG',lowStockThreshold:'10'}});}
+});
+
+test('catalog removal/relabel/restore controls read metadata without changing persisted stock or history',async()=>{
+  const before=await db.ingredient.findMany({orderBy:{id:'asc'}}),movements=await db.ingredientMovement.count();
+  const cup=before.find(i=>i.normalizedName==='ly nhựa')!;
+  const definitions=catalog.readIngredientCatalog([{name:'Ly nhựa',unit:'PIECE',label:'Ly kèm nắp'}]);
+  const config=jest.spyOn(catalog,'readIngredientCatalog').mockReturnValue(definitions);
+  try{
+    const listed=await api('get','ingredients',admin).expect(200);
+    expect((listed.body as {items:{id:string;isListed:boolean;displayName:string}[]}).items.find(i=>i.id===cup.id)).toMatchObject({isListed:true,displayName:'Ly kèm nắp'});
+    config.mockReturnValue([]);
+    const hidden=await api('get','ingredients',staff).expect(200);
+    expect((hidden.body as {items:{isListed:boolean}[]}).items.every(i=>!i.isListed)).toBe(true);
+    expect((await api('post','catalog/initialize',admin,{}).expect(200)).body).toEqual({created:0,existing:0});
+    config.mockReturnValue(definitions);
+    expect((await api('post','catalog/initialize',admin,{}).expect(200)).body).toEqual({created:0,existing:1});
+    expect(await db.ingredient.findMany({orderBy:{id:'asc'}})).toEqual(before);
+    expect(await db.ingredientMovement.count()).toBe(movements);
+  }finally{config.mockRestore();}
 });
 test('egg receipts/count approvals use whole eggs and journal once',async()=>{
   const egg=await db.ingredient.findUniqueOrThrow({where:{normalizedName:'trứng'}});await api('post','receipts',admin,{lines:[{ingredientId:egg.id,quantity:'1.5'}]},randomUUID()).expect(422);

@@ -1,6 +1,6 @@
 'use client';
 import { useState, type FormEvent } from 'react';
-import { displayQuantity, inventoryThresholds, normalizeQuantity, quantityDifference, unitLabels } from '../lib/api/ingredients';
+import { displayQuantity, ingredientName, inventoryThresholds, listedIngredients, normalizeQuantity, quantityDifference, unitLabels } from '../lib/api/ingredients';
 import type { Ingredient, IngredientCount, IngredientReceipt, IngredientUnit, InventoryCategory } from '../types/ingredient';
 type Submit = (path:string,body:object)=>void;
 export function NewIngredientForm({busy,submit,category='materials'}:{busy:boolean;submit:Submit;category?:InventoryCategory}) {
@@ -14,13 +14,14 @@ export function NewIngredientForm({busy,submit,category='materials'}:{busy:boole
     <p>Tồn ban đầu là 0. Nhập hàng hoặc kiểm kê được phê duyệt để ghi nhận số lượng; đơn vị không thay đổi sau khi tạo.</p>
     <button className="button" type="submit">Thêm {label}</button></fieldset>{error&&<p role="alert">{error}</p>}</form>;
 }
-export function ReceiptForm({items,busy,submit,category='materials'}:{items:Ingredient[];busy:boolean;submit:Submit;category?:InventoryCategory}) {
+export function ReceiptForm({items:inventoryItems,busy,submit,category='materials'}:{items:Ingredient[];busy:boolean;submit:Submit;category?:InventoryCategory}) {
+  const items=listedIngredients(inventoryItems);
   const [rows,setRows]=useState([{ingredientId:items[0]?.id??'',quantity:''}]),[note,setNote]=useState(''),[error,setError]=useState('');
   function save(e:FormEvent){e.preventDefault();const lines=rows.map(r=>{const i=items.find(i=>i.id===r.ingredientId);return i?{ingredientId:i.id,quantity:normalizeQuantity(r.quantity,i.unit,true)}:null;});
     if(!lines.length||lines.some(l=>!l||l.quantity===null)||new Set(rows.map(r=>r.ingredientId)).size!==rows.length){setError('Mỗi nguyên liệu chỉ xuất hiện một lần; lượng nhập phải lớn hơn 0 và đúng đơn vị.');return;}setError('');submit('receipts',{note,lines});}
   return <form className="ingredient-card ingredient-form" onSubmit={save}><h2>Tạo phiếu nhập {category==='supplies'?'vật dụng':'nguyên liệu'}</h2><fieldset disabled={busy||!items.length}><legend>Số lượng thực nhận</legend>
     {rows.map((row,index)=>{const i=items.find(i=>i.id===row.ingredientId),q=i?normalizeQuantity(row.quantity,i.unit,true):null;return <div className="ingredient-entry" key={index}>
-      <label>{category==='supplies'?'Vật dụng':'Nguyên liệu'} {index+1}<select value={row.ingredientId} onChange={e=>setRows(rows.map((r,n)=>n===index?{ingredientId:e.target.value,quantity:''}:r))}>{items.map(i=><option key={i.id} value={i.id}>{i.name} ({unitLabels[i.unit]})</option>)}</select></label>
+      <label>{category==='supplies'?'Vật dụng':'Nguyên liệu'} {index+1}<select value={row.ingredientId} onChange={e=>setRows(rows.map((r,n)=>n===index?{ingredientId:e.target.value,quantity:''}:r))}>{items.map(i=><option key={i.id} value={i.id}>{ingredientName(i)} ({unitLabels[i.unit]})</option>)}</select></label>
       <label>Số lượng nhập<input inputMode="decimal" value={row.quantity} required onChange={e=>setRows(rows.map((r,n)=>n===index?{...r,quantity:e.target.value}:r))}/></label>
       {i&&<p>Tồn hiện tại: {displayQuantity(i.quantity)} {unitLabels[i.unit]}{q&&` · Sau nhập dự kiến: ${displayQuantity((Number(i.quantity)+Number(q)).toFixed(3))} ${unitLabels[i.unit]}`}</p>}
       {rows.length>1&&<button type="button" onClick={()=>setRows(rows.filter((_,n)=>n!==index))}>Xóa dòng {index+1}</button>}</div>;})}
@@ -30,7 +31,7 @@ export function ReceiptForm({items,busy,submit,category='materials'}:{items:Ingr
 }
 export function CountForm({items,busy,submit,recount,cancel}:{items:Ingredient[];busy:boolean;submit:Submit;recount:IngredientCount|null;cancel:()=>void}) {
   const [values,setValues]=useState<Record<string,{selected:boolean;actual:string;note:string}>>({}),[note,setNote]=useState(''),[error,setError]=useState('');
-  const available=recount?items.filter(i=>recount.lines.some(l=>l.ingredient.id===i.id)):items;
+  const available=recount?items.filter(i=>recount.lines.some(l=>l.ingredient.id===i.id)):listedIngredients(items);
   const value=(i:Ingredient)=>values[i.id]??{selected:!!recount,actual:'',note:''};
   function update(i:Ingredient,patch:Partial<ReturnType<typeof value>>){setValues({...values,[i.id]:{...value(i),...patch}});}
   function save(e:FormEvent){e.preventDefault();const lines=available.filter(i=>value(i).selected).map(i=>({ingredientId:i.id,expectedVersion:i.version,actualQuantity:normalizeQuantity(value(i).actual,i.unit),note:value(i).note}));
@@ -38,11 +39,11 @@ export function CountForm({items,busy,submit,recount,cancel}:{items:Ingredient[]
   return <form className="ingredient-card ingredient-form" onSubmit={save}><h2>{recount?'Kiểm kê lại theo yêu cầu':'Gửi phiếu kiểm kê'}</h2><p>Nhập số lượng đếm thực tế. Tồn chính thức chỉ thay đổi khi Admin phê duyệt; không điền 0 nếu chưa kiểm kê.</p>
     {recount&&<p>Lý do kiểm kê lại: {recount.reviewNote}</p>}<fieldset disabled={busy||!available.length}><legend>Kết quả kiểm kê nguyên liệu</legend>
     {available.map(i=>{const v=value(i),actual=normalizeQuantity(v.actual,i.unit);return <div key={i.id} className="ingredient-entry">
-      <label className="ingredient-check"><input type="checkbox" checked={v.selected} disabled={!!recount} onChange={e=>update(i,{selected:e.target.checked})}/>{i.name} ({unitLabels[i.unit]})</label>
+      <label className="ingredient-check"><input type="checkbox" checked={v.selected} disabled={!!recount} onChange={e=>update(i,{selected:e.target.checked})}/>{ingredientName(i)} ({unitLabels[i.unit]})</label>
       <p>Tồn hệ thống: {displayQuantity(i.quantity)} {unitLabels[i.unit]}</p>
-      {v.selected&&<><label>Số lượng thực tế — {i.name}<input inputMode="decimal" value={v.actual} required onChange={e=>update(i,{actual:e.target.value})}/></label>
+      {v.selected&&<><label>Số lượng thực tế — {ingredientName(i)}<input inputMode="decimal" value={v.actual} required onChange={e=>update(i,{actual:e.target.value})}/></label>
         <p role="status">Chênh lệch: {actual===null?'Chưa nhập hợp lệ':`${displayQuantity(quantityDifference(actual,i.quantity))} ${unitLabels[i.unit]}`}</p>
-        <label>Nguyên nhân chênh lệch — {i.name}<textarea maxLength={500} value={v.note} onChange={e=>update(i,{note:e.target.value})}/></label></>}
+        <label>Nguyên nhân chênh lệch — {ingredientName(i)}<textarea maxLength={500} value={v.note} onChange={e=>update(i,{note:e.target.value})}/></label></>}
     </div>;})}
     <label>Ghi chú chung<textarea maxLength={500} value={note} onChange={e=>setNote(e.target.value)}/></label><button className="button" type="submit">Gửi Admin phê duyệt</button>
     {recount&&<button type="button" onClick={cancel}>Hủy thao tác kiểm kê lại</button>}</fieldset>{error&&<p role="alert">{error}</p>}</form>;

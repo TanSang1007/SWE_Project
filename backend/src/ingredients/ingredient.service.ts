@@ -5,7 +5,7 @@ import { PrismaService } from '../database/prisma.service';
 import { requireIdempotencyKey } from '../common/idempotency';
 import { lockUser } from '../orders/order-policy';
 import type { CountCreateDto, CountReviewDto, IngredientCreateDto, ReceiptCreateDto } from './ingredient.dto';
-import { ingredientCatalog } from './ingredient-catalog';
+import { readIngredientCatalog } from './ingredient-catalog';
 import { actorSelect, checkHash, invalidState, quantity, requestHash, stockChanged, stockStatus, uniqueLines, unitThreshold } from './ingredient-policy';
 
 const ingredientSelect = { id: true, name: true, unit: true, quantity: true, version: true } as const;
@@ -40,7 +40,15 @@ export class IngredientService {
     }
   }
   async ingredients() {
-    return this.read(async () => ({ items: (await this.db.ingredient.findMany({ orderBy: [{ name: 'asc' }, { id: 'asc' }], include: { createdBy: { select: actorSelect }, movements: { take: 1, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], include: movementInclude } } })).map(i => ({ id: i.id, name: i.name, unit: i.unit, quantity: i.quantity.toFixed(3), lowStockThreshold: i.lowStockThreshold.toFixed(3), version: i.version, status: stockStatus(i.quantity, i.lowStockThreshold), createdBy: i.createdBy, updatedBy: i.movements[0]?.actor ?? i.createdBy, createdAt: i.createdAt.toISOString(), updatedAt: i.updatedAt.toISOString() })) }));
+    return this.read(async () => {
+      const catalog = new Map(readIngredientCatalog().map(entry => [entry.normalizedName, entry]));
+      const rows = await this.db.ingredient.findMany({ orderBy: [{ name: 'asc' }, { id: 'asc' }], include: { createdBy: { select: actorSelect }, movements: { take: 1, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], include: movementInclude } } });
+      return { items: rows.map(i => {
+        const entry = catalog.get(i.normalizedName);
+        const isListed = entry?.unit === i.unit;
+        return { id: i.id, name: i.name, displayName: isListed ? entry.displayName : i.name, isListed, unit: i.unit, quantity: i.quantity.toFixed(3), lowStockThreshold: i.lowStockThreshold.toFixed(3), version: i.version, status: stockStatus(i.quantity, i.lowStockThreshold), createdBy: i.createdBy, updatedBy: i.movements[0]?.actor ?? i.createdBy, createdAt: i.createdAt.toISOString(), updatedAt: i.updatedAt.toISOString() };
+      }) };
+    });
   }
   async summary(actorId: string, role: UserRole) {
     return this.read(async () => {
@@ -71,7 +79,7 @@ export class IngredientService {
   }
   async initializeCatalog(actorId:string) {
     return this.transaction(actorId,async tx=>{
-      const definitions=ingredientCatalog.map(i=>({...i,normalizedName:i.name.normalize('NFC').toLocaleLowerCase('vi')}));
+      const definitions=readIngredientCatalog().map(({name,unit,normalizedName})=>({name,unit,normalizedName}));
       const existing=await tx.ingredient.findMany({where:{normalizedName:{in:definitions.map(i=>i.normalizedName)}}});
       for(const item of definitions){
         const found=existing.find(i=>i.normalizedName===item.normalizedName);

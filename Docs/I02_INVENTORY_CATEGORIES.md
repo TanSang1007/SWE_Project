@@ -1,5 +1,7 @@
 # I02 — Vật dụng, nguyên liệu và nhập hàng
 
+Amendment hiện hành2026-10-31: [I03 — Quản lý danh mục trong một file](I03_RECEIVING_CATALOG.md) thay form thêm mặt hàng trên UI kho bằng danh mục trong `ingredient-catalog.ts`. Kho/phiếu mới chỉ hiển thị các mặt hàng còn trong danh mục; dữ liệu tồn và chứng từ cũ vẫn được giữ. Các mô tả form tạo thủ công dưới đây là baseline I02 trước amendment này.
+
 Yêu cầu người dùng 2026-10-29 bổ sung cho [I01](I01_INGREDIENT_INVENTORY_CONTRACT.md): Admin có đúng sáu mục chính Tổng quan, Đơn hàng, Sản phẩm, Topping, Tồn kho, Nhập hàng. Tồn kho có hai nhóm Vật dụng và Nguyên liệu; Nhập hàng có Vật dụng, Nguyên liệu, Lịch sử nhập hàng. Không thay nghiệp vụ bán hàng/thanh toán.
 
 Vật dụng dùng đơn vị PIECE (cái), số nguyên; nguyên liệu mới dùng L (lít) hoặc KG do Admin chọn. Tận dụng sáu bảng I01: nhóm suy từ đơn vị, không tạo bảng kho thứ hai. Đơn vị G/ML cũ vẫn đọc/nhập/kiểm kê được để bảo toàn dữ liệu lịch sử, không còn dùng khi tạo mặt hàng mới.
