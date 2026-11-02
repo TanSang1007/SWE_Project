@@ -3,7 +3,7 @@ import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/roles.decorator';
-import { AddCartItemDto, CartDeleteDto, CartParamsDto, CartQuantityDto, CartQueryDto } from './cart.dto';
+import { AddCartItemDto, CartDeleteDto, CartParamsDto, CartOptionsDto, CartQuantityDto, CartQueryDto } from './cart.dto';
 import { CartService } from './cart.service';
 type AuthRequest = Request & { user: { id: string } };
 @Controller('cart')
@@ -18,6 +18,10 @@ export class CartController {
   @Patch('items/:id')
   update(@Req() req: AuthRequest, @Param() params: CartParamsDto, @Body() body: CartQuantityDto, @Query() query: CartQueryDto) {
     void query; return this.cart.update(req.user.id, params.id, body.qty);
+  }
+  @Patch('items/:id/options')
+  options(@Req() req: AuthRequest, @Param() params: CartParamsDto, @Body() body: CartOptionsDto, @Query() query: CartQueryDto) {
+    void query; return this.cart.editOptions(req.user.id, params.id, body);
   }
   @Delete('items/:id')
   remove(@Req() req: AuthRequest, @Param() params: CartParamsDto, @Body() body: CartDeleteDto, @Query() query: CartQueryDto) {

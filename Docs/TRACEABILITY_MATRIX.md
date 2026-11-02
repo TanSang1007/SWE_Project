@@ -73,3 +73,7 @@ P01/B03/B19 có thêm deployment configuration development với Neon dùng chun
 Không thêm nghiệp vụ từ tests, seed hoặc báo cáo Gate. Bảng schema/migration truy về FR13–16 và L00/P00; controller/role DTO truy về API/extension; frontend chỉ hiển thị backend state/capabilities. Các reports cũ còn giữ vì script đọc là REVIEW, không phải requirement/runtime dependency của Normal Mode.
 
 [Plan](DEVELOPMENT_PLAN.md) ghi việc chưa hoàn thành; [Design review](DESIGN_REVIEW.md) phân biệt closure thiết kế và nghiệm thu sản phẩm.
+
+## Cart correction2026-11-02
+
+FR02/03 → atomic options endpoint, qty preservation/merge,50-row boundary: cart service/controller/dto and frontend Cart API/View. FR03/08/14 → aggregate stock warning without reservation; backend Pricing unchanged. FR06/08/15 → successful quote matching Cart/mã/điểm gates new Order intent, saved-request recovery unchanged. AddToCart immediate guard limits repeated clicks; no claim of network retry idempotency. Evidence: cart-service/pricing unit, frontend cart/checkout, native PostgreSQL regression additions pending; see CART_PRICING_FIXES.md. No schema/migration modifications.

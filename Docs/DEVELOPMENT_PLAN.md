@@ -79,3 +79,12 @@ Phạm vi được giao rõ và truy về FR/extension; code/config/docs đồng
 Documentation-only checks không chạy migrations/seed/gateway. Nếu dọn evidence còn là script input, giữ REVIEW và xin quyết định retire helper trong task riêng. Shared Staging/production, CI/CD hoặc refactor ngoài phạm vi cần owner giao riêng.
 
 [Traceability](TRACEABILITY_MATRIX.md) · [Design review](DESIGN_REVIEW.md) · [Setup](../README.md).
+
+## Cart correction2026-11-02 — no migration
+
+- [x] Atomic size/topping edit/merge; edit at50 rows without temporary51st row.
+- [x] Aggregate stock warning, allow quantity reduction, guard checkout navigation.
+- [x] Require a current successful quote for new Order intents; preserve saved-order retry.
+- [x] Immediate in-flight add guard; reload after errors, no automatic POST retry.
+- [x] Backend66/66, frontend273/273; typecheck hai workspace, frontend/focused backend lint, backend build và frontend Webpack build PASS.
+- [ ] Native PostgreSQL integration/concurrency and browser checklist. No shared database writes, schema/migration changes or push. See CART_PRICING_FIXES.md for checks actually run.

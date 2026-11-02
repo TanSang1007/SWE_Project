@@ -484,3 +484,7 @@ when safeToStop=false. Automatic health recovery never cancels explicit intent.
 No financial writes, QueryDr activation, quota or session gate is part of recovery.
 Existing running parent is not hot-reloaded; use its existing recovery path and
 defer replacing it until safe shutdown. See [operation](NORMAL_SANDBOX_MODE.md).
+
+## Cart/pricing correction2026-11-02 — user scope: no migration
+
+User selected four fixes without database structure changes: atomic options edit/merge using existing owner lock; edit at50 rows without temporary extra row; aggregate stock warning; successful current quote required for new checkout intents. Browser add receives an immediate in-flight guard and reload-on-error, not durable deduplication. This supersedes B08 two-request options orchestration. Keep schema, migrations, Order/payment engines and pricing formulas unchanged. See CART_PRICING_FIXES.md for evidence and limitations.

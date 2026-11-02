@@ -491,3 +491,11 @@ provider/admission toggle. The launcher's random-port127.0.0.1 controller requir
 random local token and is not reachable through the callback allowlist. CLI status
 is read-only; mutation commands are launcher operations, not application APIs.
 Default MOCK remains merchant-free. [Operation](NORMAL_SANDBOX_MODE.md).
+
+## Cart correction2026-11-02 — no migration
+
+- New CUSTOMER/owner endpoint PATCH /cart/items/:id/options, body {size,toppingIds}, response200 full Cart. Same DTO bounds/options/errors as POST; no productId/qty/userId accepted. Preserve qty; merge identical configuration within99 and delete source atomically under owner lock. No temporary51st row. Missing/cross-owner source404 CART_ITEM_NOT_FOUND. Failed validation/mutation rolls back source and target.
+- Cart items add stock and requestedQuantity (aggregate qty for the same product across sizes/toppings). available retains catalog/options availability. UI warns when demand exceeds stock and blocks checkout navigation, while allowing qty reduction. No reservation/inventory write; Order Pricing rechecks stock.
+- Options editing replaces historical POST-then-DELETE orchestration. Add API remains unchanged and non-idempotent. UI locks synchronously during add; uncertain errors reload Cart and ask the user to inspect before retry, without automatic POST retry.
+- New-order handler/button require successful quote matching current Cart/promotion/points; saved Order retry remains unchanged. Maximum-points action recalculates quote for selected points.
+- No schema/migration/idempotency-receipt changes. Frontend and backend should be updated together for the new options endpoint.
