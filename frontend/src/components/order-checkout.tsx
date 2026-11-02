@@ -107,6 +107,8 @@ export function OrderCheckout({ cart, disabled, onLock, resumeOrderId }: { cart:
   }, [userId, recover, invalidateRead, refreshCart, resumeOrderId]);
   const quoteInput=useMemo(()=>cart?.items.length ? {items:cart.items.map(i=>({productId:i.productId,size:i.size,qty:i.qty,toppingIds:i.toppings.map(t=>t.id)})),
     ...(promotion.trim()?{promotionCode:promotion.trim().toUpperCase()}:{}),redeemedPoints:Number(selectedPoints)} : null,[cart,promotion,selectedPoints]);
+  const [quotedInput, setQuotedInput] = useState<typeof quoteInput>(null);
+  const quoteReady = !!quote && quotedInput === quoteInput && !quoteBusy && !quoteError;
   useEffect(()=>{
     const controller=new AbortController();
     async function load(){
@@ -115,7 +117,7 @@ export function OrderCheckout({ cart, disabled, onLock, resumeOrderId }: { cart:
       setQuote(null);setQuoteError('');
       if(!validPoints){setQuoteError('Nhập số điểm nguyên từ 0 đến 2.147.483.647.');setQuoteBusy(false);return;}
       setQuoteBusy(true);
-      const timer=setTimeout(()=>{void previewOrder(quoteInput,controller.signal).then(q=>{if(!controller.signal.aborted&&isCurrent())setQuote(q);})
+      const timer=setTimeout(()=>{void previewOrder(quoteInput,controller.signal).then(q=>{if(!controller.signal.aborted&&isCurrent()){setQuote(q);setQuotedInput(quoteInput);}})
         .catch(e=>{if(!controller.signal.aborted&&isCurrent())setQuoteError(checkoutErrorMessage(e,'create'));})
         .finally(()=>{if(!controller.signal.aborted&&isCurrent())setQuoteBusy(false);});},200);
       controller.signal.addEventListener('abort',()=>clearTimeout(timer),{once:true});
@@ -123,9 +125,9 @@ export function OrderCheckout({ cart, disabled, onLock, resumeOrderId }: { cart:
     void load();return()=>controller.abort();
   },[quoteInput,validPoints,active,context,paymentContext,restoring,token,quoteAttempt,isCurrent]);
   async function maximum(){
-    if(!quoteInput||waiting||context)return;setQuoteBusy(true);setQuoteError('');
-    try{const q=await previewOrder({...quoteInput,redeemedPoints:0});if(isCurrent()){setSelectedPoints(String(q.maxRedeemablePoints));setQuote(q);setQuoteAttempt(v=>v+1);}}
-    catch(e){if(isCurrent())setQuoteError(checkoutErrorMessage(e,'create'));}finally{if(isCurrent())setQuoteBusy(false);}
+    if(!quoteInput||waiting||context||!begin())return;setQuoteBusy(true);setQuoteError('');setQuote(null);setQuotedInput(null);
+    try{const q=await previewOrder({...quoteInput,redeemedPoints:0});if(isCurrent()){setSelectedPoints(String(q.maxRedeemablePoints));setQuoteAttempt(v=>v+1);}}
+    catch(e){if(isCurrent())setQuoteError(checkoutErrorMessage(e,'create'));}finally{if(isCurrent())setQuoteBusy(false);finish();}
   }
   function begin() { if (inFlight.current || restoring) return false; inFlight.current = true; setBusy(true); setError(''); return true; }
   function finish() { inFlight.current = false; if (isCurrent()) setBusy(false); }
@@ -138,7 +140,7 @@ export function OrderCheckout({ cart, disabled, onLock, resumeOrderId }: { cart:
   }
   async function place() {
     if (!context && mode === 'VNPAY_SANDBOX' && !acceptingNewPayments && quote?.finalTotal !== '0') return;
-    if ((!context && (!validPoints || quoteBusy)) || (!context && !cart?.items.length) || !userId || disabled || active || paymentContext || (cartStale && !context) || (discoveredId && !order) || !begin()) return;
+    if ((!context && (!validPoints || !quoteReady)) || (!context && !cart?.items.length) || !userId || disabled || active || paymentContext || (cartStale && !context) || (discoveredId && !order) || !begin()) return;
     let submitted: OrderContext | undefined;
     let operation: 'create' | 'refresh' = 'create';
     try {
@@ -207,7 +209,7 @@ export function OrderCheckout({ cart, disabled, onLock, resumeOrderId }: { cart:
     <h2 id="checkout-heading">Đặt đơn</h2>{error && <p role="alert" className="checkout-error">{error}</p>}
     {waiting && <p role="status">{restoring ? 'Đang khôi phục đơn và yêu cầu đã lưu…' : 'Đang xử lý đơn…'}</p>}
     {debtBlocked && active && <p role="alert">Nghĩa vụ thu hồi điểm đang chặn thanh toán. Hủy đơn để giải phóng điểm và bù nghĩa vụ; sau đó có thể đặt đơn mới không dùng điểm.</p>}
-    {active && <p role="status">Bạn đang có đơn chưa hoàn tất. Bạn vẫn có thể chỉnh sửa giỏ cho lần đặt tiếp theo.</p>}
+    {active && <p role="status">Bạn đang có đơn chưa hoàn tất. Giỏ được giữ nguyên và khóa chỉnh sửa. Hãy thử lại thanh toán hoặc hủy đơn trước khi thay đổi món.</p>}
     {createUncertain && !waiting && <p role="status">{context ? 'Yêu cầu đặt đơn đã được lưu. Hãy phục hồi yêu cầu này trước khi chỉnh sửa giỏ hoặc tạo đơn mới.' : 'Chưa tải được đơn đang gắn với giỏ. Hãy mở / tải lại đơn hiện tại trước khi chỉnh sửa giỏ.'}</p>}
     {order && <><OrderSummary order={order} /><PaymentCountdown key={order.serverNow} expiresAt={order.expiresAt} serverNow={order.serverNow} verifying={order.status === 'PENDING'} /></>}
     {order && <Link href={`/orders/${order.id}/confirmation`}>Xem lại đơn hàng</Link>}
@@ -246,7 +248,7 @@ export function OrderCheckout({ cart, disabled, onLock, resumeOrderId }: { cart:
         <dl className="order-totals"><div><dt>Tạm tính</dt><dd>{formatVnd(quote.itemSubtotal)}</dd></div><div><dt>Giảm từ mã{quote.promotionCode ? ' (' + quote.promotionCode + ')' : ''}</dt><dd>{formatVnd(quote.promotionDiscount)}</dd></div>
           <div><dt>Giảm từ điểm</dt><dd>{formatVnd(quote.loyaltyDiscount)}</dd></div><div><dt>Tổng dự kiến</dt><dd data-preview-total={quote.finalTotal}>{formatVnd(quote.finalTotal)}</dd></div>
           <div><dt>Điểm thưởng dự kiến</dt><dd>{quote.earnedPoints}</dd></div></dl></div>}
-      <button data-checkout-action="create" disabled={waiting || disabled || (!context && (quoteBusy||!validPoints)) || (!context && !cart?.items.length) || (cartStale && !context) || (!!discoveredId && !order) || (!context && mode === 'VNPAY_SANDBOX' && !acceptingNewPayments && quote?.finalTotal !== '0')} onClick={() => void place()}>{context ? 'Thử lại cùng yêu cầu' : 'Đặt hàng'}</button>
+      <button data-checkout-action="create" disabled={waiting || disabled || (!context && (!quoteReady||!validPoints)) || (!context && !cart?.items.length) || (cartStale && !context) || (!!discoveredId && !order) || (!context && mode === 'VNPAY_SANDBOX' && !acceptingNewPayments && quote?.finalTotal !== '0')} onClick={() => void place()}>{context ? 'Thử lại cùng yêu cầu' : 'Đặt hàng'}</button>
       {!cart?.items.length && !context && <p>Thêm ít nhất một món vào giỏ để đặt đơn.</p>}</>}
   </section>;
 }

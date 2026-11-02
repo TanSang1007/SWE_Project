@@ -1,3 +1,4 @@
+import { clearPurchasedCart } from './cart-cleanup';
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
@@ -261,6 +262,7 @@ export class IpnService {
                 if (o.redeemedPoints)
                     effects.push(effect(account, success ? 'SETTLE' : 'RELEASE', o.redeemedPoints, { orderId: o.id, paymentId: payment.id, cycle: o.reservationCycle }));
                 if (success) {
+                    await clearPurchasedCart(tx, o.userId);
                     const points = o.total.dividedBy(10000).floor().toNumber();
                     await tx.loyaltyAward.create({ data: { orderId: o.id, userId: o.userId, points } });
                     effects.push(effect(account, 'EARN', points, { orderId: o.id, paymentId: payment.id }));

@@ -17,7 +17,10 @@ export function ProductListView({ catalog }: { catalog: ProductList }) {
 export function Menu() {
   const { state, retry } = useCatalog(getProducts);
   return <><section className="hero"><div><p className="eyebrow">Một chút nhẹ nhàng, mỗi ngày</p><h1>Chọn một ly.<br /><em>Chậm lại một chút.</em></h1>
-    <p>Khám phá thực đơn BrewLite, xem kích cỡ và topping cho món bạn yêu thích.</p></div><div className="hero-stamp" aria-hidden="true"><span>BREW<br />LITE</span><small>thưởng thức từng chút</small></div></section>
+    <p>Khám phá thực đơn BrewLite, xem kích cỡ và topping cho món bạn yêu thích.</p></div>
+    <div className="hero-stamp" aria-hidden="true">
+      <img src="/images/logo.png" alt="" className="hero-logo" />
+    </div></section>
     {state.status === 'loading' && <CatalogLoading />}{state.status === 'error' && <CatalogState kind={state.kind} retry={retry} />}
     {state.status === 'ready' && <ProductListView catalog={state.data} />}</>;
 }

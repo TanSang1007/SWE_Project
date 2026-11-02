@@ -50,17 +50,18 @@ test('superseded successful Cart read is not acknowledged as updated when the ne
   reads[0].resolve(Response.json(empty)); assert.equal(await oldRead, false); assert.deepEqual(useCartStore.getState().cart, cart);
   globalThis.fetch = async () => Response.json(empty); assert.equal(await useCartStore.getState().load(), true); assert.deepEqual(useCartStore.getState().cart, empty);
 });
-for (const change of [{ size: 'L' }, { toppingIds: [] }, { toppingIds: ['b'] }]) test(`edit ${JSON.stringify(change)} adds first with current qty then deletes old; merged response retained`, async () => {
+for (const change of [{ size: 'L' }, { toppingIds: [] }, { toppingIds: ['b'] }]) test(`edit ${JSON.stringify(change)} uses one atomic options request; server quantity retained`, async () => {
   const calls = []; globalThis.fetch = async (_url, options) => { calls.push(options); return Response.json(cart); }; signIn();
   calls.length = 0; const result = await api.editCartItem(item, { productId: item.productId, size: item.size, toppingIds: ['a'], qty: 99, ...change });
-  assert.deepEqual(calls.map((c) => c.method), ['POST', 'DELETE']); assert.equal(JSON.parse(calls[0].body).qty, 2); assert.deepEqual(result.cart, cart);
+  assert.deepEqual(calls.map((c) => c.method), ['PATCH']); assert.equal(JSON.parse(calls[0].body).qty, undefined); assert.deepEqual(result.cart, cart);
 });
-test('failed POST never deletes old; partial edit failure returns deletion retry only', async () => {
+test('failed options edit never sends a separate add or delete', async () => {
   globalThis.fetch = async () => Response.json(empty); signIn(); const calls = [];
-  globalThis.fetch = async (_url, options) => { calls.push(options.method); return Response.json({ error: { code: 'INVALID_ITEM_OPTIONS' } }, { status: 400 }); };
-  await assert.rejects(api.editCartItem(item, input)); assert.deepEqual(calls, ['POST']); calls.length = 0;
-  globalThis.fetch = async (_url, options) => { calls.push(options.method); if (options.method === 'DELETE') throw new Error('offline'); return Response.json(cart); };
-  assert.deepEqual(await api.editCartItem(item, input), { cart, pendingDelete: item.id }); assert.deepEqual(calls, ['POST', 'DELETE']);
+  globalThis.fetch = async (url, options) => { calls.push({url, method: options.method}); return Response.json({ error: { code: 'INVALID_ITEM_OPTIONS' } }, { status: 400 }); };
+  await assert.rejects(api.editCartItem(item, input), {code: 'INVALID_ITEM_OPTIONS'});
+  assert.deepEqual(calls, [{url: 'http://example.invalid/cart/items/item/options', method: 'PATCH'}]);
+  globalThis.fetch = async (_url, options) => { assert.equal(options.method, 'PATCH'); throw new Error('offline'); };
+  await assert.rejects(api.editCartItem(item, input), {code: 'UNAVAILABLE'});
 });
 test('edit into existing configuration renders merged qty and server subtotal', async () => {
   const merged = { ...cart, totalQuantity: 3, subtotal: '150000', items: [{ ...item, qty: 3, lineTotal: '150000' }] };
@@ -107,4 +108,15 @@ test('delete in progress disables both actions and product names are escaped', (
   assert.equal((html.match(/disabled=""/g) || []).length, 2);
   assert.match(html, /Đang xóa/); assert.match(html, /Không topping/);
   assert.doesNotMatch(html, /<script>/); assert.match(html, /&lt;script&gt;/);
+});
+
+test('stock warning uses combined demand across all configurations and still permits reducing quantity', () => {
+  const html = renderItems({...cart, items: [{...item, stock: 3, requestedQuantity: 5}]});
+  for (const text of ['5', '3', 'qua các size/topping', 'Hãy giảm số lượng']) assert(html.includes(text));
+  assert.doesNotMatch(html, /aria-label="Giảm Latte" disabled/);
+});
+
+test('active-order lock disables every Cart item mutation control', () => {
+  const html = renderToStaticMarkup(React.createElement(CartItems, {cart, locked:true, onQuantity(){},onEdit(){},onRemove(){}}));
+  for(const label of ['Giảm Latte','Tăng Latte','Chỉnh sửa Latte','Xóa Latte']) assert(html.includes(`aria-label="${label}" disabled`));
 });

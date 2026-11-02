@@ -1,3 +1,4 @@
+import { clearPurchasedCart } from './cart-cleanup';
 import { ConflictException, ForbiddenException, HttpException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
 import { Prisma } from '../generated/prisma/client';
@@ -98,6 +99,7 @@ export class PaymentService {
           effects.push(redemption); if (!success) credit = redemption;
         }
         if (success) {
+          await clearPurchasedCart(tx, userId);
           const points = order.total.dividedBy(10000).floor();
           if (!points.isFinite() || points.isNegative() || points.gt(maxInt)) throw unavailable();
           awardedPoints = points.toNumber(); // Exact integer within PostgreSQL INTEGER bounds.

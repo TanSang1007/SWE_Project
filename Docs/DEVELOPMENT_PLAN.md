@@ -12,6 +12,8 @@ Trạng thái căn cứ source và contract hiện có; checkbox implementation 
 
 ## 1. Backlog và trạng thái
 
+- [x] **FR08 — Giữ giỏ khi tạo PENDING (2026-11-02):** Bỏ xóa CartItem ở OrderService.create; failure/retry/success tiếp tục không đụng giỏ, giữ snapshot và stock/idempotency. Không migration. 114 focused unit tests, backend typecheck/build và lint file sửa PASS; database integration cập nhật nhưng chưa chạy, full lint còn lỗi cũ cart-service.spec.ts:16. [Phạm vi, kiểm tra và giới hạn](CART_FAILURE_FIX.md). Không tự dọn giỏ sau PAID hoặc phục hồi giỏ đã xóa trước cập nhật; chưa commit/push.
+
 - [x] **I01 — Nguyên liệu (2026-10-29)** Đã triển khai backend/schema/migration và UI Admin/Staff theo [contract](I01_INGREDIENT_INVENTORY_CONTRACT.md); sửa thiếu migration trên Neon, tải từng phần, timeout12 giây và thống kê DB thật. PostgreSQL nguyên liệu+A06 51/51, frontend266/266, backend policy/provisioning9/9, Edge12 luồng và production build PASS. Migration thật giữ nguyên19 bảng nghiệp vụ cũ, không seed dữ liệu mẫu. Full backend còn2 assertion DTO Orders và1 lint Cart đã có trước I01; không đánh dấu toàn dự án xanh. [File thay đổi, bằng chứng và giới hạn](I01_INGREDIENT_INVENTORY_IMPLEMENTATION.md).
 
 - [x] **B10/checkout-session — Review Order controller/service (2026-10-27)** Controller giữ nguyên vì JWT/current-role CUSTOMER, DTO/body/query, thứ tự route và status/cache headers đúng contract. Tái hiện và sửa3 lỗi service: active-order read fault trả503 sanitized; SELECT FOR UPDATE của customer cancel lọc cả owner để đơn người khác đang khóa vẫn404; timeout trả đúng marker vừa lưu, giữ PENDING/stock/điểm khi gateway chưa rõ. Acceptance: **38/38 unit/HTTP tests qua3 suites** (order-service, order-history, payment-workers) và **81/81 PostgreSQL orders tests** pass; từng regression đã fail trước sửa. Focused lint, backend typecheck/build, diff check và96 local Markdown links pass. Unit run dùng môi trường MOCK/DB giả riêng; database suite dùng cluster local và budget fixture5s đã ghi ở quyết định trước, không chứng minh NFR01/local400ms. Cluster đã stop/xóa đúng thư mục do harness tạo; không migrate/seed/ghi Neon, không đổi `.env` VNPAY hay restart server hiện có. Không schema/quyền/API path mới; API error clarification, DECISIONS và matrix đã đồng bộ. Không VNPAY/browser E2E trong phạm vi review này.
@@ -79,3 +81,18 @@ Phạm vi được giao rõ và truy về FR/extension; code/config/docs đồng
 Documentation-only checks không chạy migrations/seed/gateway. Nếu dọn evidence còn là script input, giữ REVIEW và xin quyết định retire helper trong task riêng. Shared Staging/production, CI/CD hoặc refactor ngoài phạm vi cần owner giao riêng.
 
 [Traceability](TRACEABILITY_MATRIX.md) · [Design review](DESIGN_REVIEW.md) · [Setup](../README.md).
+
+## Cart correction2026-11-02 — no migration
+
+- [x] Atomic size/topping edit/merge; edit at50 rows without temporary51st row.
+- [x] Aggregate stock warning, allow quantity reduction, guard checkout navigation.
+- [x] Require a current successful quote for new Order intents; preserve saved-order retry.
+- [x] Immediate in-flight add guard; reload after errors, no automatic POST retry.
+- [x] Backend66/66, frontend273/273; typecheck hai workspace, frontend/focused backend lint, backend build và frontend Webpack build PASS.
+- [ ] Native PostgreSQL integration/concurrency and browser checklist. No shared database writes, schema/migration changes or push. See CART_PRICING_FIXES.md for checks actually run.
+
+## Giỏ khóa theo đơn, thành công dọn trống — 2026-11-02
+
+- [x] PENDING/PAYMENT_FAILED chặn mọi ghi Cart phía backend dưới owner lock; giao diện khóa và dẫn tới thanh toán/hủy.
+- [x] Failure giữ nguyên, success xóa toàn bộ Cart của owner trong transaction MOCK/VNPAY/zero; replay không dọn lần hai. Không migration hoặc ghi provenance mới.
+- [ ] Native PostgreSQL concurrency/rollback và browser/provider E2E; đồng bộ backend các thành viên. Kết quả checks trong CART_FAILURE_FIX.md.
