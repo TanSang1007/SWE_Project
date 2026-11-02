@@ -115,3 +115,8 @@ test('stock warning uses combined demand across all configurations and still per
   for (const text of ['5', '3', 'qua các size/topping', 'Hãy giảm số lượng']) assert(html.includes(text));
   assert.doesNotMatch(html, /aria-label="Giảm Latte" disabled/);
 });
+
+test('active-order lock disables every Cart item mutation control', () => {
+  const html = renderToStaticMarkup(React.createElement(CartItems, {cart, locked:true, onQuantity(){},onEdit(){},onRemove(){}}));
+  for(const label of ['Giảm Latte','Tăng Latte','Chỉnh sửa Latte','Xóa Latte']) assert(html.includes(`aria-label="${label}" disabled`));
+});

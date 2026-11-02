@@ -1,5 +1,7 @@
 # BrewLite — Ma trận truy vết
 
+**Cart preservation fix 2026-11-02 — FR08:** Người dùng yêu cầu sửa lỗi mất giỏ khi thanh toán thất bại. `POST /orders` giữ nguyên Cart thay vì xóa khi tạo PENDING; settlement tiếp tục không sửa Cart, bao gồm failure/retry/success và callback lặp. Không thay schema, API/DTO, quyền, idempotency hoặc tồn kho. Thay đổi này supersede quy tắc consume-Cart-at-create của amendment 2026-10-22; các mô tả clear/consume cũ bên dưới là lịch sử. Tests: `cart-payment-preservation.spec.ts`, cập nhật database orders/checkout-lifecycle; xem [chi tiết](CART_FAILURE_FIX.md).
+
 I03 amendment2026-10-31 (yêu cầu quản lý danh mục trong một file) → `ingredient-catalog.ts`/IngredientService read+initialize, GET DTO `isListed`/`displayName`, frontend ingredient helpers/table/forms/summary. `backend/test/ingredient-catalog.spec.ts` và `frontend/test/ingredients.test.mjs` kiểm tra thêm/bỏ/thêm lại/label, giữ tồn/ID, cấu hình sai/rỗng, kiểm kê lại hàng đã bỏ và thống kê UI. [Contract/acceptance](I03_RECEIVING_CATALOG.md), [API](API_DESIGN.md); giữ schema và mapping PDF gốc. Evidence đợt I03 ban đầu bên dưới không thay cho kiểm chứng amendment mới.
 
 I03 user amendment2026-10-29 → [contract](I03_RECEIVING_CATALOG.md), ingredient-catalog/controller/service, enum/check migration, frontend types/helpers/forms/load. Policy/database/frontend/browser tests xác minh12 mặt hàng, tạo thiếu không overwrite/duplicate, quyền, số nguyên quả, ngưỡng10, receipt→count→approve→reload. Giữ mapping I01/I02 và nghiệp vụ tài chính.
@@ -77,3 +79,13 @@ Không thêm nghiệp vụ từ tests, seed hoặc báo cáo Gate. Bảng schema
 ## Cart correction2026-11-02
 
 FR02/03 → atomic options endpoint, qty preservation/merge,50-row boundary: cart service/controller/dto and frontend Cart API/View. FR03/08/14 → aggregate stock warning without reservation; backend Pricing unchanged. FR06/08/15 → successful quote matching Cart/mã/điểm gates new Order intent, saved-request recovery unchanged. AddToCart immediate guard limits repeated clicks; no claim of network retry idempotency. Evidence: cart-service/pricing unit, frontend cart/checkout, native PostgreSQL regression additions pending; see CART_PRICING_FIXES.md. No schema/migration modifications.
+
+
+## Luồng giỏ đơn giản theo yêu cầu người dùng — 2026-11-02
+
+- Tạo PENDING giữ nguyên Cart, không xóa ở create. Giỏ của owner bị khóa mọi POST/PATCH/options/DELETE khi có PENDING hoặc PAYMENT_FAILED. GET vẫn được phép. Kiểm tra dưới cùng user row lock với create/payment/cancel, không chỉ khóa giao diện. Lỗi409 INVALID_ORDER_STATE kèm existingOrderId hiện có, không endpoint/schema/enum mới.
+- PAYMENT_FAILED, UNKNOWN và hủy đơn không xóa giỏ hoặc tự cộng lại món. Khách có thể thử lại thanh toán; muốn đổi món sau lỗi phải hủy đơn cũ, sau đó sửa giỏ/tạo đơn mới. Không tạo đơn thứ hai khi đơn cũ chưa được xử lý.
+- Lần thanh toán thành công đầu tiên xóa TOÀN BỘ CartItem của owner, trong cùng transaction với PAID/Payment/điểm. MOCK, VNPAY verified settlement (IPN/QueryDr/receipt worker chung apply) và INTERNAL_ZERO đều dùng helper này. Lỗi cleanup rollback settlement. Replay/callback lặp không xóa giỏ của đơn mới.
+- Không giữ phần số lượng thêm hoặc chia Cart A/B. Bỏ ghi metadata `_cartCleanup`, không cần provenance cho đơn mới/cũ. Giữ bộ lọc field nội bộ trên public replay để tương thích receipt đã sinh bởi bản trước. Không thay schema/migration, không backfill hoặc reset dữ liệu.
+- Giao diện khóa nút thêm/sửa/xóa trong lúc kiểm tra đơn, khi lỗi kiểm tra và khi có active order; banner dẫn tới tiếp tục thanh toán/hủy. Poll/focus cập nhật trạng thái; trước khi mở khóa sau success/cancel tải lại giỏ. Backend luôn quyết định, kể cả tab khác/cache cũ.
+- Các thành viên cần dùng backend mới đồng bộ; một backend phiên bản cũ vẫn có thể cho sửa Cart vì đây là rule ứng dụng, không phải constraint schema.

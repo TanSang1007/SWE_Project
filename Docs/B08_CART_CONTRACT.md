@@ -36,3 +36,7 @@ This is technical B08 readiness. No Firefox matrix/NFR latency/full-product chec
 ## Current Cart correction2026-11-02
 
 The earlier checkpoint below is historical. Options edit now uses atomic PATCH /cart/items/:id/options, preserving qty or merging within99 without a temporary row. GET adds stock/aggregate requestedQuantity for warning and checkout navigation gating. POST remains non-idempotent; synchronous browser guard prevents overlapping clicks, while uncertain errors require Cart inspection and are not automatically retried. No schema/migration change. Historical browser PASS does not verify this correction. See CART_PRICING_FIXES.md and CHECKOUT_SESSION_UPDATE.md for current scope.
+
+## Cart khóa theo đơn — cập nhật user2026-11-02
+
+PENDING/PAYMENT_FAILED khóa mọi Cart write trong CartService dưới user lock (kể cả options edit). GET vẫn được. Failure giữ nguyên giỏ, cancel giữ và mở khóa, success dọn toàn bộ giỏ cùng transaction. Không giữ qty thêm/Cart B trong lúc chờ, không migration. Frontend fail-closed trong lúc kiểm tra/lỗi active order và cập nhật theo poll/focus; xem CART_FAILURE_FIX.md.

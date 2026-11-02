@@ -209,7 +209,7 @@ export function OrderCheckout({ cart, disabled, onLock, resumeOrderId }: { cart:
     <h2 id="checkout-heading">Đặt đơn</h2>{error && <p role="alert" className="checkout-error">{error}</p>}
     {waiting && <p role="status">{restoring ? 'Đang khôi phục đơn và yêu cầu đã lưu…' : 'Đang xử lý đơn…'}</p>}
     {debtBlocked && active && <p role="alert">Nghĩa vụ thu hồi điểm đang chặn thanh toán. Hủy đơn để giải phóng điểm và bù nghĩa vụ; sau đó có thể đặt đơn mới không dùng điểm.</p>}
-    {active && <p role="status">Bạn đang có đơn chưa hoàn tất. Bạn vẫn có thể chỉnh sửa giỏ cho lần đặt tiếp theo.</p>}
+    {active && <p role="status">Bạn đang có đơn chưa hoàn tất. Giỏ được giữ nguyên và khóa chỉnh sửa. Hãy thử lại thanh toán hoặc hủy đơn trước khi thay đổi món.</p>}
     {createUncertain && !waiting && <p role="status">{context ? 'Yêu cầu đặt đơn đã được lưu. Hãy phục hồi yêu cầu này trước khi chỉnh sửa giỏ hoặc tạo đơn mới.' : 'Chưa tải được đơn đang gắn với giỏ. Hãy mở / tải lại đơn hiện tại trước khi chỉnh sửa giỏ.'}</p>}
     {order && <><OrderSummary order={order} /><PaymentCountdown key={order.serverNow} expiresAt={order.expiresAt} serverNow={order.serverNow} verifying={order.status === 'PENDING'} /></>}
     {order && <Link href={`/orders/${order.id}/confirmation`}>Xem lại đơn hàng</Link>}

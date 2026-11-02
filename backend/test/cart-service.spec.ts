@@ -81,6 +81,7 @@ function optionsFixture(mergedQty?: number) {
   const item = {id: 'old', cartId: 'cart', productId: 'product', qty: 2, size: 'M', configurationKey: 'product:M', toppings: []};
   const tx = {
     $queryRaw: jest.fn(() => Promise.resolve([])),
+    order: {findFirst: jest.fn(() => Promise.resolve(null))},
     product: {findUnique: jest.fn(() => Promise.resolve({isActive: true, stock: 10, sizes: [{size: 'L', isActive: true}], toppings: []}))},
     cartItem: {
       findFirst: jest.fn(() => Promise.resolve(item)),

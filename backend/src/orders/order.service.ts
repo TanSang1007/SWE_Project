@@ -130,9 +130,8 @@ export class OrderService {
         if (toppings.length) await tx.orderItemTopping.createMany({ data: toppings });
         const order = await tx.order.findUniqueOrThrow({ where: { id }, include });
         if (effects.length) await persistEffects(tx, before, account, effects);
-        // Entire Cart was matched to this snapshot under the user lock. Later
-        // Cart writes cannot be included in this deletion or touched by settlement.
-        await tx.cartItem.deleteMany({ where: { cart: { userId } } });
+        // Keep the Cart intact: a PENDING order is not a successful payment.
+        // Cart writes stay locked until this order succeeds or is cancelled.
         const body = response(order);
         await tx.idempotencyRequest.update({ where: { id: claim.id }, data: { state: 'COMPLETED', orderId: id,
           responseStatus: 201, responseBody: body, completedAt: new Date() } });
