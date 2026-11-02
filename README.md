@@ -34,6 +34,12 @@ Phiên bản đang pin trong các `package.json` và `package-lock.json`:
 
 **Staff:** xem hàng đợi được phép, chuyển `PAID → PREPARING → READY → COMPLETED`.
 
+**Danh mục nhập hàng (I03):** quản lý trong một file [ingredient-catalog.ts](backend/src/ingredients/ingredient-catalog.ts): thêm dòng để bổ sung mặt hàng, bỏ dòng để ẩn khỏi kho/phiếu mới, sửa `label` để đổi tên hiển thị mà giữ tồn cũ. Backend cần nhận bản sửa trước khi Admin mở/tải lại kho để khởi tạo phần thiếu với tồn0; không xóa dữ liệu hay lịch sử. Ban đầu có3 vật dụng và9 nguyên liệu; trứng dùng quả nguyên và cảnh báo dưới10. [Cách chỉnh file, chạy lại backend và kiểm chứng](Docs/I03_RECEIVING_CATALOG.md).
+
+**Tồn kho và nhập hàng (I01/I02):** Admin có sáu mục Tổng quan, Đơn hàng, Sản phẩm, Topping, Tồn kho, Nhập hàng. `/admin/inventory` chia Quản lý vật dụng (cái) và Quản lý nguyên liệu (lít/kg); `/admin/receipts` có Vật dụng, Nguyên liệu, Lịch sử nhập hàng. Cảnh báo khi tồn dưới10 cái, dưới5 lít hoặc dưới10 kg; bằng ngưỡng vẫn còn hàng,0 hết hàng. Thêm mới, nhập kho và lịch sử dùng database thật. Staff gửi kiểm kê tại `/operator/ingredients`; chỉ Admin duyệt/từ chối/yêu cầu kiểm kê lại, không ghi đè phiếu cũ khi tồn đã thay đổi. Tồn sản phẩm bán ra vẫn ở Sản phẩm → Tồn sản phẩm (`/admin/products/inventory`). Chưa trừ theo công thức pha chế. [Contract I01](Docs/I01_INGREDIENT_INVENTORY_CONTRACT.md), [amendment I02](Docs/I02_INVENTORY_CATEGORIES.md).
+
+Database I01 đã được cập nhật trên Neon development. Admin mở/tải lại kho để bổ sung các mặt hàng có trong file danh mục với tồn0; giao diện có thống kê và timeout12 giây, lỗi lịch sử không chặn danh sách. [Hướng dẫn migration, danh sách file và kết quả kiểm thử I01 ban đầu](Docs/I01_INGREDIENT_INVENTORY_IMPLEMENTATION.md).
+
 **Admin:** quản lý sản phẩm, size/topping và liên kết tùy chọn; điều chỉnh tồn có version/idempotency; xem đơn và hủy PAID theo quyền/contract. Hủy nội bộ không đồng nghĩa hoàn tiền gateway.
 
 Chưa có quản trị Campaign/Promotion, báo cáo doanh thu hay quản lý khách hàng hoàn chỉnh. Phân biệt yêu cầu PDF và extension được duyệt tại [REQUIREMENTS](Docs/REQUIREMENTS.md).
@@ -148,7 +154,7 @@ Sau khi sửa cấu hình, Next dev tự restart; refresh trang để nạp bund
 
 Launcher chọn provider theo lệnh, cố định port/origin local và quản lý hai cờ Sandbox: bắt đầu DRAIN_ONLY, mở admission sau callback checks. Sửa file không phải hot-toggle và không bỏ qua readiness.
 
-`npm run dev` (MOCK) và `npm run dev:vnpay` đều hỗ trợ Neon. Với VNPAY, đặt `BREWLITE_CALLBACK_ROLE=owner` trên đúng một máy nhận IPN của nhóm; các máy khác dùng `member`, cùng database/profile/IPN/Return đã đăng ký và không mở tunnel riêng. [Cấu hình và kiểm chứng](Docs/VNPAY_NEON.md).
+`npm run dev` (MOCK) và `npm run dev:vnpay` đều hỗ trợ Neon. Với VNPAY, đặt `` trên đúng một máy nhận IPN của nhóm; các máy khác dùng `member`, cùng database/profile/IPN/Return đã đăng ký và không mở tunnel riêng. [Cấu hình và kiểm chứng](Docs/VNPAY_NEON.md).
 
 ## 9. Payment Setup — MOCK
 
@@ -192,6 +198,7 @@ VNPAY_PAYMENT_URL=https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
 VNPAY_RETURN_URL=https://your-registered-host.example/payments/vnpay/return
 VNPAY_IPN_URL=https://your-registered-host.example/payments/vnpay/ipn
 VNPAY_RESULT_URL=http://localhost:3000/payments/vnpay/result
+BREWLITE_CALLBACK_ROLE=owner
 BREWLITE_NGROK_CONFIG=C:/path/to/private/ngrok.yml
 ```
 

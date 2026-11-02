@@ -1,5 +1,27 @@
 # BrewLite — Quyết định thiết kế
 
+## I03 — Quản lý vật tư trong một file (ACCEPTED USER / TECHNICAL,2026-10-31)
+
+Người dùng yêu cầu thêm/bỏ/sửa vật tư trong một file và frontend cập nhật theo. Dùng `ingredient-catalog.ts` làm nguồn danh mục; `name`/`unit` so khớp bản ghi kho, `label` tùy chọn đổi tên hiển thị an toàn. GET ingredients bổ sung `isListed`/`displayName` nhưng vẫn trả bản ghi cũ cho recount/history; frontend dùng metadata cho kho, lựa chọn phiếu mới và thống kê các mặt hàng đang liệt kê. Bỏ form thêm thủ công khỏi UI kho. Xóa dòng chỉ ngừng liệt kê, không xóa tồn hoặc chứng từ; thêm lại dùng kho cũ, thêm tên mới tạo tồn0 bằng Admin initializer. Không migration, không thay quyền hoặc chặn API chứng từ cũ. Thay thế điều kiện ẩn riêng từng tên trong ReceiptForm của quyết định2026-10-30 dưới đây. [Hướng dẫn và acceptance](I03_RECEIVING_CATALOG.md).
+
+## I03 — Bỏ lựa chọn “Ly và nắp nhựa” và “sữa (lít)” khỏi phiếu nhập mới (ACCEPTED USER,2026-10-30)
+
+Người dùng yêu cầu bỏ “Ly và nắp nhựa” và sau đó “sữa (lít)” khỏi ô chọn khi tạo phiếu nhập, giữ “Ly nhựa”, “Sữa tươi” và “Sữa đặc”. ReceiptForm lọc riêng tên “Ly và nắp nhựa” với đơn vị PIECE và tên “sữa” với đơn vị L trước khi khởi tạo/chọn/thêm dòng và gửi form; không giới hạn các mặt hàng khác theo danh mục mặc định. Bản ghi kho và chứng từ cũ được giữ nguyên, không xóa/gộp hoặc đổi tồn. Đây là điều chỉnh lựa chọn trên UI, không thay API/schema hoặc chặn thao tác qua API. [Chi tiết](I03_RECEIVING_CATALOG.md).
+
+## I03 — Danh mục nhập hàng và quả (ACCEPTED USER,2026-10-29)
+
+Người dùng chỉ định12 mặt hàng và xác nhận trứng cảnh báo dưới10 quả. Thêm EGG thuộc nguyên liệu, không dùng chung PIECE để tránh phân trứng vào vật dụng. Tạo danh mục còn thiếu ở quantity0 qua POST Admin có xác thực khi mở trang kho/nhập hàng, dùng đúng actor thực, không ghi quantity giả trong migration. Reuse normalizedName/unit đúng, không chuyển đơn vị hàng cũ; mismatch409 rollback. Giữ các mặt hàng khác và audit. [Contract, danh sách và kiểm chứng](I03_RECEIVING_CATALOG.md).
+
+## I02 — Phân nhóm kho và nhập hàng (ACCEPTED USER / TECHNICAL,2026-10-29)
+
+Người dùng chốt sáu mục Admin, hai nhóm kho và ba lựa chọn nhập hàng; cảnh báo strict `<` theo đơn vị: cái10/lít5/kg10. Dùng lại I01, PIECE là vật dụng, các đơn vị đo là nguyên liệu; tạo mới chỉ PIECE/L/KG. G/ML cũ giữ dữ liệu và quy trình, ngưỡng tương đương10000g/5000ml. Backend tự đặt ngưỡng, DB CHECK bảo vệ; migration chỉ thay metadata ngưỡng, không qty/version/audit. Tạo request cũ replay theo hash trước kiểm tra chính sách mới để không mất recovery. Chuyển A06 sang Sản phẩm → Tồn sản phẩm; API cũ giữ nguyên. [Contract](I02_INVENTORY_CATEGORIES.md). Thay thế quy định ngưỡng Admin tùy chọn trong I01 dưới đây.
+
+## I01 — Tồn kho nguyên liệu (ACCEPTED USER / TECHNICAL,2026-10-29)
+
+Sửa lỗi tích hợp cùng ngày: áp dụng migration còn thiếu trên database thật, thêm aggregate summary và tải riêng từng nhóm dữ liệu với timeout12 giây. Lỗi lịch sử không được làm mất danh sách nguyên liệu hoặc tạo trạng thái loading vô hạn. Giữ kho trống khi chưa có dữ liệu, cho Admin thêm qua API thật. Fallback migration chỉ cho I01, không reset/seed hoặc sửa dữ liệu cũ. [Kết quả kiểm chứng](I01_INGREDIENT_INVENTORY_IMPLEMENTATION.md).
+
+Người dùng giao triển khai riêng nhập hàng, kiểm kê Staff, duyệt Admin và lịch sử; chưa recipe consumption/nhà cung cấp. Giữ A06 Product.stock và mọi luồng khách/payment nguyên trạng. Nguyên liệu dùng6 bảng mới, Decimal(12,3), đơn vị KG/G/L/ML/PIECE bất biến và ngưỡng sắp hết do Admin chọn (mặc định0, không tự suy business cutoff). Staff gửi snapshot có version→Admin review; bất kỳ stock/version thay đổi trả409 yêu cầu kiểm kê lại, không cộng delta cũ vào tồn mới hoặc overwrite. Phiếu kiểm kê lại là resource mới liên kết bản cũ, không sửa audit lịch sử. Receipt draft→confirm, nguồn movement unique, actor locks/sorted ingredient locks/bulk CAS/single transaction bảo đảm một lần và rollback toàn phiếu. Key/hash của6 bảng tách payment claims để không thay enum/contract tài chính. Giao diện thêm hai route và nav links trong shell hiện có; CSS chỉ scope nguyên liệu. Đây là extension được yêu cầu, không sửa baseline PDF. [Contract](I01_INGREDIENT_INVENTORY_CONTRACT.md), [schema](DATABASE_DESIGN.md), [API](API_DESIGN.md).
+
 ## Order controller/service review — ownership và lỗi đọc (TECHNICAL, 2026-10-27)
 
 Controller giữ nguyên JWT/current-role CUSTOMER, strict DTO/body/query, route tĩnh trước UUID,200/201 và cache headers. Sửa service theo test tái hiện: active-order DB error trả503 sanitized như detail/history; customer cancel dùng SELECT FOR UPDATE với cả Order ID và owner ID, không khóa/chờ đơn người khác trước khi trả404; expiration giữ đúng marker đã persist trong kết quả trả về khi gateway pending/review/receipt. Lock user → owned Order → Attempts, status/OCC, ledger/stock/idempotency và UNKNOWN safeguards giữ nguyên. Không schema, quyền mới hoặc public timeout input. HTTP tests bao phủ active auth/role/owner/input/no-store/DB fault; PostgreSQL test giữ khóa Order của khách A rồi yêu cầu hủy từ B phải404 và không đổi hai khách; service tests kiểm tra marker mới/cũ và không giải phóng reservation khi chưa rõ kết quả.

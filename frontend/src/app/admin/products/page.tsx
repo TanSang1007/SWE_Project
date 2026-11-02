@@ -1,2 +1,3 @@
 import { AdminProducts } from '../../../components/admin-products';
-export default function AdminProductsPage() { return <AdminProducts />; }
+import Link from 'next/link';
+export default function AdminProductsPage() { return <><Link className="button secondary" href="/admin/products/inventory">Tồn sản phẩm</Link><AdminProducts /></>; }

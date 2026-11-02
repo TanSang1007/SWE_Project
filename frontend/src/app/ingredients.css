@@ -1,0 +1,33 @@
+.ingredient-inventory { min-width:0; }
+.ingredient-inventory h2 { font:28px Georgia,serif; margin:24px 0 16px; }
+.ingredient-inventory h3 { font:22px Georgia,serif; margin:0 0 12px; }
+.ingredient-inventory p,.ingredient-inventory li { line-height:1.65; overflow-wrap:anywhere; }
+.ingredient-inventory button { min-height:44px; padding:10px 14px; border:1px solid var(--line); border-radius:6px; cursor:pointer; }
+.ingredient-inventory .button { background:var(--ink); color:white; }
+.ingredient-inventory button:disabled { cursor:default; }
+.ingredient-card { padding:24px; margin:20px 0; border:1px solid var(--line); border-radius:12px; background:#fffdf8; }
+.ingredient-inventory fieldset { border:1px solid var(--line); padding:16px; min-width:0; }
+.ingredient-inventory legend { font-weight:600; }
+.ingredient-inventory label:not(.ingredient-check) { display:grid; gap:8px; margin:12px 0; }
+.ingredient-inventory input:not([type=checkbox]),.ingredient-inventory select,.ingredient-inventory textarea { width:100%; min-height:44px; padding:10px; border:1px solid var(--line); border-radius:6px; background:white; color:var(--ink); font:inherit; }
+.ingredient-inventory textarea { min-height:76px; resize:vertical; }
+.ingredient-inventory :focus-visible { outline:3px solid #a55727; outline-offset:3px; }
+.ingredient-check { display:flex; align-items:center; gap:12px; min-height:44px; margin:12px 0; }
+.ingredient-check input { width:20px; height:20px; flex-shrink:0; }
+.ingredient-entry { margin:16px 0; padding:16px; border:1px solid var(--line); border-radius:8px; }
+.ingredient-tabs,.ingredient-actions { display:flex; flex-wrap:wrap; gap:12px; margin:16px 0; }
+.ingredient-tabs button[aria-pressed=true] { background:var(--ink); color:white; }
+.ingredient-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:20px 0; }
+.ingredient-summary>div { display:grid; gap:8px; padding:18px; border:1px solid var(--line); border-radius:8px; background:#fffdf8; }
+.ingredient-summary dd { font-size:28px; font-weight:700; margin:0; }
+.ingredient-filter { max-width:320px; }
+.ingredient-table-wrap { overflow:auto; max-width:100%; }
+.ingredient-inventory table { width:100%; min-width:680px; border-collapse:collapse; text-align:left; }
+.ingredient-inventory th,.ingredient-inventory td { border-bottom:1px solid var(--line); padding:12px; vertical-align:top; }
+.ingredient-inventory caption { text-align:left; color:var(--muted); padding:12px 0; }
+.ingredient-status { display:inline-block; padding:4px 8px; border-radius:5px; white-space:nowrap; background:#e5eee5; }
+.ingredient-status.low_stock { background:#fff0cc; color:#704900; }
+.ingredient-status.out_of_stock,.ingredient-error { color:#982b22; }
+.ingredient-status.out_of_stock { background:#f9e4df; }
+.ingredient-document-actions { margin-top:18px; }
+@media(max-width:600px) { .ingredient-card { padding:14px; } .ingredient-entry { padding:12px; } .ingredient-summary { grid-template-columns:1fr; } .ingredient-actions>* { flex:1 1 auto; } }

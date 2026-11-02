@@ -1,0 +1,6 @@
+import { Prisma } from '../src/generated/prisma/client';
+import { quantity, stockStatus, uniqueLines, unitThreshold } from '../src/ingredients/ingredient-policy';
+test('quantity preserves exact decimals and does not silently round',()=>{expect(quantity('15.5','L').toFixed(3)).toBe('15.500');expect(quantity('0.001','KG').toFixed(3)).toBe('0.001');expect(()=>quantity('0.0001','L')).toThrow();expect(()=>quantity('1.1','PIECE')).toThrow();expect(()=>quantity('0','L',true)).toThrow();});
+test.each([['PIECE','10','9'],['L','5','4.999'],['KG','10','9.999'],['EGG','10','9']] as const)('fixed %s threshold; only strictly below warns', (unit,limit,below)=>{const threshold=unitThreshold(unit);expect(threshold.toString()).toBe(limit);expect(stockStatus(new Prisma.Decimal('0'),threshold)).toBe('OUT_OF_STOCK');expect(stockStatus(new Prisma.Decimal(below),threshold)).toBe('LOW_STOCK');expect(stockStatus(new Prisma.Decimal(limit),threshold)).toBe('IN_STOCK');expect(stockStatus(new Prisma.Decimal(limit).plus(1),threshold)).toBe('IN_STOCK');});
+test('eggs are indivisible in receipts and actual counts',()=>{expect(quantity('12','EGG').toFixed(3)).toBe('12.000');expect(()=>quantity('1.5','EGG')).toThrow();});
+test('duplicate ingredient IDs cannot be hidden by UUID casing',()=>{expect(()=>uniqueLines([{ingredientId:'ABCD'},{ingredientId:'abcd'}])).toThrow();});
