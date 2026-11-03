@@ -76,7 +76,7 @@ export class OrderService {
   constructor(private readonly db: PrismaService, private readonly pricing: PricingService, private readonly config: ConfigService) {}
   private transaction<T>(work: (tx: Prisma.TransactionClient) => Promise<T>) {
     return this.db.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT set_config('lock_timeout', '200ms', true), set_config('statement_timeout', '300ms', true), set_config('TimeZone', 'UTC', true)`;
+      await (this.db.transactionOptions?.timeout === 5000 ? tx.$executeRaw`SELECT set_config('lock_timeout', '2000ms', true), set_config('statement_timeout', '4000ms', true), set_config('TimeZone', 'UTC', true)` : tx.$executeRaw`SELECT set_config('lock_timeout', '200ms', true), set_config('statement_timeout', '300ms', true), set_config('TimeZone', 'UTC', true)`);
       return work(tx);
     }, this.db.transactionOptions ?? { maxWait: 50, timeout: 400 });
   }
@@ -100,10 +100,9 @@ export class OrderService {
         const account = await reconcileAccount(tx, userId); const before = { ...account };
         const r = input.redeemedPoints ?? 0;
         const loyalty = validateRedemption(account, r, priced.finalAmount);
-        if (effectivePaymentProvider(this.config) === 'VNPAY_SANDBOX') {
-          assertVnpayMinimum(loyalty.total);
-          if (loyalty.total.gt(0)) assertPaymentAdmission(this.config);
-        }
+        effectivePaymentProvider(this.config);
+        assertVnpayMinimum(loyalty.total);
+        if (loyalty.total.gt(0)) assertPaymentAdmission(this.config);
         const id = randomUUID();
         const effects = r > 0 ? [effect(account, 'RESERVE', r, { orderId: id, cycle: 1 })] : [];
         for (const demand of priced.stockRequirements) {

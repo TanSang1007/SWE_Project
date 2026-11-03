@@ -24,7 +24,7 @@ PDF [BrewLite-CongNghePhanMem.pdf](BrewLite-CongNghePhanMem.pdf) là baseline; F
 | FR03 | B08/D29, [Cart](B08_CART_CONTRACT.md) | backend/src/cart; frontend Cart/API/store | Cart unit/HTTP/database và frontend cart tests |
 | FR04–05 | B07/D19, [auth](B07_AUTH_CONTRACT.md) | backend/src/auth/users; frontend login/register/auth | Auth/JWT/roles/ownership tests |
 | FR06/08 | B09–B10/D31, [Order](B10_ORDER_CONTRACT.md) | backend/src/pricing/orders; frontend order-checkout | Pricing/orders/checkout và database concurrency tests |
-| FR07/09 | B11–B12/B15, [payment](B11_PAYMENT_CONTRACT.md) | backend/src/payments; frontend result/confirmation | Mock payment, checkout/history tests; gateway extension riêng bên dưới |
+| FR07/09 | P00/P01, [VNPAY contract](P00_VNPAY_SANDBOX_PAYMENT_CONTRACT.md) | backend/src/payments (Attempt/IPN/Return/zero); frontend gateway-checkout, payment-result | VNPAY initiation/IPN/Return/zero/config tests; Mock payment đã loại bỏ |
 | FR10 | B15, [history](B15_ORDER_HISTORY_CONTRACT.md) | Order owned read APIs; frontend orders | History/cursor/ownership tests |
 | FR11–12 | B16/DR14–15, [workflow](B16_ORDER_WORKFLOW_CONTRACT.md) | order-state/order-policy/order.service; operator/admin controllers | State matrix, transitions, rollback/cancel/reversal tests |
 | FR13 | B10–B12/D08–11, [API](API_DESIGN.md) | common/idempotency, Order/Payment/Attempt services, DB unique constraints | Same/cross-key/concurrent replay, mismatch and late callback tests |

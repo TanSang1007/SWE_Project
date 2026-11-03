@@ -37,7 +37,7 @@ let app: NestExpressApplication, jwt: JwtService;
 const outbound = jest.fn<Promise<string>, [Record<string, string>]>();
 let admin: string, staff: string;
 const secret = 'synthetic-b2a-fixture-only-not-a-merchant-secret';
-const settings = new ConfigService({ PAYMENT_MOCK_MODE: 'SUCCESS', JWT_SECRET: 'synthetic-b2a-jwt-fixture-of-at-least-32-bytes', JWT_EXPIRES_IN: 3600,
+const settings = new ConfigService({ JWT_SECRET: 'synthetic-b2a-jwt-fixture-of-at-least-32-bytes', JWT_EXPIRES_IN: 3600,
     ...initiationSettings({ NODE_ENV: 'test', PAYMENT_PROVIDER_MODE: 'VNPAY_SANDBOX', VNPAY_INITIATION_TEST_ONLY: 'true', DATABASE_URL: connectionString, TEST_DATABASE_URL: connectionString,
         VNPAY_ENV: 'SANDBOX', VNPAY_VERSION: '2.1.0', VNPAY_TMN_CODE: 'TEST0001', VNPAY_HASH_SECRET: secret, VNPAY_PAYMENT_URL: SANDBOX_PAYMENT_URL,
         VNPAY_RETURN_URL: 'https://callback.example.org/payments/vnpay/return', VNPAY_IPN_URL: 'https://callback.example.org/payments/vnpay/ipn' }) });

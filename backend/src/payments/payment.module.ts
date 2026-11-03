@@ -1,7 +1,4 @@
 import { Module } from '@nestjs/common';
-import { PaymentController } from './payment.controller';
-import { PaymentService } from './payment.service';
-import { MockPaymentService } from './mock-payment.service';
 import { DatabaseModule } from '../database/database.module';
 import { AuthModule } from '../auth/auth.module';
 import { AttemptController } from './attempt.controller';
@@ -18,6 +15,26 @@ import { BrowserReturnService } from './browser-return.service';
 import { PaymentConfigController } from './payment-config.controller';
 import { SandboxProfileService } from './sandbox-profile.service';
 import { PaymentReceiptWorker } from './payment-receipt.worker';
-@Module({ imports: [DatabaseModule, AuthModule], controllers: [PaymentController, AttemptController, IpnController, QueryDrController, ZeroConfirmationController, BrowserReturnController, PaymentConfigController], providers: [PaymentService, MockPaymentService, AttemptService, IpnService, QueryDrService, ZeroConfirmationService, BrowserReturnService,
-  SandboxProfileService, PaymentReceiptWorker, { provide: QUERYDR_TRANSPORT, useValue: disabledQueryDrTransport }] })
+
+@Module({
+  imports: [DatabaseModule, AuthModule],
+  controllers: [
+    AttemptController,
+    IpnController,
+    QueryDrController,
+    ZeroConfirmationController,
+    BrowserReturnController,
+    PaymentConfigController,
+  ],
+  providers: [
+    AttemptService,
+    IpnService,
+    QueryDrService,
+    ZeroConfirmationService,
+    BrowserReturnService,
+    SandboxProfileService,
+    PaymentReceiptWorker,
+    { provide: QUERYDR_TRANSPORT, useValue: disabledQueryDrTransport },
+  ],
+})
 export class PaymentModule {}

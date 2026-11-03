@@ -66,7 +66,6 @@ test('same-owner uncertain transport context survives re-login; another user dis
   globalThis.fetch = async () => new Promise(() => {});
   const values = new Map(); globalThis.sessionStorage = { getItem: (k) => values.get(k) ?? null, setItem: (k, v) => values.set(k, v), removeItem: (k) => values.delete(k) };
   values.set('brewlite-order-context', JSON.stringify({ userId: owner, key: randomUUID(), payload: { items: [] } }));
-  values.set('brewlite-payment-context', JSON.stringify({ userId: owner, key: randomUUID(), payload: { orderId: randomUUID(), method: 'CARD' } }));
-  useAuthStore.getState().signIn(response()); assert.equal(values.size, 2); useAuthStore.getState().clear(); useAuthStore.getState().signIn(response()); assert.equal(values.size, 2);
+  useAuthStore.getState().signIn(response()); assert.equal(values.size, 1); useAuthStore.getState().clear(); useAuthStore.getState().signIn(response()); assert.equal(values.size, 1);
   useAuthStore.getState().signIn(response('STAFF', randomUUID())); assert.equal(values.size, 0);
 });

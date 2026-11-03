@@ -1,12 +1,11 @@
 import type { OrderInput } from '../types/order';
-import type { PaymentContext } from './payment-context';
 export interface OrderContext { userId: string; key: string; payload: OrderInput; orderId?: string; previewSubtotal?: string; }
 export function newOrderContext(userId: string, payload: OrderInput, previewSubtotal: string): OrderContext {
   return { userId, key: crypto.randomUUID(), payload, previewSubtotal };
 }
-export function recoveryOrderId(saved: OrderContext | null, payment: PaymentContext | null, requestedId?: string) {
+export function recoveryOrderId(saved: OrderContext | null, requestedId?: string) {
   // Unknown create results keep their original key/payload; history must not replace them.
-  return payment?.payload.orderId ?? saved?.orderId ?? (saved ? undefined : requestedId);
+  return saved?.orderId ?? (saved ? undefined : requestedId);
 }
 const storageKey = 'brewlite-order-context';
 export function readOrderContext(userId: string): OrderContext | null {

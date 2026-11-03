@@ -29,13 +29,13 @@ beforeEach(() => { role = 'CUSTOMER'; lookup.mockReset(); lookup.mockImplementat
 });
 afterAll(async () => { await app.close(); });
 const get = () => request(app.getHttpServer()).get('/payments/config').set('Authorization', 'Bearer ' + jwt.sign({ sub: actor, role: 'CUSTOMER' }));
-test.each(['MOCK', 'VNPAY_SANDBOX'])('effective %s exact DTO, no-store, no financial dependencies', async mode => {
-  settings.set('PAYMENT_PROVIDER_MODE', mode); const r = await get().expect(200);
-  expect(r.body).toEqual({ providerMode: mode }); expect(r.headers['cache-control']).toContain('no-store');
+test.each(['VNPAY_SANDBOX', undefined])('effective %s exact DTO, no-store, no financial dependencies', async mode => {
+  settings.set('PAYMENT_PROVIDER_MODE', mode); if (mode === undefined) delete process.env.PAYMENT_PROVIDER_MODE; const r = await get().expect(200);
+  expect(r.body).toEqual({ providerMode: 'VNPAY_SANDBOX' }); expect(r.headers['cache-control']).toContain('no-store');
   expect(r.headers.vary).toContain('Authorization'); expect(JSON.stringify(r.body)).not.toContain(env.VNPAY_HASH_SECRET);
   expect(lookup).toHaveBeenCalledTimes(1); // Only JWT identity lookup exists on the DB stub; no mutation methods.
 });
-test.each([{ PAYMENT_PROVIDER_MODE: 'INVALID' }, { PAYMENT_PROVIDER_MODE: undefined }, { VNPAY_INITIATION_CONFIG: null },
+test.each([{ PAYMENT_PROVIDER_MODE: 'MOCK' }, { PAYMENT_PROVIDER_MODE: 'INVALID' }, { VNPAY_INITIATION_CONFIG: null },
   { VNPAY_INITIATION_CONFIG: { ...initiationSettings(env).VNPAY_INITIATION_CONFIG, hashSecret: '' } },
   { NODE_ENV: 'development' }, { NODE_ENV: 'production' }, { VNPAY_INITIATION_TEST_ONLY: 'false' },
   { TEST_DATABASE_URL: '' }, { DATABASE_URL: 'postgresql://fixture:fixture@localhost/brewlite_dev' }])('disabled/invalid config fails closed %j', async changes => {
@@ -52,8 +52,8 @@ test('deleted identity401', async () => { lookup.mockResolvedValue(null); await 
 test('strict query/body; no provider override', async () => {
   await get().query({ providerMode: 'MOCK' }).expect(400); await get().send({ providerMode: 'MOCK' }).expect(400);
 });
-test('route does not capture existing paths', async () => {
-  await request(app.getHttpServer()).post('/payments').expect(401);
+test('route does not capture existing paths and legacy /payments route is removed', async () => {
+  await request(app.getHttpServer()).post('/payments').expect(404);
   await request(app.getHttpServer()).get('/payments/attempts/' + randomUUID()).expect(401);
   await request(app.getHttpServer()).post('/payments/vnpay/attempts').expect(401);
 });

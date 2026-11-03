@@ -13,7 +13,7 @@ function fixture() {
   };
   const tx = {
   cartItem: {
-    findMany: jest.fn(async () => [row]),
+    findMany: jest.fn(() => Promise.resolve([row])),
     },
   };
   const prisma = { $transaction: jest.fn(async (run: (client: typeof tx) => Promise<unknown>) => run(tx)) };

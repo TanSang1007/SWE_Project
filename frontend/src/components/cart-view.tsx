@@ -65,7 +65,7 @@ function CartSession({ orderId }: { orderId?: string }) {
   if (!token) return <section className="cart-page"><div className="state-panel"><p className="eyebrow">BrewLite / Giỏ hàng</p><h1>Giỏ hàng của bạn</h1><p>Đăng nhập để tải giỏ đã lưu của bạn.</p><Link className="button" href={orderId ? '/login?returnTo=' + encodeURIComponent(`/cart?orderId=${orderId}`) : '/login?returnTo=/cart'}>Đăng nhập</Link></div></section>;
   const locked = busy || loading || !!pendingDelete || !!editing || !!removing;
   const checkoutReason = loading ? 'Đang cập nhật giỏ hàng…'
-    : error ? 'Vui lòng tải lại giỏ để kiểm tra dữ liệu trước khi tiếp tục.'
+    : !cart && error ? 'Vui lòng tải lại giỏ để kiểm tra dữ liệu trước khi tiếp tục.'
     : pendingDelete ? 'Hãy xử lý dòng cũ trước khi tiếp tục.'
     : removing ? 'Hãy xác nhận xóa hoặc chọn giữ lại món.'
     : editing ? 'Hãy lưu hoặc hủy chỉnh sửa trước khi tiếp tục.'

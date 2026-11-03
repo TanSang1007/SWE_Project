@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
 import { isUUID } from 'class-validator';
@@ -8,6 +8,7 @@ import { authenticateIpn } from './vnpay/ipn-verification';
 import { toVnpayAmount, verifyPayCallback } from './vnpay/vnpay-pay';
 import { validateVnpayConfig, type VnpayConfig } from './vnpay/vnpay-config';
 import { browserReturnBase } from './vnpay/return-redirect';
+import { IpnService } from './ipn.service';
 
 const select = { id: true, orderId: true, provider: true, merchantCode: true, txnRef: true, amount: true, currency: true, createDate: true,
   requestParameters: true, order: { select: { id: true, userId: true, total: true } },
@@ -29,7 +30,7 @@ function contextMatches(a: Context, config: VnpayConfig, fields: Readonly<Record
 
 @Injectable()
 export class BrowserReturnService {
-  constructor(private readonly db: PrismaService, private readonly config: ConfigService) {}
+  constructor(private readonly db: PrismaService, private readonly config: ConfigService, @Optional() private readonly ipn?: IpnService) {}
   async resolve(raw: string): Promise<string> {
     // An invalid server origin fails closed with503, never a request-derived URL.
     const base = browserReturnBase(this.config.get<unknown>('FRONTEND_ORIGIN'));
@@ -50,6 +51,7 @@ export class BrowserReturnService {
       }, { isolationLevel: 'RepeatableRead', ...(this.db.transactionOptions ?? { maxWait: 50, timeout: 400 }) });
       if (!id) return base;
       const destination = new URL(base); destination.searchParams.set('attemptId', id);
+      if (/^http:\/\/(localhost|127\.0\.0\.1):3001\/payments\/vnpay\/return$/.test(settings.returnUrl) && this.ipn) await this.ipn.receive(raw).catch(() => {});
       return destination.href;
     } catch {
       // Same generic redirect for syntax/signature/context/DB errors, no raw logs.

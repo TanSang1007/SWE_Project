@@ -30,8 +30,7 @@ url.searchParams.set('options', `-c search_path=${schema}`);
 const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: utcConnectionString(url.toString()) }, { schema }) });
 const client = new Client({ connectionString });
 const secret = 'synthetic-b2a-minimum-fixture-only';
-const settings = new ConfigService({ NODE_ENV: 'development', FRONTEND_ORIGIN: 'http://localhost:3000', JWT_SECRET: 'synthetic-minimum-jwt-fixture-at-least-32-bytes', JWT_EXPIRES_IN: 3600, PAYMENT_MOCK_MODE: 'SUCCESS',
-  ...initiationSettings({ NODE_ENV: 'development', PAYMENT_PROVIDER_MODE: 'VNPAY_SANDBOX', VNPAY_SANDBOX_ENABLED: 'true', VNPAY_ACCEPT_NEW_PAYMENTS: 'true', DATABASE_URL: connectionString, TEST_DATABASE_URL: connectionString,
+const settings = new ConfigService({ NODE_ENV: 'development', FRONTEND_ORIGIN: 'http://localhost:3000', JWT_SECRET: 'synthetic-minimum-jwt-fixture-at-least-32-bytes', JWT_EXPIRES_IN: 3600, ...initiationSettings({ NODE_ENV: 'development', PAYMENT_PROVIDER_MODE: 'VNPAY_SANDBOX', VNPAY_SANDBOX_ENABLED: 'true', VNPAY_ACCEPT_NEW_PAYMENTS: 'true', DATABASE_URL: connectionString, TEST_DATABASE_URL: connectionString,
     VNPAY_ENV: 'SANDBOX', VNPAY_VERSION: '2.1.0', VNPAY_TMN_CODE: 'TEST0001', VNPAY_HASH_SECRET: secret, VNPAY_PAYMENT_URL: SANDBOX_PAYMENT_URL,
     VNPAY_RETURN_URL: 'https://callback.example.org/payments/vnpay/return', VNPAY_IPN_URL: 'https://callback.example.org/payments/vnpay/ipn' }) });
 let app: NestExpressApplication, jwt: JwtService;

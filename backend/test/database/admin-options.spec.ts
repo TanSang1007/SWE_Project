@@ -14,7 +14,6 @@ import { PrismaService } from '../../src/database/prisma.service';
 import { PrismaClient, type UserRole } from '../../src/generated/prisma/client';
 import { PricingService } from '../../src/pricing/pricing.service';
 import { OrderService } from '../../src/orders/order.service';
-import { MockPaymentService } from '../../src/payments/mock-payment.service';
 import { configureApp } from '../../src/common/configure-app';
 config({ path: resolve(__dirname, '../../../.env'), quiet: true });
 const connectionString = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
@@ -24,7 +23,7 @@ const schema = `brewlite_a05_test_${randomUUID().replaceAll('-', '')}`;
 const client = new Client({ connectionString });
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: utcConnectionString(connectionString, `-c search_path=${schema}`) }, { schema }) });
 type Actor = { id: string; token: string };
-let app: NestExpressApplication; let jwt: JwtService; let admin: Actor; let staff: Actor; let customer: Actor; let mode = 'SUCCESS';
+let app: NestExpressApplication; let jwt: JwtService; let admin: Actor; let staff: Actor; let customer: Actor; let mode = 'SUCCESS'; void mode;
 const legacy = { product: randomUUID(), topping: randomUUID(), user: randomUUID(), cart: randomUUID(), item: randomUUID(), order: randomUUID(), claim: randomUUID() };
 let migrationBefore: Record<string, unknown>; let migrationAfter: Record<string, unknown>; let constraintsBefore: unknown; let constraintsAfter: unknown;
 async function fingerprint(legacyColumns = false) {
@@ -75,7 +74,7 @@ beforeAll(async () => {
   await client.query(readFileSync(resolve(dir, '20261013160000_option_lifecycle/migration.sql'), 'utf8'));
   migrationAfter = await fingerprint(true); constraintsAfter = (await client.query("SELECT conname,pg_get_constraintdef(oid) AS def FROM pg_constraint WHERE connamespace=$1::regnamespace AND contype='f' ORDER BY conname", [schema])).rows;
   for (const name of readdirSync(dir).filter(n => /^\d+_/.test(n) && n > '20261013160000_option_lifecycle').sort()) await client.query(readFileSync(resolve(dir, name, 'migration.sql'), 'utf8'));
-  const module = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(PrismaService).useValue(prisma).overrideProvider(MockPaymentService).useValue({ result: () => mode }).compile();
+  const module = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(PrismaService).useValue(prisma).compile();
   app = module.createNestApplication<NestExpressApplication>({ bodyParser: false }); configureApp(app); await app.init(); jwt = app.get(JwtService); admin = await actor('ADMIN'); staff = await actor('STAFF'); customer = await actor();
 });
 afterAll(async () => { if (app) await app.close(); await prisma.$disconnect(); await client.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`); await client.end(); });

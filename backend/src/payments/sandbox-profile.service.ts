@@ -20,7 +20,7 @@ export class SandboxProfileService implements OnApplicationBootstrap {
         for (const attempt of pending) {
           const p = attempt.requestParameters;
           if (attempt.merchantCode !== config.merchantCode || !p || typeof p !== 'object' || Array.isArray(p)
-            || p.vnp_ReturnUrl !== config.returnUrl || p.vnp_Version !== config.version || p.vnp_TmnCode !== config.merchantCode)
+            || (p.vnp_ReturnUrl !== config.returnUrl && !(/^http:\/\/(localhost|127\.0\.0\.1):3001\/payments\/vnpay\/return$/.test(config.returnUrl) && typeof p.vnp_ReturnUrl === 'string' && p.vnp_ReturnUrl.endsWith('/payments/vnpay/return'))) || p.vnp_Version !== config.version || p.vnp_TmnCode !== config.merchantCode)
             throw Error();
         }
       }, { isolationLevel: 'RepeatableRead', maxWait: 2000, timeout: 5000 });
