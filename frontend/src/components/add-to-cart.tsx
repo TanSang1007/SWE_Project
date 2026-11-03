@@ -12,9 +12,8 @@ export function AddToCart({ product }: { product: ProductDetail }) {
   const token = useAuthStore((s) => s.accessToken); const [busy, setBusy] = useState(false); const [message, setMessage] = useState('');
   const inFlight = useRef(false);
   const cartLock = useCartLock();
-  if (!token) return <p><Link className="button" href={{ pathname: '/login', query: { returnTo: `/products/${product.id}` } }}>Đăng nhập để thêm giỏ</Link></p>;
   async function add(input: CartInput) {
-    if (inFlight.current || cartLock.locked) return;
+    if (!token || inFlight.current || cartLock.locked) return;
     inFlight.current = true; setBusy(true); setMessage('');
     try {
       const cart = await cartRequest('POST', '/cart/items', input);
@@ -27,5 +26,5 @@ export function AddToCart({ product }: { product: ProductDetail }) {
     }
     finally { inFlight.current = false; setBusy(false); }
   }
-  return <section aria-label="Thêm món vào giỏ"><CartOptions product={product} busy={busy || cartLock.locked} onConfirm={(input) => void add(input)} label="Thêm vào giỏ" /><p role="status">{message}</p>{cartLock.locked && <p role="status">Giỏ tạm khóa khi kiểm tra hoặc đang có đơn chưa hoàn tất. <Link href="/checkout">Mở đơn để thanh toán hoặc hủy</Link></p>}<Link href="/cart">Xem giỏ</Link></section>;
+  return <section aria-label="Thêm món vào giỏ"><CartOptions product={product} busy={busy || (!!token && cartLock.locked)} onConfirm={(input) => void add(input)} label="Thêm vào giỏ" canSubmit={!!token} />{!token && <p><Link className="button" href={{ pathname: '/login', query: { returnTo: `/products/${product.id}` } }}>Đăng nhập để thêm giỏ</Link></p>}{message && <p role="status">{message}</p>}{!!token && cartLock.locked && <p role="status">Giỏ tạm khóa khi kiểm tra hoặc đang có đơn chưa hoàn tất. <Link href="/checkout">Mở đơn để thanh toán hoặc hủy</Link></p>}<Link href="/cart">Xem giỏ</Link></section>;
 }
