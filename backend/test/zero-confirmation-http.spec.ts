@@ -14,7 +14,7 @@ const confirm = jest.fn(); let app: NestExpressApplication, jwt: JwtService;
 const body = { payment: { id: randomUUID(), orderId: order, provider: 'INTERNAL_ZERO', method: 'ZERO_TOTAL', status: 'SUCCEEDED', amount: '0' } };
 beforeAll(async () => {
   const module = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(PrismaService).useValue(db)
-    .overrideProvider(ConfigService).useValue(new ConfigService({ JWT_SECRET: 'synthetic-b2c2-unit-jwt-key-at-least-32-bytes', JWT_EXPIRES_IN: 3600, FRONTEND_ORIGIN: 'http://localhost:3000', PAYMENT_PROVIDER_MODE: 'MOCK' }))
+    .overrideProvider(ConfigService).useValue(new ConfigService({ JWT_SECRET: 'synthetic-b2c2-unit-jwt-key-at-least-32-bytes', JWT_EXPIRES_IN: 3600, FRONTEND_ORIGIN: 'http://localhost:3000', PAYMENT_PROVIDER_MODE: 'VNPAY_SANDBOX' }))
     .overrideProvider(ZeroConfirmationService).useValue({ confirm }).compile();
   app = module.createNestApplication<NestExpressApplication>({ bodyParser: false }); configureApp(app); await app.init(); jwt = app.get(JwtService);
 });

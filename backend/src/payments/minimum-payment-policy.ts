@@ -4,9 +4,8 @@ import type { Prisma } from '../generated/prisma/client';
 import { validateVnpayConfig, type VnpayConfig } from './vnpay/vnpay-config';
 
 // Startup validates provider eligibility; this resolver never opts a provider in.
-export function effectivePaymentProvider(config: ConfigService): 'MOCK' | 'VNPAY_SANDBOX' {
-  const mode = config.get<unknown>('PAYMENT_PROVIDER_MODE') ?? 'MOCK';
-  if (mode === 'MOCK') return mode;
+export function effectivePaymentProvider(config: ConfigService): 'VNPAY_SANDBOX' {
+  const mode = config.get<unknown>('PAYMENT_PROVIDER_MODE') ?? 'VNPAY_SANDBOX';
   try {
     if (mode !== 'VNPAY_SANDBOX') throw Error();
     validateVnpayConfig(config.getOrThrow<VnpayConfig>('VNPAY_INITIATION_CONFIG'));

@@ -13,7 +13,6 @@ import request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { PrismaService } from '../../src/database/prisma.service';
 import { PrismaClient } from '../../src/generated/prisma/client';
-import { MockPaymentService } from '../../src/payments/mock-payment.service';
 import { configureApp } from '../../src/common/configure-app';
 
 config({ path: resolve(__dirname, '../../../.env'), quiet: true });
@@ -25,13 +24,12 @@ const schema = `brewlite_b13_test_${randomUUID().replaceAll('-', '')}`;
 const client = new Client({ connectionString });
 const scopedUrl = new URL(connectionString); scopedUrl.searchParams.set('options', `-c search_path=${schema}`);
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: utcConnectionString(scopedUrl.toString()) }, { schema }) });
-let app: NestExpressApplication; let jwt: JwtService; let mode: 'SUCCESS' | 'FAILURE' = 'SUCCESS';
+let app: NestExpressApplication; let jwt: JwtService; let mode: 'SUCCESS' | 'FAILURE' = 'SUCCESS'; void mode;
 beforeAll(async () => {
   await client.connect(); await client.query(`CREATE SCHEMA "${schema}"`); await client.query(`SET search_path TO "${schema}"`);
   const dir = resolve(__dirname, '../../prisma/migrations');
   for (const name of readdirSync(dir).filter((n) => /^\d+_/.test(n)).sort()) await client.query(readFileSync(resolve(dir, name, 'migration.sql'), 'utf8'));
-  const module = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(PrismaService).useValue(prisma)
-    .overrideProvider(MockPaymentService).useValue({ result: () => mode }).compile();
+  const module = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(PrismaService).useValue(prisma).compile();
   app = module.createNestApplication<NestExpressApplication>({ bodyParser: false }); configureApp(app); await app.init(); jwt = app.get(JwtService);
 });
 beforeEach(() => { mode =  'SUCCESS' ; });

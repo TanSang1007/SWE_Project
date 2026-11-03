@@ -64,7 +64,7 @@ SWE_Project/
 │   │   ├── pricing/               # Giá server, promotion và redemption preview
 │   │   ├── orders/                # Owner/operator/admin APIs và state machine
 │   │   ├── loyalty/               # Award, journal, debt, balance/history
-│   │   ├── payments/              # MOCK, Attempt/IPN/Return/zero/reconcile/admission
+│   │   ├── payments/              # VNPAY Sandbox Attempt/IPN/Return/zero/reconcile/admission
 │   │   │   └── vnpay/             # Config, signing, protocol và verification helpers
 │   │   └── callback-ingress/      # HTTP allowlist độc lập với backend restart
 │   └── test/
@@ -73,7 +73,7 @@ SWE_Project/
 ├── scripts/
 │   ├── dev-runtime.cjs            # CLI/build/ownership/private control endpoint
 │   ├── dev-runtime-lib.cjs        # Config, dependency reads, health/probes
-│   ├── dev-runtime-manager.cjs    # Lifecycle MOCK/VNPAY, drain/recovery/stop
+│   ├── dev-runtime-manager.cjs    # Lifecycle VNPAY Sandbox, drain/recovery/stop
 │   ├── verify-b08-docs.cjs        # Links, PDF hash và B08 evidence input
 │   └── test/dev-runtime.test.cjs
 ├── ops/ngrok-callback.example.yml

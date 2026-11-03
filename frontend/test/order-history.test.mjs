@@ -83,8 +83,8 @@ test('unpaid details link to known-ID checkout; cancellation does not claim refu
 });
 test('known-ID resume never replaces an uncertain original create/payment transport context', () => {
   const saved = { userId: 'owner', key: 'old-create', payload: { items: [] } };
-  assert.equal(recoveryOrderId(saved, null, id), undefined);
-  assert.equal(recoveryOrderId({ ...saved, orderId: 'saved' }, null, id), 'saved');
-  assert.equal(recoveryOrderId(saved, { payload: { orderId: 'paid-context' } }, id), 'paid-context');
-  assert.equal(recoveryOrderId(null, null, id), id);
+  assert.equal(recoveryOrderId(saved, id), undefined);
+  assert.equal(recoveryOrderId({ ...saved, orderId: 'saved' }, id), 'saved');
+  assert.equal(recoveryOrderId(null, id), id);
+  assert.equal(recoveryOrderId(null, undefined), undefined);
 });

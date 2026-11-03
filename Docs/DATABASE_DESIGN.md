@@ -47,7 +47,7 @@ PostgreSQL 18.x, snake_case DB/camelCase DTO; UUID PK, tiền `NUMERIC(12,0)` VN
 | OrderItem / order_items | FK Order/Product, snapshot tên/size/base/extra/unit/qty/lineTotal |
 | OrderItemTopping / order_item_toppings | PK `(orderItemId,toppingId)`, snapshot tên và giá topping |
 | IdempotencyRequest / idempotency_requests | unique `(userId,operation,key)`, requestHash, PROCESSING/COMPLETED, order/result/status/timestamps |
-| Payment / payments | owner/Order/claim, provider/method/status/amount/failureCode/confirmedAt, gatewayAttemptId nullable unique |
+| Payment / payments | owner/Order/claim, provider (`VNPAY_SANDBOX` default, `INTERNAL_ZERO`; `MOCK` chỉ giữ cho dòng lịch sử), method (`VNPAY` default, `ZERO_TOTAL`; `WALLET`/`CARD` chỉ giữ cho dòng lịch sử), status/amount/failureCode/confirmedAt, gatewayAttemptId nullable unique |
 | PaymentAttempt / payment_attempts | Order/claim unique, provider/merchantCode/txnRef unique, amount/currency, gateway/application state, signed parameters, expiry và verified/applied/provider timestamps |
 | PaymentVerification / payment_verifications | Attempt/source/state, requestId unique nullable, payload/hash, verifiedAt/processedAt; unique `(attemptId,source,payloadHash)` |
 | LoyaltyAward / loyalty_awards | orderId unique, owner/points gốc/reversedAt; không overwrite points khi reverse |

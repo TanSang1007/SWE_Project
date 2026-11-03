@@ -45,10 +45,10 @@ enum OrderStatus {
 }
 
 enum PaymentMethod {
-  WALLET
-  CARD
   VNPAY
   ZERO_TOTAL
+  WALLET
+  CARD
 }
 
 enum PaymentStatus {
@@ -68,9 +68,9 @@ enum IdempotencyState {
 }
 
 enum PaymentProvider {
-  MOCK
   VNPAY_SANDBOX
   INTERNAL_ZERO
+  MOCK
 }
 
 enum GatewayState {
@@ -494,7 +494,7 @@ model IdempotencyRequest {
 }
 
 model Payment {
-  provider             PaymentProvider    @default(MOCK)
+  provider             PaymentProvider    @default(VNPAY_SANDBOX)
   gatewayAttemptId     String?            @unique @map("gateway_attempt_id") @db.Uuid
   confirmedAt          DateTime?          @map("confirmed_at") @db.Timestamptz(6)
   gatewayAttempt       PaymentAttempt?    @relation(fields: [gatewayAttemptId], references: [id], onDelete: Restrict)
@@ -504,7 +504,7 @@ model Payment {
   idempotencyRequestId String             @unique @map("idempotency_request_id") @db.Uuid
   idempotencyKey       String             @map("idempotency_key") @db.Text
   amount               Decimal            @db.Decimal(12, 0)
-  method               PaymentMethod
+  method               PaymentMethod      @default(VNPAY)
   status               PaymentStatus
   failureCode          String?            @map("failure_code") @db.Text
   createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)

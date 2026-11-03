@@ -1,5 +1,4 @@
 import { OrderService } from '../../src/orders/order.service';
-import { MockPaymentService } from '../../src/payments/mock-payment.service';
 import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
@@ -35,7 +34,7 @@ const client = new Client({ connectionString });
 const txWork = <T>(work: (tx: Prisma.TransactionClient) => Promise<T>) => db.$transaction(work, { timeout: 5000 });
 let app: NestExpressApplication, jwt: JwtService;
 const secret = 'synthetic-b2a-fixture-only-not-a-merchant-secret';
-const settings = new ConfigService({ PAYMENT_MOCK_MODE: 'SUCCESS', JWT_SECRET: 'synthetic-b2a-jwt-fixture-of-at-least-32-bytes', JWT_EXPIRES_IN: 3600,
+const settings = new ConfigService({ JWT_SECRET: 'synthetic-b2a-jwt-fixture-of-at-least-32-bytes', JWT_EXPIRES_IN: 3600,
     ...initiationSettings({ NODE_ENV: 'test', PAYMENT_PROVIDER_MODE: 'VNPAY_SANDBOX', VNPAY_INITIATION_TEST_ONLY: 'true', DATABASE_URL: connectionString, TEST_DATABASE_URL: connectionString,
         VNPAY_ENV: 'SANDBOX', VNPAY_VERSION: '2.1.0', VNPAY_TMN_CODE: 'TEST0001', VNPAY_HASH_SECRET: secret, VNPAY_PAYMENT_URL: SANDBOX_PAYMENT_URL,
         VNPAY_RETURN_URL: 'https://callback.example.org/payments/vnpay/return', VNPAY_IPN_URL: 'https://callback.example.org/payments/vnpay/ipn' }) });
@@ -204,7 +203,7 @@ else {
     const a = await syntheticAttempt(db, f);
     await close(f, a.id, true);
 } const before = await db.paymentAttempt.count({ where: { orderId: f.order } }); await initiate(f).expect(409); expect(await db.paymentAttempt.count({ where: { orderId: f.order } })).toBe(before); });
-test('legacy Mock failure cannot cross-provider retry', async () => { const f = await fixture(); settings.set('PAYMENT_PROVIDER_MODE', 'MOCK'); const mock = app.get(MockPaymentService); jest.spyOn(mock, 'result').mockReturnValueOnce('FAILURE'); await request(app.getHttpServer()).post('/payments').set('Authorization', auth(f)).set('Idempotency-Key', randomUUID()).send({ orderId: f.order, method: 'WALLET' }).expect(200); settings.set('PAYMENT_PROVIDER_MODE', 'VNPAY_SANDBOX'); const before = await snapshot(f); await initiate(f).expect(409); expect(await snapshot(f)).toEqual(before); });
+test('legacy post /payments endpoint is removed and cannot mutate order state', async () => { const f = await fixture(); const before = await snapshot(f); await request(app.getHttpServer()).post('/payments').set('Authorization', auth(f)).set('Idempotency-Key', randomUUID()).send({ orderId: f.order }).expect(404); expect(await snapshot(f)).toEqual(before); });
 test('feature gate OFF denies initiation without attempt; Mock continues unchanged', async () => { const f = await fixture(); settings.set('PAYMENT_PROVIDER_MODE', 'MOCK'); await initiate(f).expect(503); expect(await db.paymentAttempt.count({ where: { orderId: f.order } })).toBe(0); await request(app.getHttpServer()).post('/payments').set('Authorization', auth(f)).set('Idempotency-Key', randomUUID()).send({ orderId: f.order, method: 'WALLET' }).expect(200); expect((await db.payment.findFirstOrThrow({ where: { orderId: f.order } })).provider).toBe('MOCK'); });
 test('Mock route cannot bypass VNPAY mode or unresolved gateway attempts', async () => { const f = await started(); const pay = () => request(app.getHttpServer()).post('/payments').set('Authorization', auth(f)).set('Idempotency-Key', randomUUID()).send({ orderId: f.order, method: 'WALLET' }); await pay().expect(403); settings.set('PAYMENT_PROVIDER_MODE', 'MOCK'); await pay().expect(409); expect(await db.payment.count({ where: { orderId: f.order } })).toBe(0); });
 test('JWT required and roles are taken from database', async () => { const f = await fixture(); await request(app.getHttpServer()).post('/payments/vnpay/attempts').send({ orderId: f.order }).expect(401); await db.user.update({ where: { id: f.user }, data: { role: 'STAFF' } }); await initiate(f).expect(403); await list(f).expect(403); await get(f, randomUUID()).expect(403); });

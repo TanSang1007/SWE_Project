@@ -14,7 +14,6 @@ import { IpnService } from '../src/payments/ipn.service';
 import { QueryDrService } from '../src/payments/querydr.service';
 import { ZeroConfirmationService } from '../src/payments/zero-confirmation.service';
 import { AttemptService } from '../src/payments/attempt.service';
-import { MockPaymentService } from '../src/payments/mock-payment.service';
 const secret = 'synthetic-b2a-return-unit-not-a-merchant-secret';
 const config = parseVnpayConfig({ VNPAY_ENV: 'SANDBOX', VNPAY_VERSION: '2.1.0', VNPAY_TMN_CODE: 'TEST0001', VNPAY_HASH_SECRET: secret, VNPAY_PAYMENT_URL: SANDBOX_PAYMENT_URL,
   VNPAY_RETURN_URL: 'https://callback.example.org/payments/vnpay/return', VNPAY_IPN_URL: 'https://callback.example.org/payments/vnpay/ipn' });
@@ -37,7 +36,7 @@ const settings = new ConfigService({ FRONTEND_ORIGIN: 'http://localhost:3000', P
 let app: NestExpressApplication;
 beforeAll(async () => {
   const builder = Test.createTestingModule({ imports: [AppModule] }).overrideProvider(PrismaService).useValue({ $transaction: transaction }).overrideProvider(ConfigService).useValue(settings);
-  for (const provider of [IpnService, QueryDrService, ZeroConfirmationService, AttemptService, MockPaymentService])
+  for (const provider of [IpnService, QueryDrService, ZeroConfirmationService, AttemptService])
     builder.overrideProvider(provider).useValue({ receive: forbidden, apply: forbidden, reconcile: forbidden, confirm: forbidden, initiate: forbidden, result: forbidden });
   const module = await builder.compile(); app = module.createNestApplication<NestExpressApplication>({ bodyParser: false }); configureApp(app); await app.init();
 });

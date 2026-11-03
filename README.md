@@ -4,7 +4,7 @@
 
 BrewLite hỗ trợ khách chọn đồ uống, tùy chỉnh size/topping, đặt hàng, thanh toán và theo dõi đơn lấy tại quầy. Nhân viên xử lý hàng đợi pha chế; quản trị viên quản lý menu, tồn kho và đơn hàng.
 
-Nền tảng gồm frontend Next.js, backend NestJS và PostgreSQL. Thanh toán mặc định là MOCK; VNPAY Sandbox là tùy chọn kiểm thử, chưa phải tích hợp thanh toán production.
+Nền tảng gồm frontend Next.js, backend NestJS và PostgreSQL. Hệ thống sử dụng duy nhất VNPAY Sandbox làm phương thức thanh toán trực tuyến (kèm xác nhận nội bộ cho đơn 0 VND); hình thức Mock Payment đã được loại bỏ hoàn toàn.
 
 ## 2. Thành viên nhóm
 
@@ -25,7 +25,7 @@ Phiên bản đang pin trong các `package.json` và `package-lock.json`:
 | Authentication | JWT (`@nestjs/jwt` **11.0.2**), Passport, bcrypt **6.0.0** |
 | Persistence | Prisma **7.10.0**, PostgreSQL adapter, `pg` **8.23.1** (driver) |
 | Database | PostgreSQL **18.x**, theo baseline thiết kế |
-| Payment | MOCK SUCCESS/FAILURE; VNPAY Sandbox 2.1.0, HMAC-SHA512 |
+| Payment | VNPAY Sandbox 2.1.0 (HMAC-SHA512) và INTERNAL_ZERO cho đơn 0 VND |
 | Tests | Jest/Supertest, Node.js test runner và browser harness có sẵn |
 
 ## 4. Các chức năng chính
@@ -54,7 +54,7 @@ SWE_Project/
 │   ├── prisma/                # schema.prisma, migrations/, seed.cjs
 │   ├── scripts/               # Provision operator, reconciliation, auth config
 │   └── test/                  # Unit/HTTP và database integration tests
-├── scripts/                   # Launcher MOCK/VNPAY và lifecycle tests
+├── scripts/                   # Launcher VNPAY Sandbox và lifecycle tests
 ├── ops/                       # Ví dụ ngrok callback-only
 ├── Docs/                      # Yêu cầu, thiết kế, contract, hướng dẫn
 ├── .env.example               # Cấu hình local mẫu
@@ -84,7 +84,7 @@ npm ci
 Copy-Item .env.example .env
 ```
 
-Mở `.env` tại root, điền hai connection string được trưởng nhóm cấp riêng theo mục bên dưới. Giữ `NODE_ENV=development`, `FRONTEND_ORIGIN=http://localhost:3000` và `PAYMENT_PROVIDER_MODE=MOCK` cho lần chạy thông thường. File mẫu chỉ chứa placeholder, không kết nối được trước khi điền cấu hình thật. Không ghi đè `.env` đã cấu hình.
+Mở `.env` tại root, điền hai connection string được trưởng nhóm cấp riêng theo mục bên dưới. Giữ `NODE_ENV=development`, `FRONTEND_ORIGIN=http://localhost:3000` và `PAYMENT_PROVIDER_MODE=VNPAY_SANDBOX`. File mẫu chỉ chứa placeholder, không kết nối được trước khi điền cấu hình thật. Không ghi đè `.env` đã cấu hình.
 
 Tạo `JWT_SECRET` riêng cho máy bằng helper có sẵn:
 
@@ -129,7 +129,7 @@ Checkout có `/cart` và `/checkout` riêng; Order mới có thời hạn thanh 
 | File | Nơi đọc / mục đích |
 | --- | --- |
 | Root `.env` từ [.env.example](.env.example) | NestJS, Prisma config, CLI và launcher local |
-| Root `.env.vnpay.local` từ [example](.env.vnpay.local.example) | Overlay private chỉ cho `dev:vnpay`; MOCK không đọc |
+| Root `.env.vnpay.local` từ [example](.env.vnpay.local.example) | Overlay private tùy chọn cho VNPAY Sandbox (`dev` / `dev:vnpay`) |
 | `frontend/.env.local` từ [example](frontend/.env.local.example) | Override public API URL cho frontend; development mặc định `http://127.0.0.1:3001`, launcher cấp cùng URL |
 
 Backend không yêu cầu `backend/.env`. Không đặt secrets trong `NEXT_PUBLIC_*`. File private được ignore, không đưa lên GitHub.
@@ -154,23 +154,9 @@ Sau khi sửa cấu hình, Next dev tự restart; refresh trang để nạp bund
 
 Launcher chọn provider theo lệnh, cố định port/origin local và quản lý hai cờ Sandbox: bắt đầu DRAIN_ONLY, mở admission sau callback checks. Sửa file không phải hot-toggle và không bỏ qua readiness.
 
-`npm run dev` (MOCK) và `npm run dev:vnpay` đều hỗ trợ Neon. Với VNPAY, đặt `` trên đúng một máy nhận IPN của nhóm; các máy khác dùng `member`, cùng database/profile/IPN/Return đã đăng ký và không mở tunnel riêng. [Cấu hình và kiểm chứng](Docs/VNPAY_NEON.md).
 
-## 9. Payment Setup — MOCK
 
-Để `PAYMENT_PROVIDER_MODE=MOCK`, chọn `PAYMENT_MOCK_MODE=SUCCESS` hoặc `FAILURE` trong root `.env`:
-
-```powershell
-npm run dev
-# Terminal khác:
-npm run dev:status
-# Sau khi đổi PAYMENT_MOCK_MODE:
-npm run dev:restart-backend
-```
-
-Không cần Merchant, ngrok, public callback hay credentials owner. Ví/Thẻ là giả lập; client không gửi kết quả thành công. Đọc trạng thái đơn để đối chiếu kết quả server.
-
-## 10. Payment Setup — VNPAY Sandbox (tùy chọn)
+## 9. Payment Setup — VNPAY Sandbox (Mặc định & Duy nhất)
 
 Dùng chung Neon **không tự làm VNPAY hoạt động trên mọi máy**. Vẫn cần merchant credentials và callback/IPN hợp lệ, máy callback owner đang sẵn sàng và cấu hình member đúng. `npm run dev` chọn MOCK rõ ràng; chỉ dùng `npm run dev:vnpay` khi Sandbox đã cấu hình và callback có thể kiểm chứng. Sandbox lỗi phải báo lỗi/giữ trạng thái chờ; không tự chuyển MOCK hoặc hiển thị thanh toán thành công.
 

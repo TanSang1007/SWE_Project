@@ -34,9 +34,10 @@ export function parseVnpayConfig(env: Readonly<Record<string, string | undefined
       !/^\d+(?:\.\d+){3}$/.test(url.hostname));
     return url;
   };
-  const returnUrl = callback(env.VNPAY_RETURN_URL, '/payments/vnpay/return');
+  const localReturn = env.VNPAY_RETURN_URL === 'http://localhost:3001/payments/vnpay/return' || env.VNPAY_RETURN_URL === 'http://127.0.0.1:3001/payments/vnpay/return';
+  const returnUrl = localReturn ? new URL(env.VNPAY_RETURN_URL!) : callback(env.VNPAY_RETURN_URL, '/payments/vnpay/return');
   const ipnUrl = callback(env.VNPAY_IPN_URL, '/payments/vnpay/ipn');
-  requireVnpay(returnUrl.origin === ipnUrl.origin);
+  if (!localReturn) requireVnpay(returnUrl.origin === ipnUrl.origin);
   return Object.freeze({ environment: 'SANDBOX', version: '2.1.0', merchantCode,
     hashSecret, paymentUrl: SANDBOX_PAYMENT_URL, returnUrl: returnUrl.href, ipnUrl: ipnUrl.href });
 }

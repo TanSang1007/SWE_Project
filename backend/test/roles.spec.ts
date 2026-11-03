@@ -67,6 +67,6 @@ describe('A01 database-derived roles (isolated HTTP harness)', () => {
       await request(app.getHttpServer()).get(path).set('Authorization', `Bearer ${jwt.sign({ sub: id })}`).expect(403);
     }
     await request(app.getHttpServer()).post('/orders').set('Authorization', `Bearer ${jwt.sign({ sub: id })}`).send({}).expect(403);
-    await request(app.getHttpServer()).post('/payments').set('Authorization', `Bearer ${jwt.sign({ sub: id })}`).send({}).expect(403);
+    await request(app.getHttpServer()).post('/payments/vnpay/attempts').set('Authorization', `Bearer ${jwt.sign({ sub: id })}`).send({}).expect(403);
   });
 });
