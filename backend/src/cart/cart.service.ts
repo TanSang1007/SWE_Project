@@ -53,7 +53,10 @@ export class CartService {
     // Serialize validated Cart writes with lifecycle changes and full-product
     // deletion. Keep existing owner-lock order; never mutate stock/version.
     await tx.$queryRaw`SELECT id FROM products WHERE id = ${productId}::uuid FOR SHARE`;
-    for (const id of [...toppingIds].sort()) await tx.$queryRaw`SELECT id FROM toppings WHERE id = ${id}::uuid FOR SHARE`;
+    if (toppingIds.length) {
+      const ids = [...toppingIds].sort().map(id => Prisma.sql`${id}::uuid`);
+      await tx.$queryRaw`SELECT id FROM toppings WHERE id IN (${Prisma.join(ids)}) ORDER BY id FOR SHARE`;
+    }
     const product = await tx.product.findUnique({ where: { id: productId }, include: { sizes: true, toppings: { include: { topping: true } } } });
     if (!product) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
     if (!product.isActive) throw new ConflictException({ code: 'PRODUCT_UNAVAILABLE', message: 'Product is no longer sold; adjust or remove the cart item' });
