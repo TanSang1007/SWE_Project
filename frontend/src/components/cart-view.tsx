@@ -11,13 +11,14 @@ import type { ProductDetail } from '../types/catalog';
 import { CartOptions } from './cart-options';
 import { CartRemoveConfirmation } from './cart-remove-confirmation';
 import { ProductImage } from './product-image';
-import { PendingOrderBanner } from './pending-order';
+import { PendingOrderBanner, useCartLock } from './pending-order';
 export function CartView({ orderId }: { orderId?: string } = {}) {
   const token = useAuthStore((s) => s.accessToken);
   return <CartSession key={`${token ?? 'guest'}:${orderId ?? ''}`} orderId={orderId} />;
 }
 function CartSession({ orderId }: { orderId?: string }) {
   const token = useAuthStore((s) => s.accessToken); const cart = useCartStore((s) => s.cart);
+  const cartLock = useCartLock();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false); const [error, setError] = useState('');
   const [editing, setEditing] = useState<{ item: CartItem; product: ProductDetail } | null>(null);
@@ -29,7 +30,6 @@ function CartSession({ orderId }: { orderId?: string }) {
       removeTrigger.current = null;
     }
   }, [removing]);
-  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
     if (token) void useCartStore.getState().load()
@@ -44,49 +44,52 @@ function CartSession({ orderId }: { orderId?: string }) {
     finally { if (useAuthStore.getState().accessToken === token) setLoading(false); }
   }
   async function mutate(method: string, id: string, qty?: number) {
+    if (cartLock.locked) return;
     setBusy(true); setError('');
     try { const result = await cartRequest(method, `/cart/items/${id}`, qty === undefined ? undefined : { qty });
-      if (useAuthStore.getState().accessToken === token) { useCartStore.getState().setCart(result); if (id === pendingDelete) setPendingDelete(null); if (method === 'DELETE') setRemoving(null); }
+      if (useAuthStore.getState().accessToken === token) { useCartStore.getState().setCart(result); if (method === 'DELETE') setRemoving(null); }
     } catch (e) { setError(cartErrorMessage(e)); await useCartStore.getState().load().catch(() => {}); }
     finally { setBusy(false); }
   }
   async function beginEdit(item: CartItem) {
+    if (cartLock.locked) return;
     setBusy(true); setError('');
     try { const product = await getProductById(item.productId); if (useAuthStore.getState().accessToken === token) setEditing({ item, product }); }
     catch (e) { setError(cartErrorMessage(e)); } finally { setBusy(false); }
   }
   async function edit(input: CartInput) {
-    if (!editing) return; setBusy(true); setError('');
+    if (!editing || cartLock.locked) return; setBusy(true); setError('');
     try { const result = await editCartItem(editing.item, input);
-      if (useAuthStore.getState().accessToken === token) { useCartStore.getState().setCart(result.cart); setPendingDelete(result.pendingDelete ?? null); setEditing(null); }
+      if (useAuthStore.getState().accessToken === token) { useCartStore.getState().setCart(result.cart); setEditing(null); }
     } catch (e) { setError(cartErrorMessage(e)); await useCartStore.getState().load().catch(() => {}); }
     finally { setBusy(false); }
   }
   if (!token) return <section className="cart-page"><div className="state-panel"><p className="eyebrow">BrewLite / Giỏ hàng</p><h1>Giỏ hàng của bạn</h1><p>Đăng nhập để tải giỏ đã lưu của bạn.</p><Link className="button" href={orderId ? '/login?returnTo=' + encodeURIComponent(`/cart?orderId=${orderId}`) : '/login?returnTo=/cart'}>Đăng nhập</Link></div></section>;
-  const locked = busy || loading || !!pendingDelete || !!editing || !!removing;
-  const checkoutReason = loading ? 'Đang cập nhật giỏ hàng…'
+  const locked = cartLock.locked || busy || loading || !!editing || !!removing;
+  const checkoutReason = cartLock.locked ? (cartLock.order ? 'Giỏ đang khóa theo đơn chưa hoàn tất. Hãy thanh toán hoặc hủy đơn cũ.' : 'Đang kiểm tra đơn chưa hoàn tất; tạm khóa giỏ.')
+    : loading ? 'Đang cập nhật giỏ hàng…'
     : !cart && error ? 'Vui lòng tải lại giỏ để kiểm tra dữ liệu trước khi tiếp tục.'
-    : pendingDelete ? 'Hãy xử lý dòng cũ trước khi tiếp tục.'
     : removing ? 'Hãy xác nhận xóa hoặc chọn giữ lại món.'
     : editing ? 'Hãy lưu hoặc hủy chỉnh sửa trước khi tiếp tục.'
     : busy ? 'Đang cập nhật giỏ hàng…'
     : !cart || cart.items.length === 0 ? 'Thêm đồ uống để tiếp tục.'
-    : cart.items.some(item => !item.available) ? 'Hãy chỉnh sửa hoặc xóa món hiện không thể đặt.' : '';
+    : cart.items.some(item => !item.available) ? 'Hãy chỉnh sửa hoặc xóa món hiện không thể đặt.'
+    : cart.items.some(item => item.stock !== undefined && (item.requestedQuantity ?? item.qty) > item.stock) ? 'Số lượng đã chọn vượt tồn kho. Hãy giảm số lượng trước khi thanh toán.' : '';
   return <section className="cart-page">
     <header className="cart-heading"><div><p className="eyebrow">Một chút cà phê, một ngày dễ chịu</p><h1>Giỏ hàng của bạn</h1><p>Kiểm tra đồ uống trước khi đặt và nhận tại quầy.</p></div><Link className="cart-continue" href="/">← Tiếp tục chọn món</Link></header>
     {error && <p className="cart-notice cart-error" role="alert">{error}</p>}
-    {pendingDelete && <aside className="cart-notice" role="alert"><p>Cấu hình mới đã được thêm. Dòng cũ chưa xóa được; cả hai vẫn còn trong giỏ.</p><button className="cart-secondary" disabled={busy || loading} onClick={() => void mutate('DELETE', pendingDelete)}>Thử xóa dòng cũ</button></aside>}
+
     <div className="cart-layout"><div className="cart-main">
-      <div className="cart-section-heading"><h2>Đồ uống đã chọn {cart ? `(${cart.totalQuantity})` : ''}</h2><button className="cart-text-button" disabled={locked} onClick={() => void reload()}>{loading ? 'Đang tải…' : 'Tải lại giỏ'}</button></div>
+      <div className="cart-section-heading"><h2>Đồ uống đã chọn {cart ? `(${cart.totalQuantity})` : ''}</h2><button className="cart-text-button" disabled={busy || loading} onClick={() => void reload()}>{loading ? 'Đang tải…' : 'Tải lại giỏ'}</button></div>
       {loading && <p className="cart-notice" role="status">Đang tải giỏ…</p>}
       {busy && <p className="cart-progress" role="status">Đang cập nhật giỏ hàng…</p>}
       {removing && <CartRemoveConfirmation item={removing} busy={busy} onCancel={() => setRemoving(null)} onConfirm={() => { if (!busy) void mutate('DELETE', removing.id); }} />}
       {cart && <CartItems cart={cart} locked={locked} onQuantity={(item, qty) => void mutate('PATCH', item.id, qty)} onEdit={(item) => void beginEdit(item)} onRemove={(item) => { removeTrigger.current = document.activeElement as HTMLElement | null; setRemoving(item); }} />}
       {!cart && !loading && error && <div className="state-panel"><h2>Chưa tải được giỏ hàng</h2><p>Kiểm tra kết nối rồi chọn “Tải lại giỏ”.</p></div>}
       {editing && <section className="cart-editor" aria-labelledby="cart-editor-title"><p className="eyebrow">Tùy chỉnh đồ uống</p><h2 id="cart-editor-title">Chỉnh sửa {editing.item.productName}</h2><p>Số lượng giữ nguyên: {editing.item.qty} ly.</p>
-        <CartOptions key={editing.item.id} product={editing.product} initial={{ productId: editing.item.productId, size: editing.item.size, toppingIds: editing.item.toppings.map((t) => t.id), qty: editing.item.qty }} busy={busy} showQuantity={false} onConfirm={(input) => void edit(input)} label="Lưu thay đổi" />
+        <CartOptions key={editing.item.id} product={editing.product} initial={{ productId: editing.item.productId, size: editing.item.size, toppingIds: editing.item.toppings.map((t) => t.id), qty: editing.item.qty }} busy={busy || cartLock.locked} showQuantity={false} onConfirm={(input) => void edit(input)} label="Lưu thay đổi" />
         <button className="cart-secondary" disabled={busy} onClick={() => setEditing(null)}>Hủy chỉnh sửa</button></section>}
-      <PendingOrderBanner />
+      <PendingOrderBanner order={cartLock.order} error={cartLock.error} />
     </div><CartSummary cart={cart} reason={checkoutReason} /></div>
   </section>;
 }
@@ -108,6 +111,7 @@ export function CartItems({ cart, locked, onQuantity, onEdit, onRemove }: {
     <div className="cart-item-content"><h2>{item.productName}</h2><p className="cart-item-options">Size {item.size} · {item.toppings.map((t) => t.name).join(', ') || 'Không topping'}</p>
       <p className="cart-unit-price">Đơn giá: {formatVnd(item.unitPrice)}</p>
       {!item.available && <p className="cart-item-warning" role="alert">Món hoặc tùy chọn hiện chưa thể đặt hàng. Vui lòng chỉnh sửa hoặc xóa món.</p>}
+      {item.stock !== undefined && (item.requestedQuantity ?? item.qty) > item.stock && <p className="cart-item-warning" role="alert">Bạn đã chọn tổng cộng {item.requestedQuantity ?? item.qty} ly {item.productName} qua các size/topping, hiện còn {item.stock} ly. Hãy giảm số lượng hoặc xóa bớt món.</p>}
       <div className="cart-actions"><div className="cart-quantity" role="group" aria-label={`Số lượng ${item.productName}`}>
         <button
           aria-label={`Giảm ${item.productName}`}

@@ -86,6 +86,37 @@ describe('CatalogService with PostgreSQL', () => {
     await expect(service.getProduct(randomUUID())).rejects.toMatchObject({ status: 404 });
     expect(await service.getProduct(second)).toMatchObject({ available: false, price: '999999999999' });
   });
+    it('excludes inactive/discontinued products from list and returns 404 on detail', async () => {
+    const discontinuedId = '11111111-1111-4111-8111-111111111199';
+    // 1. Thêm một sản phẩm đã ngừng bán (is_active = false)
+    await client.query(
+      "INSERT INTO products(id, name, price, image_url, stock, is_active) VALUES($1, 'Discontinued Drink', 35000, '/images/discontinued.jpg', 10, false)",
+      [discontinuedId],
+    );
+
+    // 2. Kiểm tra listProducts: Tuyệt đối không được chứa sản phẩm ngừng bán
+    const list = await service.listProducts();
+    expect(list.items.some((item) => item.id === discontinuedId)).toBe(false);
+
+    // 3. Kiểm tra getProduct: Phải ném 404 Not Found
+    await expect(service.getProduct(discontinuedId)).rejects.toMatchObject({
+      status: 404,
+      message: 'Product not found',
+    });
+  });
+
+  it('returns 404 error envelope when requesting non-existent product via HTTP', async () => {
+    const nonExistentId = randomUUID();
+    const result = await request(app.getHttpServer()).get(`/products/${nonExistentId}`).expect(404);
+    expect(result.body).toEqual({
+      error: {
+        code: 'NOT_FOUND',
+        message: 'Product not found',
+        details: [],
+        requestId: expect.any(String) as unknown,
+      },
+    });
+  });
 });
 
 describe('Catalog HTTP with PostgreSQL', () => {

@@ -1,5 +1,23 @@
 # BrewLite — Thiết kế database
 
+I03: enum IngredientUnit bổ sung EGG (quả), thuộc nguyên liệu. `ingredients_countable_units` CHECK quantity/threshold nguyên với PIECE/EGG; sửa CHECK ngưỡng thêm EGG10 qua [migration](../backend/prisma/migrations/20261029170000_inventory_egg_unit/migration.sql). Không đổi FK/quan hệ hoặc dòng dữ liệu cũ. Danh mục12 mặt hàng dùng bảng ingredients hiện có với normalizedName unique và quantity0 khi mới tạo; khởi tạo bằng Admin API, không seed quantity hoặc tài khoản. [Contract](I03_RECEIVING_CATALOG.md).
+
+## I02 — Nhóm kho và ngưỡng cố định2026-10-29
+
+[Migration I02](../backend/prisma/migrations/20261029150000_inventory_categories/migration.sql) dùng sáu bảng I01 hiện có; nhóm vật dụng suy từ unit=PIECE, nguyên liệu từ đơn vị đo. Không thêm bảng hoặc cột category trùng thông tin unit. Chuẩn hóa low_stock_threshold PIECE10/L5/KG10, G10000/ML5000 cho dữ liệu cũ; CHECK `ingredients_unit_threshold_check` buộc ngưỡng đúng đơn vị. Không đổi quantity, version, timestamps, requestHash, phiếu hoặc movement. Ngưỡng cảnh báo strict `<` do service và summary thống nhất; bằng ngưỡng còn hàng. Thay quy tắc Admin tự chọn ngưỡng I01 bên dưới. [Contract](I02_INVENTORY_CATEGORIES.md).
+
+## I01 — Nguyên liệu, extension người dùng2026-10-29
+
+Thêm6 model độc lập: Ingredient, IngredientReceipt, IngredientReceiptLine, IngredientCount, IngredientCountLine, IngredientMovement; chỉ thêm inverse relations trên User. Không tái sử dụng Product.stock vì Product là số lượng món, nguyên liệu có đơn vị và số thập phân. [Contract](I01_INGREDIENT_INVENTORY_CONTRACT.md) và [migration](../backend/prisma/migrations/20261029100000_ingredient_inventory/migration.sql).
+
+Rollout2026-10-29: migration I01 đã áp dụng trên Neon shared development; sáu bảng mới có mặt, chưa thêm dữ liệu nghiệp vụ mẫu. Kiểm tra transaction giữ nguyên fingerprint19 bảng nghiệp vụ cũ. Nếu Prisma native engine bị chặn trên Windows, `npm run db:check:ingredients --workspace backend` kiểm tra read-only; `npm run db:migrate:ingredients --workspace backend` là fallback hẹp chỉ áp dụng migration này, kiểm tra chain/checksum/partial schema, lock và rollback nguyên tử. Không reset/seed hoặc thay migration cũ. [Báo cáo](I01_INGREDIENT_INVENTORY_IMPLEMENTATION.md).
+
+Ingredient1:N receipt/count lines và movements; Receipt/Count1:N lines; mỗi line có tối đa một movement (unique FK receiptLineId/countLineId, đúng một source không NULL). Mọi actor FK→User RESTRICT; Count.recountOfId unique self-FK RESTRICT, giữ chuỗi kiểm kê lại. Tạo resource unique(actor,requestKey)+SHA256 hash, tách namespace từng model khỏi idempotency tài chính.
+
+quantity/threshold/snapshot Decimal(12,3), không âm; movement.delta Decimal(13,3), CHECK delta=after-before. PIECE bắt buộc nguyên; ngưỡng do Admin chọn. CHECK lifecycle buộc DRAFT/SUBMITTED version0 chưa có reviewer/time; terminal version1 có actor/time; reject/recount phải có lý do. Movements append-only bằng trigger chặn UPDATE/DELETE. Không DELETE API hoặc cascade mất audit. Không tự trừ nguyên liệu khi bán món.
+
+Transaction actor lock → document lock → ingredients ID tăng dần; cập nhật tồn bulk CAS version, thêm movement và chốt trạng thái trong cùng transaction. Receipt cộng lượng nhận vào tồn hiện tại; count approval chỉ dùng snapshot nếu tất cả version còn khớp, nếu không409 và rollback toàn phiếu. Một count thay thế/phiếu yêu cầu kiểm kê lại, bản cũ giữ nguyên. Reads phân trang cursor UUID50 tài liệu/lượt, order createdAt/id DESC. Chính sách transaction theo PrismaService hiện có; kiểm thử chức năng local dùng budget5s, không suy ra NFR01.
+
 ## Additive amendment 2026-10-22 — checkout/session
 
 Migration `20261022160000_checkout_expiration_sessions` thêm nullable `orders.payment_started_at/payment_expires_at/payment_expired_at` (timestamptz6), `cancellation_reason` varchar64; CHECK cặp started/expires cùng NULL hoặc expires=started+10 phút; partial index deadline cho unpaid orders. Không backfill lịch sử. `auth_sessions` chứa UUID PK, user_id FK→users RESTRICT (User1:N sessions), SHA256 token_hash/previous_token_hash, expires_at/revoked_at/created_at và index user_id. Rotation dùng row lock; token plaintext chỉ ở HttpOnly cookie. [Nghiệp vụ, quan hệ và rollout](CHECKOUT_SESSION_UPDATE.md).

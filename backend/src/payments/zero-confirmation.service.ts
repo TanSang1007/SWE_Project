@@ -1,3 +1,4 @@
+import { clearPurchasedCart } from './cart-cleanup';
 import { assertPaymentWindow } from './payment-deadline';
 import { ConflictException, HttpException, Injectable, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
@@ -84,6 +85,7 @@ export class ZeroConfirmationService {
         await tx.loyaltyAward.create({ data: { orderId, userId, points: 0 } });
         effects.push(effect(account, 'EARN', 0, { orderId, paymentId: payment.id }));
         await persistEffects(tx, before, account, effects);
+        await clearPurchasedCart(tx, userId);
         const body = { payment: { id: payment.id, orderId, provider: payment.provider, status: payment.status, amount: '0', method: payment.method },
           order: { id: orderId, orderCode: o.orderCode, status: 'PAID' }, loyalty: { awardedPoints: 0, redeemedPoints: o.redeemedPoints,
             redemptionState: o.redeemedPoints > 0 ? 'SETTLED' : 'NONE', debtOffsetPoints: 0, availablePointsAdded: 0 }, cashRefundStatus: 'NOT_APPLICABLE' };

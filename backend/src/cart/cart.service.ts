@@ -1,8 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
-import type { AddCartItemDto } from './cart.dto';
-import { lockUser } from '../orders/order-policy';
+import type { AddCartItemDto, CartOptionsDto } from './cart.dto';
+import { assertNoActiveOrder, lockUser } from '../orders/order-policy';
 const invalid = () => new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Cart bounds exceeded or invalid quantity/toppings' });
 const maxMoney = new Prisma.Decimal('999999999999');
 function validMoney(value: Prisma.Decimal): Prisma.Decimal {
@@ -23,6 +23,8 @@ export class CartService {
     const rows = await tx.cartItem.findMany({ where: { cart: { userId } }, orderBy: { id: 'asc' }, include: {
       product: { include: { toppings: { select: { toppingId: true } } } }, productSize: true, toppings: { orderBy: { toppingId: 'asc' }, include: { topping: true } },
     } });
+    const demand = new Map<string, number>();
+    for (const row of rows) demand.set(row.productId, (demand.get(row.productId) ?? 0) + row.qty);
     let subtotal = new Prisma.Decimal(0); let totalQuantity = 0;
     const items = rows.map((row) => {
       // Validate each price before adding: invalid values must not cancel out or round.
@@ -37,6 +39,7 @@ export class CartService {
         available: row.product.isActive && row.product.stock > 0 && row.productSize.isActive && ['S', 'M', 'L'].includes(row.productSize.size)
           && row.toppings.every(t => t.topping.isActive && row.product.toppings.some(relation => relation.toppingId === t.toppingId)), size: row.size, qty: row.qty,
         toppings: row.toppings.map(({ topping }) => ({ id: topping.id, name: topping.name, price: money(topping.price) })),
+        stock: row.product.stock, requestedQuantity: demand.get(row.productId)!,
         unitPrice: money(unitPrice), lineTotal: money(lineTotal) };
     });
     return { items, totalQuantity, subtotal: money(subtotal), currency: 'VND' as const };
@@ -44,6 +47,7 @@ export class CartService {
   private async lock(tx: Prisma.TransactionClient, userId: string) {
     // One local row lock serializes writes/merge for this user; no inventory lock/write.
     await lockUser(tx, userId);
+    await assertNoActiveOrder(tx, userId);
   }
   private async validateOptions(tx: Prisma.TransactionClient, productId: string, size: string, toppingIds: string[]) {
     // Serialize validated Cart writes with lifecycle changes and full-product
@@ -91,6 +95,33 @@ export class CartService {
       await this.lock(tx, userId); const item = await this.owned(tx, userId, id);
       await this.validateOptions(tx, item.productId, item.size, item.toppings.map((t) => t.toppingId));
       await tx.cartItem.update({ where: { id: item.id }, data: { qty } });
+      await tx.cart.update({ where: { id: item.cartId }, data: { updatedAt: new Date() } });
+      return this.read(tx, userId);
+    });
+  }
+  editOptions(userId: string, id: string, input: CartOptionsDto) {
+    return this.prisma.$transaction(async (tx) => {
+      if (input.toppingIds.length > 10) throw invalid();
+      const toppingIds = input.toppingIds.map(value => value.toLowerCase()).sort();
+      if (new Set(toppingIds).size !== toppingIds.length) throw invalid();
+      await this.lock(tx, userId);
+      const item = await this.owned(tx, userId, id);
+      await this.validateOptions(tx, item.productId, input.size, toppingIds);
+      const configurationKey = [item.productId, input.size, ...toppingIds].join(':');
+      const existing = await tx.cartItem.findUnique({ where: {
+        cartId_configurationKey: { cartId: item.cartId, configurationKey },
+      } });
+      if (existing && existing.id !== item.id) {
+        const qty = existing.qty + item.qty;
+        validateQuantity(qty);
+        await tx.cartItem.update({ where: { id: existing.id }, data: { qty } });
+        await tx.cartItem.delete({ where: { id: item.id } });
+      } else if (item.configurationKey !== configurationKey) {
+        await tx.cartItem.update({ where: { id: item.id }, data: {
+          size: input.size, configurationKey,
+          toppings: { deleteMany: {}, create: toppingIds.map(toppingId => ({ toppingId })) },
+        } });
+      }
       await tx.cart.update({ where: { id: item.cartId }, data: { updatedAt: new Date() } });
       return this.read(tx, userId);
     });
