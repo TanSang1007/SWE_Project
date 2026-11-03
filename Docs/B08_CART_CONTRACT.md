@@ -32,3 +32,11 @@ Metadata (evidence lịch sử đã dọn; xem [hướng dẫn hiện hành](NOR
 Prisma format/validate/generate PASS. Backend and frontend lint/build PASS. Backend foundation16 tests PASS; PostgreSQL88 tests PASS (B04/B05/B07 regression +19 B08 Cart behavior/constraints/bounds/concurrency/precision/no inventory mutation). Frontend33 Node tests PASS (23 regression +10 Cart API/cache/auth/error/edit safety/render/merged totals), interactive flow covered in real Edge E2E. PostgreSQL concurrency suite emits an existing pg query deprecation warning; no failure. Full checks are recorded by terminal execution; early harness failures fixed before final PASS.
 
 This is technical B08 readiness. No Firefox matrix/NFR latency/full-product checkout E2E/team review/full DoD claim. Two-request option editing is not atomic; partial failure retains data with explicit recovery. Prices are current catalog values, not an order snapshot. B09+ still pending.
+
+## Current Cart correction2026-11-02
+
+The earlier checkpoint below is historical. Options edit now uses atomic PATCH /cart/items/:id/options, preserving qty or merging within99 without a temporary row. GET adds stock/aggregate requestedQuantity for warning and checkout navigation gating. POST remains non-idempotent; synchronous browser guard prevents overlapping clicks, while uncertain errors require Cart inspection and are not automatically retried. No schema/migration change. Historical browser PASS does not verify this correction. See CART_PRICING_FIXES.md and CHECKOUT_SESSION_UPDATE.md for current scope.
+
+## Cart khóa theo đơn — cập nhật user2026-11-02
+
+PENDING/PAYMENT_FAILED khóa mọi Cart write trong CartService dưới user lock (kể cả options edit). GET vẫn được. Failure giữ nguyên giỏ, cancel giữ và mở khóa, success dọn toàn bộ giỏ cùng transaction. Không giữ qty thêm/Cart B trong lúc chờ, không migration. Frontend fail-closed trong lúc kiểm tra/lỗi active order và cập nhật theo poll/focus; xem CART_FAILURE_FIX.md.

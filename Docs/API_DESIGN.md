@@ -1,5 +1,7 @@
 # BrewLite — REST API
 
+**Cart preservation fix 2026-11-02 — FR08:** Người dùng yêu cầu sửa lỗi mất giỏ khi thanh toán thất bại. `POST /orders` giữ nguyên Cart thay vì xóa khi tạo PENDING; settlement tiếp tục không sửa Cart, bao gồm failure/retry/success và callback lặp. Không thay schema, API/DTO, quyền, idempotency hoặc tồn kho. Thay đổi này supersede quy tắc consume-Cart-at-create của amendment 2026-10-22; các mô tả clear/consume cũ bên dưới là lịch sử. Tests: `cart-payment-preservation.spec.ts`, cập nhật database orders/checkout-lifecycle; xem [chi tiết](CART_FAILURE_FIX.md).
+
 I03 amendment2026-10-31: GET `/ingredient-inventory/ingredients` vẫn trả đầy đủ các bản ghi, bổ sung `isListed:boolean` (khớp name chuẩn hóa và unit trong file danh mục) và `displayName:string` (label trong file nếu còn liệt kê, ngược lại name gốc). `name`, ID, tồn và chứng từ không bị đổi bởi label. Frontend lọc `isListed:false` khỏi kho và phiếu mới, nhưng giữ dữ liệu cho kiểm kê lại phiếu cũ. Summary API vẫn aggregate toàn database như contract gốc; UI đếm các trạng thái của danh sách còn liệt kê và dùng pendingCounts từ summary server. Initializer dùng danh mục hiện tại, cho phép rỗng, kiểm tra cấu hình hợp lệ và không ghi label vào DB. POST tạo mặt hàng và API receipt/count cũ vẫn hoạt động, không dùng cờ UI làm authority. Không thêm path/quyền/status/error; cấu hình sai trả503 SERVICE_UNAVAILABLE đã làm sạch. [Nguồn danh mục và thao tác](I03_RECEIVING_CATALOG.md).
 
 I03 amendment2026-10-29: POST `/ingredient-inventory/catalog/initialize`, ADMIN JWT/current DB role, strict body/query rỗng,200 `{created,existing}`; private/no-store/Vary Authorization/Origin. Bảo đảm12 mặt hàng tồn tại qua normalizedName unique/transaction/skipDuplicates/post-check; retry không nhân đôi hoặc thay tồn.409 INGREDIENT_UNIT_MISMATCH khi tên có sẵn sai đơn vị, rollback toàn bộ. Không Idempotency-Key cho thao tác cố định này. Frontend Admin gọi khi đọc lại kho/nhập hàng, Staff không gọi. `POST /ingredients` tạo mới chấp nhận thêm EGG (quả) threshold10; EGG thuộc nguyên liệu và chỉ nhận số nguyên trong receipt/count. Read DTO units có thể là EGG. Permission/error khác giữ nguyên. [Danh mục và quy tắc](I03_RECEIVING_CATALOG.md).
@@ -491,3 +493,21 @@ provider/admission toggle. The launcher's random-port127.0.0.1 controller requir
 random local token and is not reachable through the callback allowlist. CLI status
 is read-only; mutation commands are launcher operations, not application APIs.
 Default MOCK remains merchant-free. [Operation](NORMAL_SANDBOX_MODE.md).
+
+## Cart correction2026-11-02 — no migration
+
+- New CUSTOMER/owner endpoint PATCH /cart/items/:id/options, body {size,toppingIds}, response200 full Cart. Same DTO bounds/options/errors as POST; no productId/qty/userId accepted. Preserve qty; merge identical configuration within99 and delete source atomically under owner lock. No temporary51st row. Missing/cross-owner source404 CART_ITEM_NOT_FOUND. Failed validation/mutation rolls back source and target.
+- Cart items add stock and requestedQuantity (aggregate qty for the same product across sizes/toppings). available retains catalog/options availability. UI warns when demand exceeds stock and blocks checkout navigation, while allowing qty reduction. No reservation/inventory write; Order Pricing rechecks stock.
+- Options editing replaces historical POST-then-DELETE orchestration. Add API remains unchanged and non-idempotent. UI locks synchronously during add; uncertain errors reload Cart and ask the user to inspect before retry, without automatic POST retry.
+- New-order handler/button require successful quote matching current Cart/promotion/points; saved Order retry remains unchanged. Maximum-points action recalculates quote for selected points.
+- No schema/migration/idempotency-receipt changes. Frontend and backend should be updated together for the new options endpoint.
+
+
+## Luồng giỏ đơn giản theo yêu cầu người dùng — 2026-11-02
+
+- Tạo PENDING giữ nguyên Cart, không xóa ở create. Giỏ của owner bị khóa mọi POST/PATCH/options/DELETE khi có PENDING hoặc PAYMENT_FAILED. GET vẫn được phép. Kiểm tra dưới cùng user row lock với create/payment/cancel, không chỉ khóa giao diện. Lỗi409 INVALID_ORDER_STATE kèm existingOrderId hiện có, không endpoint/schema/enum mới.
+- PAYMENT_FAILED, UNKNOWN và hủy đơn không xóa giỏ hoặc tự cộng lại món. Khách có thể thử lại thanh toán; muốn đổi món sau lỗi phải hủy đơn cũ, sau đó sửa giỏ/tạo đơn mới. Không tạo đơn thứ hai khi đơn cũ chưa được xử lý.
+- Lần thanh toán thành công đầu tiên xóa TOÀN BỘ CartItem của owner, trong cùng transaction với PAID/Payment/điểm. MOCK, VNPAY verified settlement (IPN/QueryDr/receipt worker chung apply) và INTERNAL_ZERO đều dùng helper này. Lỗi cleanup rollback settlement. Replay/callback lặp không xóa giỏ của đơn mới.
+- Không giữ phần số lượng thêm hoặc chia Cart A/B. Bỏ ghi metadata `_cartCleanup`, không cần provenance cho đơn mới/cũ. Giữ bộ lọc field nội bộ trên public replay để tương thích receipt đã sinh bởi bản trước. Không thay schema/migration, không backfill hoặc reset dữ liệu.
+- Giao diện khóa nút thêm/sửa/xóa trong lúc kiểm tra đơn, khi lỗi kiểm tra và khi có active order; banner dẫn tới tiếp tục thanh toán/hủy. Poll/focus cập nhật trạng thái; trước khi mở khóa sau success/cancel tải lại giỏ. Backend luôn quyết định, kể cả tab khác/cache cũ.
+- Các thành viên cần dùng backend mới đồng bộ; một backend phiên bản cũ vẫn có thể cho sửa Cart vì đây là rule ứng dụng, không phải constraint schema.

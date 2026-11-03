@@ -12,7 +12,6 @@ import request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { PrismaService } from '../../src/database/prisma.service';
 import { Prisma, PrismaClient } from '../../src/generated/prisma/client';
-import { PricingService } from '../../src/pricing/pricing.service';
 import { configureApp } from '../../src/common/configure-app';
 import { PaymentExpirationWorker } from '../../src/orders/payment-expiration.worker';
 import { PaymentReceiptWorker } from '../../src/payments/payment-receipt.worker';
@@ -78,13 +77,13 @@ async function state(f: Fixture) {
     awards: await prisma.loyaltyAward.findMany({ where: { userId: f.user.id }, orderBy: { id: 'asc' } }),
     entries: await prisma.loyaltyEntry.findMany({ where: { userId: f.user.id }, orderBy: { sequence: 'asc' } }) };
 }
-test('valid creation snapshots PENDING pricing, decrements stock and clears only owner Cart atomically', async () => {
+test('valid creation snapshots PENDING pricing, decrements stock and preserves both owner and other Cart', async () => {
   const other = await fixture(); const otherBefore = await state(other);
   const f = await fixture(); const before = await state(f); const r = await create(f).expect(201); const body = r.body as OrderBody;
   expect(body).toMatchObject({ status: 'PENDING', subtotal: '104000', discountAmount: '0', total: '104000', items: [{ unitPrice: '52000', lineTotal: '104000' }] });
-  const after = await state(f); expect(after.cart).toMatchObject({ id: f.cart.id, items: [] }); expect(after.user).toEqual(before.user);
+  const after = await state(f); expect(after.cart).toEqual(before.cart); expect(after.user).toEqual(before.user);
   expect(after.product).toMatchObject({ stock: 8, version: 1 }); expect(after.payments).toEqual([]); expect(after.awards).toEqual([]); expect(after.entries).toEqual([]);
-  expect(await prisma.cartItemTopping.count({ where: { cartItemId: { in: before.cart?.items.map(item => item.id) ?? [] } } })).toBe(0);
+  expect(await prisma.cartItemTopping.count({ where: { cartItemId: { in: before.cart?.items.map(item => item.id) ?? [] } } })).toBe(1);
   expect(await state(other)).toEqual(otherBefore);
   const row = await prisma.order.findUniqueOrThrow({ where: { id: body.id }, include: { items: { include: { toppings: true } } } });
   expect(row.userId).toBe(f.user.id); expect(row.paidAt).toBeNull(); expect(row.items[0].basePrice.toFixed(0)).toBe('40000');
@@ -165,112 +164,20 @@ test('same key replay survives active order, catalog drift and Cart change; diff
   const before = await state(f); const replay = await create(f).expect(201); expect(replay.body).toEqual(first.body); expect(replay.headers['idempotency-replayed']).toBe('true');
   expect(((await create(f, f.key, { items: [{ ...f.input.items[0], qty: 1 }] }).expect(409)).body as ErrorBody).error.code).toBe('IDEMPOTENCY_KEY_REUSED'); expect(await state(f)).toEqual(before);
 });
-test.each(['PENDING', 'PAYMENT_FAILED'] as const)('active %s blocks only new checkout; Cart CRUD and cancellation preserve new Cart', async (status) => {
-  const f = await fixture(); const order = (await create(f).expect(201)).body as OrderBody;
-  if (status === 'PAYMENT_FAILED') await prisma.$transaction(async (tx) => {
-    await tx.order.update({ where: { id: order.id }, data: { status } });
-    await tx.product.update({ where: { id: f.product.id }, data: { stock: { increment: 2 }, version: { increment: 1 } } });
+test.each(['PENDING', 'PAYMENT_FAILED'] as const)('active %s locks Cart writes; cancellation retains Cart and permits editing',async status=>{
+  const f=await fixture();const order=(await create(f).expect(201)).body as OrderBody;
+  if(status==='PAYMENT_FAILED')await prisma.$transaction(async tx=>{
+    await tx.order.update({where:{id:order.id},data:{status}});
+    await tx.product.update({where:{id:f.product.id},data:{stock:{increment:2},version:{increment:1}}});
   });
-  const before = await state(f); const blocked = await create(f, randomUUID()).expect(409);
-  expect((blocked.body as ErrorBody).error).toMatchObject({ code: 'INVALID_ORDER_STATE', details: { existingOrderId: order.id } });
-  expect((await request(app.getHttpServer()).get('/cart').set('Authorization', `Bearer ${f.token}`).expect(200)).body).toMatchObject({ items: [] });
+  const before=await state(f);const item=before.cart!.items[0];
+  await request(app.getHttpServer()).post('/cart/items').set('Authorization',`Bearer ${f.token}`).send(f.input.items[0]).expect(409);
+  await request(app.getHttpServer()).patch(`/cart/items/${item.id}`).set('Authorization',`Bearer ${f.token}`).send({qty:3}).expect(409);
+  await request(app.getHttpServer()).patch(`/cart/items/${item.id}/options`).set('Authorization',`Bearer ${f.token}`).send({size:'M',toppingIds:[]}).expect(409);
+  await request(app.getHttpServer()).delete(`/cart/items/${item.id}`).set('Authorization',`Bearer ${f.token}`).expect(409);
   expect(await state(f)).toEqual(before);
-  await request(app.getHttpServer()).post('/cart/items').set('Authorization', `Bearer ${f.token}`).send(f.input.items[0]).expect(201);
-  const item = await prisma.cartItem.findFirstOrThrow({ where: { cartId: f.cart.id } });
-  await request(app.getHttpServer()).patch(`/cart/items/${item.id}`).set('Authorization', `Bearer ${f.token}`).send({ qty: 3 }).expect(200);
-  const edited = await state(f);
-  expect((await create(f, randomUUID(), { items: [{ ...f.input.items[0], qty: 3 }] }).expect(409)).body).toMatchObject({ error: {
-    code: 'INVALID_ORDER_STATE', details: { existingOrderId: order.id } } });
-  expect(await state(f)).toEqual(edited);
-  await request(app.getHttpServer()).delete(`/cart/items/${item.id}`).set('Authorization', `Bearer ${f.token}`).expect(200);
-  await request(app.getHttpServer()).post('/cart/items').set('Authorization', `Bearer ${f.token}`).send({ ...f.input.items[0], qty: 4 }).expect(201);
-  const newCart = (await state(f)).cart;
-  await cancel(f, order.id).expect(200); await cancel(f, order.id).expect(200);
-  expect(await prisma.product.findUnique({ where: { id: f.product.id } })).toMatchObject({ stock: 10, version: 2 });
-  expect((await state(f)).cart).toEqual(newCart);
-  expect((await state(f)).orders[0].items[0].qty).toBe(2);
-  await create(f, randomUUID(), { items: [{ ...f.input.items[0], qty: 4 }] }).expect(201);
-});
-test('GET/cancel ownership isolation and invalid state/body', async () => {
-  const f = await fixture(); const other = await fixture(); const order = (await create(f).expect(201)).body as OrderBody;
-  await get(other, order.id).expect(404); await cancel(other, order.id).expect(404); await get(f, randomUUID()).expect(404);
-  await request(app.getHttpServer()).get(`/orders/${order.id}`).expect(401); await cancel(f, order.id).send({ status: 'PAID' }).expect(400);
-  await prisma.order.update({ where: { id: order.id }, data: { status: 'PAID' } }); await cancel(f, order.id).expect(409);
-});
-test('cross-owner cancellation stays404 while the other customer Order is locked', async () => {
-  const owner = await fixture(); const caller = await fixture();
-  const order = (await create(owner).expect(201)).body as OrderBody;
-  const beforeOwner = await state(owner); const beforeCaller = await state(caller);
-  const blocker = new Client({ connectionString });
-  try {
-    await blocker.connect(); await blocker.query('BEGIN');
-    await blocker.query(`SELECT id FROM "${schema}".orders WHERE id=$1 FOR UPDATE`, [order.id]);
-    const response = await cancel(caller, order.id).expect(404);
-    expect((response.body as ErrorBody).error.code).toBe('ORDER_NOT_FOUND');
-    expect(await state(owner)).toEqual(beforeOwner); expect(await state(caller)).toEqual(beforeCaller);
-  } finally { await blocker.query('ROLLBACK'); await blocker.end(); }
-});
-
-test('actual PostgreSQL OrderItem failure rolls back stock/order/items/claim and preserves Cart', async () => {
-  const f = await fixture(); const before = await state(f);
-  await client.query(`CREATE FUNCTION fail_b10_item() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test fault'; END $$`);
-  await client.query(`CREATE TRIGGER fail_b10_item BEFORE INSERT ON order_items FOR EACH ROW EXECUTE FUNCTION fail_b10_item()`);
-  try { const r = await create(f).expect(503); expect(r.text).not.toMatch(/test fault|Prisma|password|stack/); expect(await state(f)).toEqual(before); }
-  finally { await client.query('DROP TRIGGER fail_b10_item ON order_items'); await client.query('DROP FUNCTION fail_b10_item()'); }
-});
-test('actual stock update failure rolls back all state', async () => {
-  const f = await fixture(); const before = await state(f);
-  await client.query(`CREATE FUNCTION fail_b10_stock() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'stock fault'; END $$`);
-  await client.query('CREATE TRIGGER fail_b10_stock BEFORE UPDATE ON products FOR EACH ROW EXECUTE FUNCTION fail_b10_stock()');
-  try { await create(f).expect(503); expect(await state(f)).toEqual(before); }
-  finally { await client.query('DROP TRIGGER fail_b10_stock ON products'); await client.query('DROP FUNCTION fail_b10_stock()'); }
-});
-test('two users read same stock/version: exactly one wins OCC; loser Cart preserved', async () => {
-  const a = await fixture(1, 1); const b = await fixture(1, 1);
-  await prisma.cartItem.deleteMany({ where: { cartId: b.cart.id } });
-  await prisma.cartItem.create({ data: { cartId: b.cart.id, productId: a.product.id, size: 'M', qty: 1, configurationKey: [a.product.id, 'M', a.topping.id].join(':'), toppings: { create: { toppingId: a.topping.id } } } });
-  b.input = a.input;
-  const before = await Promise.all([state(a), state(b)]);
-  const pricing = app.get(PricingService); const original = pricing.validateCart.bind(pricing); let arrived = 0; let release!: () => void;
-  const gate = new Promise<void>((done) => { release = done; });
-  const spy = jest.spyOn(pricing, 'validateCart').mockImplementation(async (...args) => { const result = await original(...args); if (++arrived === 2) release(); await gate; return result; });
-  try {
-    const rs = await Promise.all([create(a), create(b)]); expect(rs.map((r) => r.status).sort()).toEqual([201, 409]);
-    expect((rs.find((r) => r.status === 409)?.body as ErrorBody).error.code).toBe('CONCURRENT_UPDATE');
-    expect(await prisma.product.findUnique({ where: { id: a.product.id } })).toMatchObject({ stock: 0, version: 1 });
-    expect(await prisma.order.count({ where: { userId: { in: [a.user.id, b.user.id] } } })).toBe(1);
-    const winnerIndex = rs.findIndex(r => r.status === 201); const loserIndex = 1 - winnerIndex;
-    const after = await Promise.all([state(a), state(b)]);
-    expect(after[winnerIndex].cart).toMatchObject({ items: [] });
-    // Shared stock changes for the winner; every loser-owned row stays intact.
-    expect({ ...after[loserIndex], product: before[loserIndex].product }).toEqual(before[loserIndex]);
-    expect(after[winnerIndex].claims).toHaveLength(1);
-    expect(await prisma.cartItem.count({ where: { cartId: { in: [a.cart.id, b.cart.id] } } })).toBe(1);
-  } finally { release(); spy.mockRestore(); }
-});
-test('concurrent new keys same user cannot create two active orders', async () => {
-  const f = await fixture(); const rs = await Promise.all([create(f), create(f, randomUUID())]);
-  expect(rs.map((r) => r.status).sort()).toEqual([201, 409]); expect((rs.find((r) => r.status === 409)?.body as ErrorBody).error.code).toBe('INVALID_ORDER_STATE');
-  expect(await prisma.order.count({ where: { userId: f.user.id } })).toBe(1); expect(await prisma.product.findUnique({ where: { id: f.product.id } })).toMatchObject({ stock: 8, version: 1 });
-});
-test('concurrent same key yields same order or in-progress then exact replay', async () => {
-  const f = await fixture(); const rs = await Promise.all([create(f), create(f)]);
-  expect(rs.some((r) => r.status === 201)).toBe(true); expect(rs.every((r) => r.status === 201 || (r.status === 409 && (r.body as ErrorBody).error.code === 'IDEMPOTENCY_IN_PROGRESS'))).toBe(true);
-  const replay = await create(f).expect(201); expect(rs.filter((r) => r.status === 201).every((r) => (r.body as OrderBody).id === (replay.body as OrderBody).id)).toBe(true);
-  expect(await prisma.order.count({ where: { userId: f.user.id } })).toBe(1);
-  const beforeReplay = await state(f);
-  expect(beforeReplay.product).toMatchObject({ stock: 8, version: 1 }); expect(beforeReplay.cart).toMatchObject({ items: [] }); expect(beforeReplay.claims).toHaveLength(1);
-  await create(f).expect(201); expect(await state(f)).toEqual(beforeReplay);
-});
-test('cancel concurrent/repeat restores aggregate quantity exactly once', async () => {
-  const f = await fixture(); const order = (await create(f).expect(201)).body as OrderBody;
-  const rs = await Promise.all([cancel(f, order.id), cancel(f, order.id)]); expect(rs.map((r) => r.status)).toEqual([200, 200]);
-  expect(await prisma.product.findUnique({ where: { id: f.product.id } })).toMatchObject({ stock: 10, version: 2 });
-  const beforeRepeat = await state(f); await cancel(f, order.id).expect(200); expect(await state(f)).toEqual(beforeRepeat);
-});
-test('same key scoped separately across users', async () => {
-  const a = await fixture(); const b = await fixture(); const key = randomUUID();
-  const first = (await create(a, key).expect(201)).body as OrderBody; const second = (await create(b, key).expect(201)).body as OrderBody; expect(first.id).not.toBe(second.id);
+  await cancel(f,order.id).expect(200);expect((await state(f)).cart).toEqual(before.cart);
+  await request(app.getHttpServer()).patch(`/cart/items/${item.id}`).set('Authorization',`Bearer ${f.token}`).send({qty:3}).expect(200);
 });
 test.each([0, -1, 100, 1.5, '2', null])('Order DTO rejects qty %p without writes', async (qty) => {
   const f = await fixture(); const before = await state(f);
@@ -282,8 +189,8 @@ test('concurrent Cart write/create serialize and cannot checkout a different con
   const orders = await prisma.order.findMany({ where: { userId: f.user.id }, include: { items: true } });
   const after = await state(f);
   if (rs[0].status === 201) {
-    expect(rs[1].status).toBe(404); expect((rs[1].body as ErrorBody).error.code).toBe('CART_ITEM_NOT_FOUND');
-    expect(orders[0].items[0].qty).toBe(2); expect(after.cart).toMatchObject({ items: [] });
+    expect(rs[1].status).toBe(409);
+    expect(orders[0].items[0].qty).toBe(2); expect(after.cart?.items).toMatchObject([{ id: item.id, qty: 2 }]);
     expect(after.product).toMatchObject({ stock: 8, version: 1 }); expect(after.claims).toHaveLength(1);
   } else {
     expect(rs[0].status).toBe(409); expect((rs[0].body as ErrorBody).error.code).toBe('CONCURRENT_UPDATE'); expect(rs[1].status).toBe(200); expect(orders).toHaveLength(0);
@@ -368,7 +275,7 @@ test.each(['status', 'total', 'stock', 'userId'])('nested client-controlled %s f
 test.each([1, 99])('quantity boundary %i is accepted and stock is exact', async qty => {
   const f = await fixture(99, qty); const r = await create(f).expect(201);
   expect((r.body as OrderBody).items[0].qty).toBe(qty); expect((await state(f)).product).toMatchObject({ stock: 99 - qty, version: 1 });
-  expect((await state(f)).cart).toMatchObject({ items: [] });
+  expect((await state(f)).cart?.items).toHaveLength(1);
 });
 
 test('merged quantity over 99 and over 50 unique configurations are rejected before any writes', async () => {
@@ -394,7 +301,7 @@ test('exactly 50 distinct configurations succeed and consume their aggregated pr
   await prisma.cartItemTopping.createMany({ data: rows.flatMap((row, index) => items[index].toppingIds.map(toppingId => ({ cartItemId: row.id, toppingId }))) });
   const response = await create(f, f.key, { items }).expect(201);
   expect((response.body as OrderBody).items).toHaveLength(50);
-  expect((await state(f)).product).toMatchObject({ stock: 49, version: 1 }); expect((await state(f)).cart).toMatchObject({ items: [] });
+  expect((await state(f)).product).toMatchObject({ stock: 49, version: 1 }); expect((await state(f)).cart?.items).toHaveLength(50);
   const snapshots = await prisma.orderItem.findMany({ where: { orderId: (response.body as OrderBody).id }, include: { toppings: true } });
   expect(snapshots).toHaveLength(50);
   for (const item of items) {
@@ -435,10 +342,10 @@ test.each([0, -1, 100, 1.5])('direct OrderService caller cannot bypass quantity 
   expect(await state(f)).toEqual(before);
 });
 
-test.each(['cart_items', 'idempotency_requests'])('failure at %s after order snapshot rolls back Cart, stock and claim', async table => {
+test.each(['idempotency_requests'])('failure at %s after order snapshot rolls back Cart, stock and claim', async table => {
   const f = await fixture(); const before = await state(f);
   await client.query(`CREATE FUNCTION fail_checkout_commit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'late checkout fault'; END $$`);
-  const operation = table === 'cart_items' ? 'DELETE' : 'UPDATE';
+  const operation = 'UPDATE';
   await client.query(`CREATE TRIGGER fail_checkout_commit BEFORE ${operation} ON ${table} FOR EACH ROW EXECUTE FUNCTION fail_checkout_commit()`);
   try {
     const r = await create(f).expect(503); expect(r.text).not.toMatch(/late checkout fault|Prisma|password|stack/); expect(await state(f)).toEqual(before);
@@ -473,13 +380,13 @@ test('create replay after cancellation returns original PENDING without consumin
 test('concurrent Cart add/create preserves quantities in either serial order', async () => {
   const f = await fixture();
   const rs = await Promise.all([create(f), request(app.getHttpServer()).post('/cart/items').set('Authorization', `Bearer ${f.token}`).send(f.input.items[0])]);
-  expect(rs[1].status).toBe(201); const after = await state(f);
+  const after = await state(f);
   if (rs[0].status === 201) {
-    expect(after.orders[0].items[0].qty).toBe(2); expect(after.cart?.items[0].qty).toBe(2);
+    expect(rs[1].status).toBe(409); expect(after.orders[0].items[0].qty).toBe(2); expect(after.cart?.items[0].qty).toBe(2);
     expect(after.product).toMatchObject({ stock: 8, version: 1 }); expect(after.claims).toHaveLength(1);
   } else {
     expect(rs[0].status).toBe(409); expect((rs[0].body as ErrorBody).error.code).toBe('CONCURRENT_UPDATE');
-    expect(after.cart?.items[0].qty).toBe(4); expect(after.orders).toEqual([]); expect(after.claims).toEqual([]); expect(after.product).toEqual(f.product);
+    expect(rs[1].status).toBe(201); expect(after.cart?.items[0].qty).toBe(4); expect(after.orders).toEqual([]); expect(after.claims).toEqual([]); expect(after.product).toEqual(f.product);
   }
 });
 

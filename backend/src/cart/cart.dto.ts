@@ -5,6 +5,10 @@ export class CartParamsDto { @IsUUID() id!: string; }
 export class CartQuantityDto {
   @IsInt() @Min(1) @Max(99) qty!: number;
 }
+export class CartOptionsDto {
+  @IsIn(['S', 'M', 'L']) size!: string;
+  @IsArray() @ArrayMaxSize(10) @IsUUID(undefined, { each: true }) toppingIds!: string[];
+}
 export class AddCartItemDto extends CartQuantityDto {
   @IsUUID() productId!: string;
   @IsIn(['S', 'M', 'L']) size!: string;

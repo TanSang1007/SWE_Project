@@ -7,5 +7,9 @@ export function requireIdempotencyKey(key: string | undefined): asserts key is s
 export function replayResult(claim: { requestHash: string; state: string; responseBody: Prisma.JsonValue | null }, hash: string) {
   if (claim.requestHash !== hash) throw new ConflictException({ code: 'IDEMPOTENCY_KEY_REUSED', message: 'Key already used with another request' });
   if (claim.state !== 'COMPLETED' || claim.responseBody === null) throw new ConflictException({ code: 'IDEMPOTENCY_IN_PROGRESS', message: 'Retry the same key later' });
-  return { body: claim.responseBody, replayed: true };
+  const stored = claim.responseBody;
+  // Private Cart row provenance must never become part of a public replay.
+  const body = typeof stored === 'object' && !Array.isArray(stored)
+    ? Object.fromEntries(Object.entries(stored).filter(([key]) => key !== '_cartCleanup')) : stored;
+  return { body, replayed: true };
 }
