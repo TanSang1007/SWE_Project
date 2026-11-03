@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';
@@ -11,7 +12,9 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
   configureApp(app);
   app.enableShutdownHooks();
-  await app.listen(app.get(ConfigService).getOrThrow<number>('PORT'), '127.0.0.1');
+  const port = app.get(ConfigService).getOrThrow<number>('PORT');
+  await app.listen(port, '127.0.0.1');
+  Logger.log(`Application successfully running on port ${port} (http://127.0.0.1:${port})`, 'NestApplication');
   // Parent-only IPC, available only when forked by the local launcher. No HTTP
   // management route and no request can change provider/admission configuration.
   if (process.send) {
