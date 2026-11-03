@@ -15,8 +15,8 @@ export async function legacyAwardFixture(db: PrismaClient, orderId: string, poin
     await db.order.update({ where: { id: orderId }, data: { status: 'PAID', paidAt: new Date(), version: { increment: 1 } } });
     await db.loyaltyAward.create({ data: { orderId, userId: o.userId, points, createdAt: new Date('2020-01-01T00:00:00Z') } });
     const key = randomUUID();
-    const hash = createHash('sha256').update(JSON.stringify({ orderId, method: 'WALLET' })).digest('hex');
+    const hash = createHash('sha256').update(JSON.stringify({ orderId, method: 'VNPAY' })).digest('hex');
     const claim = await db.idempotencyRequest.create({ data: { userId: o.userId, operation: 'PAY_ORDER', idempotencyKey: key, requestHash: hash, state: 'COMPLETED', orderId, responseStatus: 200, responseBody: { legacy: true }, completedAt: new Date() } });
-    await db.payment.create({ data: { orderId, userId: o.userId, idempotencyKey: key, idempotencyRequestId: claim.id, amount: o.total, method: 'WALLET', status: 'SUCCEEDED' } });
+    await db.payment.create({ data: { orderId, userId: o.userId, idempotencyKey: key, idempotencyRequestId: claim.id, amount: o.total, method: 'VNPAY', provider: 'VNPAY_SANDBOX', status: 'SUCCEEDED' } });
     await openingFixture(db, o.userId, points);
 }

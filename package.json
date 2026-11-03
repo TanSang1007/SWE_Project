@@ -5,7 +5,7 @@
   "workspaces": ["frontend", "backend"],
   "engines": { "node": ">=24.11 <25", "npm": ">=11 <12" },
   "scripts": {
-    "dev": "node scripts/dev-runtime.cjs start MOCK",
+    "dev": "node scripts/dev-runtime.cjs start VNPAY_SANDBOX",
     "dev:vnpay": "node scripts/dev-runtime.cjs start VNPAY_SANDBOX",
     "dev:status": "node scripts/dev-runtime.cjs status",
     "dev:stop": "node scripts/dev-runtime.cjs stop",

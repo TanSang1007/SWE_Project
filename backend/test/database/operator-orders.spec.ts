@@ -13,7 +13,6 @@ import { AppModule } from '../../src/app.module';
 import { PrismaService } from '../../src/database/prisma.service';
 import { PrismaClient, type OrderStatus, type UserRole } from '../../src/generated/prisma/client';
 import { OrderService } from '../../src/orders/order.service';
-import { MockPaymentService } from '../../src/payments/mock-payment.service';
 import { configureApp } from '../../src/common/configure-app';
 config({ path: resolve(__dirname, '../../../.env'), quiet: true });
 const connectionString = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
@@ -25,7 +24,7 @@ const client = new Client({ connectionString });
 const scopedUrl = new URL(connectionString); scopedUrl.searchParams.set('options', `-c search_path=${schema}`);
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: utcConnectionString(scopedUrl.toString()) }, { schema }), log: [{ emit: 'event', level: 'query' }] });
 const queries: string[] = []; prisma.$on('query', (event) => queries.push(event.query));
-let app: NestExpressApplication; let jwt: JwtService; let mode: 'SUCCESS' | 'FAILURE' = 'SUCCESS';
+let app: NestExpressApplication; let jwt: JwtService; let mode: 'SUCCESS' | 'FAILURE' = 'SUCCESS'; void mode;
 let staff: Actor; let admin: Actor; let customer: Actor;
 type Actor = { id: string; token: string };
 const orders = new Map<OrderStatus, string>(); let productId: string; let toppingId: string; let promotionId: string;
@@ -65,8 +64,7 @@ beforeAll(async () => {
   await client.connect(); await client.query(`CREATE SCHEMA "${schema}"`); await client.query(`SET search_path TO "${schema}"`);
   const dir = resolve(__dirname, '../../prisma/migrations');
   for (const name of readdirSync(dir).filter((n) => /^\d+_/.test(n)).sort()) await client.query(readFileSync(resolve(dir, name, 'migration.sql'), 'utf8'));
-  const m = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(PrismaService).useValue(prisma)
-    .overrideProvider(MockPaymentService).useValue({ result: () => mode }).compile();
+  const m = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(PrismaService).useValue(prisma).compile();
   app = m.createNestApplication<NestExpressApplication>({ bodyParser: false }); configureApp(app); await app.init(); jwt = app.get(JwtService);
   staff = await actor('STAFF'); admin = await actor('ADMIN'); customer = await actor();
   productId = (await prisma.product.create({ data: { name: 'Historical drink', price: '45000', stock: 200, imageUrl: '/images/test.jpg', sizes: { create: { size: 'M', extraPrice: '5000' } } } })).id;

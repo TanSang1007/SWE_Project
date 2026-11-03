@@ -64,19 +64,34 @@ for(const kind of ['PENDING','UNKNOWN','REVIEW','receipt','reservation'])test('s
   const result=await runtime.stop();assert(!result.stopped);assert(!state.stopped);assert(!runtime.accepting);assert.equal(runtime.status,'DRAINING_CALLBACKS_RETAINED');
   state.dependencies={safeToStop:true,needsCallbacks:false};assert((await runtime.stop()).stopped);assert(state.stopped);
 });
-test('MOCK does not start callback processes or enable VNPAY admission',async()=>{
-  const {runtime,state}=fixture('MOCK');await runtime.start();assert(!runtime.accepting);assert(!state.calls.some(c=>c[0]==='callbacks'));assert((await runtime.stop()).stopped);
+test('MOCK mode is rejected by RuntimeCoordinator and loadConfiguration',()=>{
+  assert.throws(()=>fixture('MOCK'),{code:'INVALID_MODE'});
+  assert.throws(()=>loadConfiguration(process.cwd(),'MOCK',{}),{code:'INVALID_MODE'});
 });
-test('MOCK refuses to strand outstanding gateway callbacks',async()=>{
-  const {runtime,state}=fixture('MOCK');state.dependencies={safeToStop:false,needsCallbacks:true};await assert.rejects(runtime.start(),/OUTSTANDING_GATEWAY/);assert.equal(state.calls.length,0);
-});
-test('configuration selection defaults to MOCK without opening private merchant profile; clears inherited session gates',()=>{
+test('configuration selection defaults to VNPAY_SANDBOX and clears inherited session gates',()=>{
   const folder=fs.mkdtempSync(path.join(os.tmpdir(),'brewlite-config-'));
-  try{fs.writeFileSync(path.join(folder,'.env'),'DATABASE_URL=postgresql://user:synthetic@localhost/brewlite_test\n');
-    const config=loadConfiguration(folder,'MOCK',{PAYMENT_PROVIDER_MODE:'VNPAY_SANDBOX',NODE_OPTIONS:'--require=old-session',BREWLITE_VNPAY_ENV_FILE:'missing-private-file'});
-    assert.equal(config.env.PAYMENT_PROVIDER_MODE,'MOCK');assert.equal(config.env.VNPAY_ACCEPT_NEW_PAYMENTS,'false');assert.equal(config.ngrokConfig,undefined);assert.equal(config.env.NODE_OPTIONS,undefined);
+  try{
+    fs.writeFileSync(path.join(folder,'.env'),[
+      'DATABASE_URL=postgresql://user:synthetic@localhost/brewlite_test',
+      'JWT_SECRET=synthetic-shared-callback-jwt-secret-at-least-32-bytes',
+      'VNPAY_ENV=SANDBOX','VNPAY_VERSION=2.1.0','VNPAY_TMN_CODE=CKBIFFQP',
+      'VNPAY_HASH_SECRET=synthetic-shared-callback-unit-test',
+      'VNPAY_PAYMENT_URL=https://sandbox.vnpayment.vn/paymentv2/vpcpay.html',
+      'VNPAY_RETURN_URL=https://callback.example.org/payments/vnpay/return',
+      'VNPAY_IPN_URL=https://callback.example.org/payments/vnpay/ipn',
+      'BREWLITE_CALLBACK_ROLE=member',
+    ].join('\n'));
+    const config=loadConfiguration(folder,undefined,{PAYMENT_PROVIDER_MODE:'MOCK',PAYMENT_MOCK_MODE:'SUCCESS',NODE_OPTIONS:'--require=old-session',BREWLITE_VNPAY_ENV_FILE:'missing-private-file'});
+    assert.equal(config.mode,'VNPAY_SANDBOX');
+    assert.equal(config.env.PAYMENT_PROVIDER_MODE,'VNPAY_SANDBOX');
+    assert.equal(config.env.PAYMENT_MOCK_MODE,undefined);
+    assert.equal(config.env.VNPAY_ACCEPT_NEW_PAYMENTS,'false');
+    assert.equal(config.ngrokConfig,undefined);
+    assert.equal(config.env.NODE_OPTIONS,undefined);
     assert.equal(config.env.NEXT_PUBLIC_API_BASE_URL,'http://127.0.0.1:3001');
-  }finally{fs.unlinkSync(path.join(folder,'.env'));fs.rmdirSync(folder);}
+  }finally{
+    fs.unlinkSync(path.join(folder,'.env'));fs.rmdirSync(folder);
+  }
 });
 test('port collision refuses startup without terminating the existing listener',async()=>{
   const server=net.createServer();await new Promise(r=>server.listen(0,'127.0.0.1',r));
@@ -87,12 +102,11 @@ test('shared Neon database requires TLS and an explicit VNPAY callback role',()=
   try {
     const write=url=>fs.writeFileSync(path.join(folder,'.env'),'DATABASE_URL='+url+'\n');
     write('postgresql://user:synthetic@endpoint-pooler.region.aws.neon.tech/brewlite_dev?sslmode=require');
-    assert.equal(loadConfiguration(folder,'MOCK',{}).mode,'MOCK');
     assert.throws(()=>loadConfiguration(folder,'VNPAY_SANDBOX',{}),{code:'SET_BREWLITE_CALLBACK_ROLE_OWNER_OR_MEMBER'});
     write('postgresql://user:synthetic@endpoint-pooler.region.aws.neon.tech/brewlite_dev');
-    assert.throws(()=>loadConfiguration(folder,'MOCK',{}),{code:'LOCAL_OR_NEON_DATABASE_REQUIRED'});
+    assert.throws(()=>loadConfiguration(folder,'VNPAY_SANDBOX',{BREWLITE_CALLBACK_ROLE:'member'}),{code:'LOCAL_OR_NEON_DATABASE_REQUIRED'});
     write('postgresql://user:synthetic@unapproved.example/brewlite_dev?sslmode=require');
-    assert.throws(()=>loadConfiguration(folder,'MOCK',{}),{code:'LOCAL_OR_NEON_DATABASE_REQUIRED'});
+    assert.throws(()=>loadConfiguration(folder,'VNPAY_SANDBOX',{BREWLITE_CALLBACK_ROLE:'member'}),{code:'LOCAL_OR_NEON_DATABASE_REQUIRED'});
   } finally { fs.unlinkSync(path.join(folder,'.env'));fs.rmdirSync(folder); }
 });
 test('Neon member uses the registered shared callback without requiring a tunnel; owner requires private ngrok config',()=>{
@@ -107,10 +121,7 @@ test('Neon member uses the registered shared callback without requiring a tunnel
       'VNPAY_RETURN_URL=https://callback.example.org/payments/vnpay/return',
       'VNPAY_IPN_URL=https://callback.example.org/payments/vnpay/ipn',
     ].join('\n'));
-    const root=path.resolve(__dirname,'../..');
     // Configuration parser is the built backend used by the actual launcher.
-    fs.mkdirSync(path.join(folder,'backend'),{recursive:true});
-    fs.symlinkSync(path.join(root,'backend/dist'),path.join(folder,'backend/dist'),'junction');
     const member=loadConfiguration(folder,'VNPAY_SANDBOX',{BREWLITE_CALLBACK_ROLE:'member'});
     assert.equal(member.callbackRole,'member');assert.equal(member.ngrokConfig,undefined);
     assert.equal(member.env.VNPAY_ACCEPT_NEW_PAYMENTS,'false');
@@ -121,7 +132,6 @@ test('Neon member uses the registered shared callback without requiring a tunnel
     assert.equal(owner.callbackOrigin,member.callbackOrigin);
     assert.throws(()=>loadConfiguration(folder,'VNPAY_SANDBOX',{BREWLITE_CALLBACK_ROLE:'invalid'}),{code:'SET_BREWLITE_CALLBACK_ROLE_OWNER_OR_MEMBER'});
   } finally {
-    fs.rmdirSync(path.join(folder,'backend/dist'));fs.rmdirSync(path.join(folder,'backend'));
     fs.unlinkSync(path.join(folder,'.env'));fs.rmdirSync(folder);
   }
 });

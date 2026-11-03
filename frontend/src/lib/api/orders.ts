@@ -7,7 +7,7 @@ export class OrderError extends Error {
 export async function orderRequest(path: string, method = 'GET', body?: OrderInput, key?: string): Promise<Order> {
   const token = getAccessToken(); if (!token) throw new OrderError('UNAUTHORIZED');
   try {
-    const res = await fetch(`${getApiBaseUrl()}${path}`, { method, cache: 'no-store', credentials: 'omit', signal: AbortSignal.timeout(5000),
+    const res = await fetch(`${getApiBaseUrl()}${path}`, { method, cache: 'no-store', credentials: 'omit', signal: AbortSignal.timeout(15000),
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(key ? { 'Idempotency-Key': key } : {}) },
       ...(body ? { body: JSON.stringify(body) } : {}) });
     if (res.status === 401) { if (useAuthStore.getState().accessToken === token) useAuthStore.getState().clear(); throw new OrderError('UNAUTHORIZED'); }

@@ -5,7 +5,6 @@ import { useAuthStore } from '../lib/auth-store';
 import { clearIngredientCommand, displayQuantity, getCounts, getMovements, getReceipts, ingredientMessages, ingredientName, ingredientRequest, IngredientError, inventoryCategory, listedIngredients, listedIngredientSummary, loadIngredientSections, readIngredientCommand, saveIngredientCommand, unitLabels } from '../lib/api/ingredients';
 import type { Ingredient, IngredientCommand, IngredientCount, IngredientReceipt, IngredientSummary, InventoryCategory, InventoryPage, MovementRow } from '../types/ingredient';
 import { ConfirmReceipt, CountForm, ReceiptForm, ReviewCount } from './ingredient-forms';
-import '../app/ingredients.css';
 const date=(s:string)=>new Date(s).toLocaleString('vi-VN');
 export const ingredientStatusLabels={IN_STOCK:'Còn hàng',LOW_STOCK:'Sắp hết',OUT_OF_STOCK:'Hết hàng'};
 export const documentStatusLabels={DRAFT:'Phiếu nhập nháp',CONFIRMED:'Đã nhập kho',SUBMITTED:'Chờ phê duyệt',APPROVED:'Đã phê duyệt',REJECTED:'Đã từ chối',RECOUNT_REQUIRED:'Cần kiểm kê lại'};

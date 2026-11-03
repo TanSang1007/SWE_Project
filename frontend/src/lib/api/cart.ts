@@ -8,7 +8,7 @@ export async function cartRequest(method = 'GET', path = '/cart', body?: CartInp
   const token = getAccessToken(); if (!token) throw new CartError('UNAUTHORIZED');
   try {
     const response = await fetch(`${getApiBaseUrl()}${path}`, { method, cache: 'no-store', credentials: 'omit',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(5000),
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(15000),
       ...(body ? { body: JSON.stringify(body) } : {}) });
     if (response.status === 401) {
       if (useAuthStore.getState().accessToken === token) useAuthStore.getState().clear();

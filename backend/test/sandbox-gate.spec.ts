@@ -58,9 +58,10 @@ test.each([
 ])('invalid development config fails closed %j', override => {
   expect(() => initiationSettings({ ...env, ...override })).toThrow();
 });
-test('default MOCK ignores absent merchant fields and cannot be customer-selected', () => {
-  expect(initiationSettings({})).toEqual({ PAYMENT_PROVIDER_MODE: 'MOCK', VNPAY_INITIATION_CONFIG: null });
-  expect(initiationSettings({ PAYMENT_PROVIDER_MODE: 'MOCK', NODE_ENV: 'production' }).VNPAY_INITIATION_CONFIG).toBeNull();
+test('PAYMENT_PROVIDER_MODE defaults to VNPAY_SANDBOX and rejects MOCK', () => {
+  expect(initiationSettings({ ...env, PAYMENT_PROVIDER_MODE: undefined }).PAYMENT_PROVIDER_MODE).toBe('VNPAY_SANDBOX');
+  expect(() => initiationSettings({ ...env, PAYMENT_PROVIDER_MODE: 'MOCK' })).toThrow('Invalid PAYMENT_PROVIDER_MODE');
+  expect(() => initiationSettings({})).toThrow();
 });
 test('production admission is false even with a manually injected acceptance flag', () => {
   expect(acceptsNewPayments(new ConfigService({ NODE_ENV: 'production', VNPAY_ACCEPT_NEW_PAYMENTS: true }))).toBe(false);

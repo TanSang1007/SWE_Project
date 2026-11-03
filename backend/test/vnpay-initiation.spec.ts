@@ -14,7 +14,7 @@ const env = { NODE_ENV: 'test', PAYMENT_PROVIDER_MODE: 'VNPAY_SANDBOX', VNPAY_IN
     DATABASE_URL: 'postgresql://fixture:fixture@localhost/brewlite_b2a_abcdef012345_test', TEST_DATABASE_URL: 'postgresql://fixture:fixture@localhost/brewlite_b2a_abcdef012345_test',
     VNPAY_ENV: 'SANDBOX', VNPAY_VERSION: '2.1.0', VNPAY_TMN_CODE: 'TEST0001', VNPAY_HASH_SECRET: 'synthetic-b2a-unit-test-only',
     VNPAY_PAYMENT_URL: SANDBOX_PAYMENT_URL, VNPAY_RETURN_URL: 'https://callback.example.org/payments/vnpay/return', VNPAY_IPN_URL: 'https://callback.example.org/payments/vnpay/ipn' };
-test('Mock default requires no merchant credentials', () => expect(initiationSettings({})).toEqual({ PAYMENT_PROVIDER_MODE: 'MOCK', VNPAY_INITIATION_CONFIG: null }));
+test('VNPAY_SANDBOX default requires controlled configuration and rejects MOCK', () => { expect(initiationSettings({ ...env, PAYMENT_PROVIDER_MODE: undefined }).PAYMENT_PROVIDER_MODE).toBe('VNPAY_SANDBOX'); expect(() => initiationSettings({})).toThrow(); expect(() => initiationSettings({ ...env, PAYMENT_PROVIDER_MODE: 'MOCK' })).toThrow(); });
 test('explicit controlled synthetic scope accepts parsed frozen config', () => expect(initiationSettings(env).VNPAY_INITIATION_CONFIG).toMatchObject({ merchantCode: 'TEST0001' }));
 test.each([
     { NODE_ENV: 'development' }, { NODE_ENV: 'production' }, { VNPAY_INITIATION_TEST_ONLY: 'false' }, { TEST_DATABASE_URL: '' },

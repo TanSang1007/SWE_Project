@@ -12,9 +12,9 @@ test.each(['0', '1', '4999', '5000', '5001', '85000'])('exact minimum boundary %
   if (reject) expect(() => assertVnpayMinimum(n)).toThrow('Thanh toán VNPAY');
   else expect(() => assertVnpayMinimum(n)).not.toThrow();
 });
-test('MOCK default needs no merchant configuration, even from an unrelated machine environment', () => {
-  expect(effectivePaymentProvider(new ConfigService({}))).toBe('MOCK');
-  expect(effectivePaymentProvider(new ConfigService({ PAYMENT_PROVIDER_MODE: 'MOCK', VNPAY_INITIATION_CONFIG: null }))).toBe('MOCK');
+test('unconfigured or MOCK provider fails closed without fallback', () => {
+  expect(() => effectivePaymentProvider(new ConfigService({}))).toThrow('Payment unavailable');
+  expect(() => effectivePaymentProvider(new ConfigService({ PAYMENT_PROVIDER_MODE: 'MOCK', VNPAY_INITIATION_CONFIG: null }))).toThrow('Payment unavailable');
 });
 test.each([{}, { PAYMENT_PROVIDER_MODE: 'OTHER' }, { PAYMENT_PROVIDER_MODE: 'VNPAY_SANDBOX', VNPAY_INITIATION_CONFIG: {} }])('selected invalid provider fails closed: %j', extra => {
   expect(() => effectivePaymentProvider(new ConfigService({ PAYMENT_PROVIDER_MODE: 'VNPAY_SANDBOX', ...extra }))).toThrow('Payment unavailable');

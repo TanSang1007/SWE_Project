@@ -68,7 +68,7 @@ function CartSession({ orderId }: { orderId?: string }) {
   const locked = cartLock.locked || busy || loading || !!editing || !!removing;
   const checkoutReason = cartLock.locked ? (cartLock.order ? 'Giỏ đang khóa theo đơn chưa hoàn tất. Hãy thanh toán hoặc hủy đơn cũ.' : 'Đang kiểm tra đơn chưa hoàn tất; tạm khóa giỏ.')
     : loading ? 'Đang cập nhật giỏ hàng…'
-    : error ? 'Vui lòng tải lại giỏ để kiểm tra dữ liệu trước khi tiếp tục.'
+    : !cart && error ? 'Vui lòng tải lại giỏ để kiểm tra dữ liệu trước khi tiếp tục.'
     : removing ? 'Hãy xác nhận xóa hoặc chọn giữ lại món.'
     : editing ? 'Hãy lưu hoặc hủy chỉnh sửa trước khi tiếp tục.'
     : busy ? 'Đang cập nhật giỏ hàng…'

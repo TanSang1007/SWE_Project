@@ -1,13 +1,11 @@
 import { parseVnpayConfig, type VnpayConfig } from './vnpay-config';
 export function initiationSettings(values: Record<string, unknown>): {
-    PAYMENT_PROVIDER_MODE: 'MOCK' | 'VNPAY_SANDBOX';
+    PAYMENT_PROVIDER_MODE: 'VNPAY_SANDBOX';
     VNPAY_INITIATION_CONFIG: VnpayConfig | null;
     VNPAY_ACCEPT_NEW_PAYMENTS?: boolean;
     VNPAY_SANDBOX_ENABLED?: boolean;
 } {
-    const mode = values.PAYMENT_PROVIDER_MODE ?? 'MOCK';
-    if (mode === 'MOCK')
-        return { PAYMENT_PROVIDER_MODE: mode, VNPAY_INITIATION_CONFIG: null };
+    const mode = values.PAYMENT_PROVIDER_MODE ?? 'VNPAY_SANDBOX';
     if (mode !== 'VNPAY_SANDBOX')
         throw Error('Invalid PAYMENT_PROVIDER_MODE');
     const accept = values.VNPAY_ACCEPT_NEW_PAYMENTS;

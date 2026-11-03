@@ -15,7 +15,6 @@ import { configureApp } from '../../src/common/configure-app';
 import { utcConnectionString } from '../../src/database/pg-connection';
 import { lockUser } from '../../src/orders/order-policy';
 import { reconcileAccount } from '../../src/loyalty/loyalty-accounting';
-import { MockPaymentService } from '../../src/payments/mock-payment.service';
 import { QUERYDR_TRANSPORT } from '../../src/payments/vnpay/querydr-transport';
 import { initiationSettings } from '../../src/payments/vnpay/initiation-config';
 import { SANDBOX_PAYMENT_URL } from '../../src/payments/vnpay/vnpay-config';
@@ -37,8 +36,7 @@ beforeAll(async () => {
   await client.connect(); await client.query(`CREATE SCHEMA "${schema}"`); await client.query(`SET search_path TO "${schema}"`);
   const dir = resolve(__dirname, '../../prisma/migrations');
   for (const name of readdirSync(dir).filter(n => /^\d+_/.test(n)).sort()) await client.query(readFileSync(resolve(dir, name, 'migration.sql'), 'utf8'));
-  const module = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(PrismaService).useValue(db).overrideProvider(ConfigService).useValue(settings)
-    .overrideProvider(MockPaymentService).useValue({ result: mock }).overrideProvider(QUERYDR_TRANSPORT).useValue({ post: outbound }).compile();
+  const module = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(PrismaService).useValue(db).overrideProvider(ConfigService).useValue(settings).overrideProvider(QUERYDR_TRANSPORT).useValue({ post: outbound }).compile();
   app = module.createNestApplication<NestExpressApplication>({ bodyParser: false }); configureApp(app); await app.init(); jwt = app.get(JwtService);
   admin = (await db.user.create({ data: { email: `${randomUUID()}@example.invalid`, passwordHash: 'NON_LOGIN_SYNTHETIC', role: 'ADMIN' } })).id;
   staff = (await db.user.create({ data: { email: `${randomUUID()}@example.invalid`, passwordHash: 'NON_LOGIN_SYNTHETIC', role: 'STAFF' } })).id;

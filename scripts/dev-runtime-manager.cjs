@@ -1,13 +1,15 @@
-const { shouldAccept } = require('./dev-runtime-lib.cjs');
+const { shouldAccept, runtimeError } = require('./dev-runtime-lib.cjs');
 
 class RuntimeCoordinator {
-  constructor(mode, io) { this.mode = mode; this.io = io; this.drainReason = null; this.accepting = false; this.status = 'STARTING'; }
+  constructor(mode = 'VNPAY_SANDBOX', io) {
+    if (mode !== 'VNPAY_SANDBOX') throw runtimeError('INVALID_MODE');
+    this.mode = mode; this.io = io; this.drainReason = null; this.accepting = false; this.status = 'STARTING';
+  }
   get draining() { return this.drainReason !== null; }
   get stopRequested() { return this.drainReason === 'STOP_REQUESTED'; }
   async start() {
-    if (this.mode === 'MOCK' && (await this.io.dependencies()).needsCallbacks) throw Error('OUTSTANDING_GATEWAY_USE_VNPAY');
     await this.io.startBackend(false);
-    if (this.mode === 'VNPAY_SANDBOX') await this.io.startCallbacks();
+    await this.io.startCallbacks();
     await this.io.startFrontend();
     await this.io.verifyServices();
     if (shouldAccept({ mode:this.mode, servicesHealthy:true, draining:this.draining })) await this.restart(true);
@@ -28,7 +30,7 @@ class RuntimeCoordinator {
   async drain() {
     // A later drain command must not hide an outstanding shutdown request.
     if (!this.stopRequested) this.drainReason = 'OPERATOR_DRAIN';
-    if (this.mode === 'VNPAY_SANDBOX' && this.accepting) await this.restart(false);
+    if (this.accepting) await this.restart(false);
     this.status = this.stopRequested ? 'DRAINING_CALLBACKS_RETAINED' : 'DRAIN_ONLY';
   }
   async check() {
@@ -38,7 +40,7 @@ class RuntimeCoordinator {
       this.status = this.stopRequested ? 'DRAINING_CALLBACKS_RETAINED' : this.draining ? 'DRAIN_ONLY' : 'READY';
     } catch {
       this.status = 'DEGRADED';
-      if (this.mode === 'VNPAY_SANDBOX' && this.accepting) {
+      if (this.accepting) {
         try { await this.restart(false); } catch { /* Preserve callback handles for recovery. */ }
       }
     }
@@ -46,15 +48,13 @@ class RuntimeCoordinator {
   async stop() {
     this.drainReason = 'STOP_REQUESTED';
     await this.drain();
-    if (this.mode === 'VNPAY_SANDBOX') {
-      const audit = await this.io.dependencies();
-      if (!audit.safeToStop) { this.status = 'DRAINING_CALLBACKS_RETAINED'; return { stopped:false, audit }; }
-    }
+    const audit = await this.io.dependencies();
+    if (!audit.safeToStop) { this.status = 'DRAINING_CALLBACKS_RETAINED'; return { stopped:false, audit }; }
     await this.io.stopAll(); this.status = 'STOPPED';
     return { stopped:true };
   }
   async recover() {
-    if (this.mode === 'VNPAY_SANDBOX') await this.io.startCallbacks();
+    await this.io.startCallbacks();
     // Explicit recovery cancels the operator's drain/stop intent only after
     // readiness succeeds. Financial dependencies still govern teardown, not
     // admission of independent Orders; their guards remain in the backend.

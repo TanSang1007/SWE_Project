@@ -18,7 +18,7 @@ function validateQuantity(qty: number): void {
 @Injectable()
 export class CartService {
   constructor(private readonly prisma: PrismaService) {}
-  get(userId: string) { return this.prisma.$transaction((tx) => this.read(tx, userId)); }
+  get(userId: string) { return this.prisma.$transaction((tx) => this.read(tx, userId), this.prisma.transactionOptions); }
   private async read(tx: Prisma.TransactionClient, userId: string) {
     const rows = await tx.cartItem.findMany({ where: { cart: { userId } }, orderBy: { id: 'asc' }, include: {
       product: { include: { toppings: { select: { toppingId: true } } } }, productSize: true, toppings: { orderBy: { toppingId: 'asc' }, include: { topping: true } },
