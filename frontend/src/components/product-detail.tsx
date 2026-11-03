@@ -13,10 +13,6 @@ export function ProductDetailView({ product }: { product: Detail }) {
     <div className="detail-content"><p className="eyebrow">Thực đơn BrewLite</p><h1>{product.name}</h1><span className={`availability inline ${product.available ? '' : 'sold-out'}`}>{product.available ? 'Còn món' : 'Tạm hết'}</span>
       {!product.available && <p role="status">Hiện chưa thể đặt món này. Món có thể hết hàng hoặc chưa có kích cỡ hợp lệ.</p>}
       <dl className="base-price"><dt>Giá cơ bản</dt><dd>{formatVnd(product.price)}</dd></dl>
-      <section aria-labelledby="sizes-heading"><h2 id="sizes-heading">Kích cỡ</h2><p className="section-note">Phụ thu theo kích cỡ của món.</p>
-        {product.sizes.length ? <ul className="size-list">{product.sizes.map((size) => <li key={size.size}><span>Size {size.size}</span><strong>+{formatVnd(size.extraPrice)}</strong></li>)}</ul> : <p>Chưa có kích cỡ cho món này.</p>}</section>
-      <section aria-labelledby="toppings-heading"><h2 id="toppings-heading">Topping</h2><p className="section-note">Các topping có thể dùng cùng món này.</p>
-        {product.toppings.length ? <ul className="topping-list">{product.toppings.map((topping) => <li key={topping.id}><span>{topping.name}</span><strong>+{formatVnd(topping.price)}</strong></li>)}</ul> : <p>Món này chưa có topping đi kèm.</p>}</section>
       <AddToCart key={product.id} product={product} />
     </div></article>;
 }
