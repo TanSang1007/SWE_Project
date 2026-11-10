@@ -1,0 +1,7 @@
+# Optional shared development DB; local compose.yaml remains the standalone baseline.
+# Load .env first, then docker/local.env. Never migrate/seed shared Neon from this profile.
+services:
+  backend:
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Root .env must contain the shared Neon DATABASE_URL}
+      DIRECT_URL: ${DIRECT_URL:?Root .env must contain the shared Neon DIRECT_URL}

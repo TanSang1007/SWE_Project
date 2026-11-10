@@ -88,3 +88,25 @@ test('loading/error/not-found/invalid states have roles and accessible actions',
   assert.match(render(CatalogState, { kind: 'not-found' }), /Không tìm thấy món này/);
   assert.match(render(CatalogState, { kind: 'invalid-id' }), /Đường dẫn món chưa hợp lệ/);
 });
+
+test('bundled photos replace absent/placeholder photos of the known menu drinks', () => {
+  const {productImageCandidates,drinkPlaceholder}=require('../src/lib/product-images.ts');
+  assert.deepEqual(productImageCandidates('', 'Cappuccino'), ['/images/cappuccino.jpg',drinkPlaceholder]);
+  assert.deepEqual(productImageCandidates(drinkPlaceholder+'?v=1',' Latte '), ['/images/latte.jpg',drinkPlaceholder]);
+  assert.deepEqual(productImageCandidates(drinkPlaceholder,'Cold_brew'), ['/images/cold-brew.jpg',drinkPlaceholder]);
+});
+test('custom product photos stay first; broken custom paths have an exact-drink local recovery', () => {
+  const {productImageCandidates,drinkPlaceholder}=require('../src/lib/product-images.ts');
+  assert.deepEqual(productImageCandidates('/images/my-latte.jpg','Latte'), ['/images/my-latte.jpg','/images/latte.jpg',drinkPlaceholder]);
+  assert.deepEqual(productImageCandidates('/images/latte.jpg','Latte'), ['/images/latte.jpg',drinkPlaceholder]);
+  for(const name of ['Unknown drink','constructor','__proto__']) assert.deepEqual(productImageCandidates('',name),[drinkPlaceholder]);
+});
+test('the seed image URLs have real JPEG assets and known placeholder cards render their own photo', () => {
+  for(const name of ['cappuccino','latte','cold-brew']) {
+    const bytes=readFileSync(new URL(`../public/images/${name}.jpg`,import.meta.url));
+    assert.equal(bytes[0],0xff);assert.equal(bytes[1],0xd8);assert(bytes.length>10000);
+  }
+  const {ProductImage}=require('../src/components/product-image.tsx');
+  const html=renderToStaticMarkup(React.createElement(ProductImage,{src:'/images/drink-placeholder.svg',name:'Cold brew'}));
+  assert.match(html,/src="\/images\/cold-brew.jpg"/);assert.doesNotMatch(html,/src="\/images\/drink-placeholder.svg"/);
+});

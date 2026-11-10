@@ -1,3 +1,7 @@
+## Docker local — 2026-11-10
+
+Theo yêu cầu người dùng: thêm Compose ba service, volume PostgreSQL18 riêng, migration/seed chủ động. Opt-in BREWLITE_CONTAINER_SANDBOX=true chỉ mở hostname db/brewlite_dev trong nhánh development; production vẫn chặn. Backend bind0.0.0.0 khi opt-in, host chỉ publish loopback. Callback ingress cùng container, upstream/allowlist giữ nguyên. Không tự chuyển merchant/domain, không dùng Neon; admission mặc định đóng và mở chủ động sau public callback smoke. Compose không thừa hưởng coordinator safe-stop của launcher. [Runbook](DOCKER.md).
+
 # BrewLite — Quyết định thiết kế
 
 **Cart preservation fix 2026-11-02 — FR08:** Người dùng yêu cầu sửa lỗi mất giỏ khi thanh toán thất bại. `POST /orders` giữ nguyên Cart thay vì xóa khi tạo PENDING; settlement tiếp tục không sửa Cart, bao gồm failure/retry/success và callback lặp. Không thay schema, API/DTO, quyền, idempotency hoặc tồn kho. Thay đổi này supersede quy tắc consume-Cart-at-create của amendment 2026-10-22; các mô tả clear/consume cũ bên dưới là lịch sử. Tests: `cart-payment-preservation.spec.ts`, cập nhật database orders/checkout-lifecycle; xem [chi tiết](CART_FAILURE_FIX.md).

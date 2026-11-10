@@ -1,297 +1,248 @@
-# BrewLite — Quản lý và đặt hàng cà phê
+# BrewLite — Ứng dụng đặt cà phê
 
-## 1. Giới thiệu
+Đồ án môn **Công nghệ phần mềm**: xem menu, chọn size/topping, quản lý giỏ hàng, đặt món, thanh toán qua VNPAY Sandbox và theo dõi đơn. Có chức năng khuyến mãi, điểm thưởng và quản lý dành cho Admin/Staff.
 
-BrewLite hỗ trợ khách chọn đồ uống, tùy chỉnh size/topping, đặt hàng, thanh toán và theo dõi đơn lấy tại quầy. Nhân viên xử lý hàng đợi pha chế; quản trị viên quản lý menu, tồn kho và đơn hàng.
+## 1. Thành viên
 
-Nền tảng gồm frontend Next.js, backend NestJS và PostgreSQL. Hệ thống sử dụng duy nhất VNPAY Sandbox làm phương thức thanh toán trực tuyến (kèm xác nhận nội bộ cho đơn 0 VND); hình thức Mock Payment đã được loại bỏ hoàn toàn.
-
-## 2. Thành viên nhóm
-
-
-| STT | Họ tên | Vai trò | Công việc phụ trách |
-| --- | --- | --- | --- |
-| — | Chờ nhóm bổ sung | Chờ xác nhận | Chờ xác nhận |
-
-## 3. Công nghệ sử dụng
-
-Phiên bản đang pin trong các `package.json` và `package-lock.json`:
-
-| Thành phần | Công nghệ |
+| MSSV | Họ và tên |
 | --- | --- |
-| Frontend | Next.js **16.3.8**, React **19.3.0**, TypeScript **5.9.3** |
-| UI/state | Tailwind CSS **4.3.3**, Zustand **5.0.15**, Fetch API |
-| Backend | NestJS **11.2.7**, TypeScript **5.9.3**, class-validator **0.14.4** |
-| Authentication | JWT (`@nestjs/jwt` **11.0.2**), Passport, bcrypt **6.0.0** |
-| Persistence | Prisma **7.10.0**, PostgreSQL adapter, `pg` **8.23.1** (driver) |
-| Database | PostgreSQL **18.x**, theo baseline thiết kế |
-| Payment | VNPAY Sandbox 2.1.0 (HMAC-SHA512) và INTERNAL_ZERO cho đơn 0 VND |
-| Tests | Jest/Supertest, Node.js test runner và browser harness có sẵn |
+| 3124410156 | Đỗ Trọng Khoa |
+| 3123410301 | Đoàn Tấn Sang |
+| 3124410026 | Nguyễn Thị Kim Chi |
+| 3124410023 | Lê Nguyễn Băng Châu |
+| 3124410084 | Đoàn Trung Hậu |
+| 3124410214 | Trần Tuấn Minh |
 
-## 4. Các chức năng chính
+**Công nghệ:** Next.js/React/TypeScript, NestJS, PostgreSQL/Prisma, JWT/bcrypt, VNPAY Sandbox và Docker Compose.
 
-**Customer:** đăng ký/đăng nhập; xem menu/chi tiết; chọn size/topping; giỏ hàng PostgreSQL theo tài khoản; checkout với giá server, mã khuyến mãi và điểm; thanh toán; xác nhận/lịch sử đơn; số dư và lịch sử Loyalty.
+## 2. Cách chạy của nhóm
 
-**Staff:** xem hàng đợi được phép, chuyển `PAID → PREPARING → READY → COMPLETED`.
+Hướng dẫn chính dành cho **Windows và Docker dùng chung database Neon**. Mỗi thành viên chạy frontend/backend trên máy mình; một máy **callback owner** giữ đường nhận kết quả VNPAY cho cả nhóm.
 
-**Danh mục nhập hàng (I03):** quản lý trong một file [ingredient-catalog.ts](backend/src/ingredients/ingredient-catalog.ts): thêm dòng để bổ sung mặt hàng, bỏ dòng để ẩn khỏi kho/phiếu mới, sửa `label` để đổi tên hiển thị mà giữ tồn cũ. Backend cần nhận bản sửa trước khi Admin mở/tải lại kho để khởi tạo phần thiếu với tồn0; không xóa dữ liệu hay lịch sử. Ban đầu có3 vật dụng và9 nguyên liệu; trứng dùng quả nguyên và cảnh báo dưới10. [Cách chỉnh file, chạy lại backend và kiểm chứng](Docs/I03_RECEIVING_CATALOG.md).
+| Thành phần | Địa chỉ / nơi lưu |
+| --- | --- |
+| Website | http://localhost:3000 |
+| Backend API | http://localhost:3002 — chuyển vào cổng 3001 trong container |
+| Callback ingress | Cổng 3102 trên máy; thành viên không cần mở ngrok riêng |
+| Database nhóm | Neon dùng chung qua `compose.neon.yaml` |
+| PostgreSQL container | Volume riêng, chỉ được ứng dụng sử dụng khi chạy chế độ local ở mục 7 |
 
-**Tồn kho và nhập hàng (I01/I02):** Admin có sáu mục Tổng quan, Đơn hàng, Sản phẩm, Topping, Tồn kho, Nhập hàng. `/admin/inventory` chia Quản lý vật dụng (cái) và Quản lý nguyên liệu (lít/kg); `/admin/receipts` có Vật dụng, Nguyên liệu, Lịch sử nhập hàng. Cảnh báo khi tồn dưới10 cái, dưới5 lít hoặc dưới10 kg; bằng ngưỡng vẫn còn hàng,0 hết hàng. Thêm mới, nhập kho và lịch sử dùng database thật. Staff gửi kiểm kê tại `/operator/ingredients`; chỉ Admin duyệt/từ chối/yêu cầu kiểm kê lại, không ghi đè phiếu cũ khi tồn đã thay đổi. Tồn sản phẩm bán ra vẫn ở Sản phẩm → Tồn sản phẩm (`/admin/products/inventory`). Chưa trừ theo công thức pha chế. [Contract I01](Docs/I01_INGREDIENT_INVENTORY_CONTRACT.md), [amendment I02](Docs/I02_INVENTORY_CATEGORIES.md).
+Docker Desktop đã tích hợp Docker Engine và Compose; **không cần cài Node.js, npm hoặc PostgreSQL trên Windows** để chạy theo hướng dẫn này.
 
-Database I01 đã được cập nhật trên Neon development. Admin mở/tải lại kho để bổ sung các mặt hàng có trong file danh mục với tồn0; giao diện có thống kê và timeout12 giây, lỗi lịch sử không chặn danh sách. [Hướng dẫn migration, danh sách file và kết quả kiểm thử I01 ban đầu](Docs/I01_INGREDIENT_INVENTORY_IMPLEMENTATION.md).
+## 3. Cài Docker từ đầu
 
-**Admin:** quản lý sản phẩm, size/topping và liên kết tùy chọn; điều chỉnh tồn có version/idempotency; xem đơn và hủy PAID theo quyền/contract. Hủy nội bộ không đồng nghĩa hoàn tiền gateway.
+### Bước 1 — Kiểm tra máy
 
-Chưa có quản trị Campaign/Promotion, báo cáo doanh thu hay quản lý khách hàng hoàn chỉnh. Phân biệt yêu cầu PDF và extension được duyệt tại [REQUIREMENTS](Docs/REQUIREMENTS.md).
+Dùng Windows 64-bit còn được Docker Desktop hỗ trợ, RAM tối thiểu 8 GB và Internet. Nên dành khoảng 15–20 GB ổ đĩa trống cho image, thư viện và dữ liệu.
 
-## 5. Cấu trúc thư mục
+Mở **Task Manager → Performance → CPU**, kiểm tra **Virtualization: Enabled**. Nếu Disabled, bật Intel VT-x/AMD-V trong BIOS/UEFI theo hướng dẫn của hãng máy trước khi tiếp tục.
 
-```text
-SWE_Project/
-├── frontend/                  # Next.js App Router, UI và test
-├── backend/
-│   ├── src/                   # NestJS modules và callback ingress
-│   ├── prisma/                # schema.prisma, migrations/, seed.cjs
-│   ├── scripts/               # Provision operator, reconciliation, auth config
-│   └── test/                  # Unit/HTTP và database integration tests
-├── scripts/                   # Launcher VNPAY Sandbox và lifecycle tests
-├── ops/                       # Ví dụ ngrok callback-only
-├── Docs/                      # Yêu cầu, thiết kế, contract, hướng dẫn
-├── .env.example               # Cấu hình local mẫu
-├── .env.vnpay.local.example    # Overlay Sandbox riêng, tùy chọn
-├── package.json               # npm workspace root
-└── package-lock.json
-```
+### Bước 2 — Cài WSL 2
 
-Chi tiết: [PROJECT_STRUCTURE](Docs/PROJECT_STRUCTURE.md).
-
-## 6. Yêu cầu hệ thống
-
-- Node.js **>=24.11 và <25**; npm **>=11 và <12** (root `engines`).
-- Git **2.x**; kết nối Internet tới Neon PostgreSQL **18** dùng chung. Không cần cài PostgreSQL local để chạy ứng dụng.
-- Windows PowerShell; ngrok chỉ cần cho Local VNPAY Sandbox.
-
-Chạy lệnh tại root chứa `package.json`, không cài dependencies riêng từng workspace. Dùng `npm.cmd` thay `npm` nếu PowerShell chặn `npm.ps1`.
-
-## 7. Clone và cài đặt
-
-Chạy các lệnh sau trong PowerShell:
+Mở Start, tìm **PowerShell → Run as administrator**, chạy:
 
 ```powershell
+wsl --install
+```
+
+Khởi động lại Windows nếu được yêu cầu. Nếu Ubuntu mở lên yêu cầu username/password, tạo tài khoản Linux theo hướng dẫn; tài khoản này không phải tài khoản BrewLite.
+
+Mở lại PowerShell, chạy:
+
+```powershell
+wsl --update
+wsl --set-default-version 2
+wsl --version
+```
+
+Nếu WSL đã cài thì không cần cài lại; cập nhật WSL và dùng phiên bản 2. Tham khảo [Microsoft: cài WSL](https://learn.microsoft.com/en-us/windows/wsl/install).
+
+### Bước 3 — Cài Docker Desktop
+
+1. Tải từ [Docker Desktop cho Windows](https://docs.docker.com/desktop/setup/install/windows-install/). Máy Intel/AMD chọn bản **x86_64**; máy ARM chọn bản phù hợp.
+2. Chạy bộ cài, chọn **WSL 2** nếu được hỏi; hoàn tất và khởi động lại khi được yêu cầu.
+3. Mở **Docker Desktop**, hoàn tất màn hình thiết lập và chờ **Engine running**.
+4. Dùng **Linux containers**. Nếu menu có “Switch to Linux containers…”, chọn mục đó.
+
+Mở PowerShell mới, kiểm tra:
+
+```powershell
+docker version
+docker compose version
+docker info
+docker run --rm hello-world
+```
+
+`docker info` phải có phần **Server**; lệnh cuối phải chạy thành công. Nếu không kết nối được `dockerDesktopLinuxEngine`, mở hoặc restart Docker Desktop trước khi tiếp tục.
+
+### Bước 4 — Cài Git và lấy mã nguồn
+
+Cài [Git for Windows](https://git-scm.com/download/win), mở PowerShell mới rồi chạy:
+
+```powershell
+git --version
 git clone https://github.com/TanSang1007/SWE_Project.git
 cd SWE_Project
-npm ci
-Copy-Item .env.example .env
 ```
 
-Mở `.env` tại root, điền hai connection string được trưởng nhóm cấp riêng theo mục bên dưới. Giữ `NODE_ENV=development`, `FRONTEND_ORIGIN=http://localhost:3000` và `PAYMENT_PROVIDER_MODE=VNPAY_SANDBOX`. File mẫu chỉ chứa placeholder, không kết nối được trước khi điền cấu hình thật. Không ghi đè `.env` đã cấu hình.
+Nếu bộ Docker chưa nằm trên nhánh mặc định, chuyển sang nhánh nhóm đã thông báo, ví dụ `git switch bangchau`. Thư mục phải có `Dockerfile`, `compose.yaml`, `compose.neon.yaml` và `docker/config.example`.
 
-Tạo `JWT_SECRET` riêng cho máy bằng helper có sẵn:
+**Từ đây, chạy mọi lệnh tại thư mục `SWE_Project`.** Có thể dùng terminal PowerShell của VS Code.
+
+## 4. Cấu hình và khởi động lần đầu
+
+### Bước 5 — Tạo file cấu hình
+
+Chỉ tạo file nếu chưa tồn tại:
 
 ```powershell
-node backend/scripts/configure-auth-env.cjs
+if (!(Test-Path .env)) { Copy-Item .env.example .env }
+if (!(Test-Path docker/local.env)) { Copy-Item docker/config.example docker/local.env }
 ```
 
-Helper tạo secret ngẫu nhiên nếu giá trị còn thiếu/placeholder, giữ secret đã có và không in secret ra terminal. Sau khi cấu hình, kiểm tra Prisma và khởi động:
-
-```powershell
-npm run db:validate
-npm run db:generate
-npm run dev
-```
-
-Chờ launcher báo `READY`, mở **http://localhost:3000**. Backend chạy tại `http://127.0.0.1:3001`; liveness tại `http://127.0.0.1:3001/health`. Giữ terminal launcher mở; không chạy thêm server trên cùng port. Nếu PowerShell chặn `npm.ps1`, thay `npm` bằng `npm.cmd`.
-
-### Kết nối database dùng chung
-
-Nhóm dùng **một database Neon PostgreSQL 18**, tên **`brewlite_dev`**, qua **Prisma 7**. Schema, migrations và dữ liệu đã được chuyển lên Neon; thành viên **không cần tạo tài khoản Neon riêng, tạo database Neon mới hoặc tạo PostgreSQL database localhost**.
-
-Ví dụ trong root `.env` — các giá trị dưới đây chỉ là placeholder:
+Trong **`.env` ở thư mục gốc**, điền hai URL Neon do nhóm cấp riêng:
 
 ```dotenv
 DATABASE_URL="postgresql://USER:PASSWORD@HOST-POOLER/brewlite_dev?sslmode=require"
 DIRECT_URL="postgresql://USER:PASSWORD@HOST-DIRECT/brewlite_dev?sslmode=require"
 ```
 
-- `DATABASE_URL`: pooled connection cho backend/Prisma Client.
-- `DIRECT_URL`: direct connection cho Prisma CLI/migration.
-- Cả hai phải trỏ tới **cùng database Neon hiện tại** và bật TLS. Password có ký tự đặc biệt phải được URL-encode.
-- Connection string thật do người quản lý dự án cấp qua kênh riêng. Không công khai URL thật trên GitHub và **không commit `.env`**; [.env.example](.env.example) chỉ giữ giá trị mẫu.
+Cả hai phải trỏ tới cùng database của nhóm; backend dùng URL pooled có TLS. Không dùng nguyên thông tin mẫu.
 
-Mọi backend cùng kết nối database này sẽ đọc/ghi **dữ liệu dùng chung**: thay đổi sản phẩm, tồn kho hoặc đơn hàng trên một máy có thể được thấy từ máy khác. Chỉ người được phân công quản lý database áp dụng migration/schema change đã duyệt. Quy trình clone thông thường **không chạy migration, reset, seed hoặc restore** lên Neon. Không dùng database chung cho destructive/financial automated tests.
-
-Chi tiết: [Neon development](Docs/NEON_DEVELOPMENT.md). Tài khoản Admin/Staff được provision riêng theo [hướng dẫn vận hành](Docs/NORMAL_SANDBOX_MODE.md).
-
-## 8. Environment Configuration
-
-Checkout có `/cart` và `/checkout` riêng; Order mới có thời hạn thanh toán 10 phút, UNKNOWN vẫn giữ để xác minh. Phiên Customer/Admin/Staff khôi phục qua HttpOnly session 7 ngày, JWT trong memory. Migration hiện tại đã được người quản lý triển khai trên Neon chung; thành viên chỉ validate/generate theo mục 7. [Chi tiết nghiệp vụ](Docs/CHECKOUT_SESSION_UPDATE.md). Auth browser dùng proxy cùng origin `/api/auth/*`; `API_INTERNAL_BASE_URL` mặc định `http://127.0.0.1:3001`.
-
-| File | Nơi đọc / mục đích |
-| --- | --- |
-| Root `.env` từ [.env.example](.env.example) | NestJS, Prisma config, CLI và launcher local |
-| Root `.env.vnpay.local` từ [example](.env.vnpay.local.example) | Overlay private tùy chọn cho VNPAY Sandbox (`dev` / `dev:vnpay`) |
-| `frontend/.env.local` từ [example](frontend/.env.local.example) | Override public API URL cho frontend; development mặc định `http://127.0.0.1:3001`, launcher cấp cùng URL |
-
-Backend không yêu cầu `backend/.env`. Không đặt secrets trong `NEXT_PUBLIC_*`. File private được ignore, không đưa lên GitHub.
-
-Next.js đọc `.env*` trong `frontend/`, không đọc root `.env`. Mọi Customer API dùng chung `NEXT_PUBLIC_API_BASE_URL` qua `src/lib/env.ts`. `next.config.ts` cấp URL mặc định chỉ trong development; cấu hình riêng có thể đặt trong `frontend/.env.local`. Với `next build`, phải cấp public API URL trước lúc build (launcher đã cấp); đổi biến khi chạy `next start` không thay URL đã nhúng trong browser bundle, cần build lại. Giữ browser tại `http://localhost:3000` cho đúng `FRONTEND_ORIGIN`/CORS.
-
-Sau khi sửa cấu hình, Next dev tự restart; refresh trang để nạp bundle mới. Nếu chạy frontend standalone khác, restart riêng frontend bằng `npm run dev:frontend`; backend/callback không cần restart cho thay đổi này. Không dừng launcher VNPAY khi còn UNKNOWN cần callback.
-
-| Biến | Ý nghĩa / cấu hình local |
-| --- | --- |
-| `NODE_ENV` | `development`; Sandbox hiện từ chối production |
-| `PORT` | Backend `3001`; frontend `3000` |
-| `FRONTEND_ORIGIN` | `http://localhost:3000`, đúng browser origin cho CORS/Return |
-| `DATABASE_URL` | Neon pooled endpoint, database `brewlite_dev`, TLS; backend Prisma Client |
-| `DIRECT_URL` | Neon direct endpoint cùng database, TLS; Prisma CLI/migration và restore |
-| `JWT_SECRET` | Random tối thiểu 32 byte; dùng helper ở bước cài đặt |
-| `JWT_EXPIRES_IN` | `3600` giây, policy một giờ |
-| `PAYMENT_PROVIDER_MODE` | Mặc định `MOCK`; tùy chọn `VNPAY_SANDBOX` |
-| `PAYMENT_MOCK_MODE` | `SUCCESS` hoặc `FAILURE`, server quyết định; đổi xong restart backend |
-| `VNPAY_SANDBOX_ENABLED` | Mặc định `false`; Sandbox trực tiếp cần `true` |
-| `VNPAY_ACCEPT_NEW_PAYMENTS` | `false`: DRAIN_ONLY; `true`: nhận mới khi config/health cho phép |
-
-Launcher chọn provider theo lệnh, cố định port/origin local và quản lý hai cờ Sandbox: bắt đầu DRAIN_ONLY, mở admission sau callback checks. Sửa file không phải hot-toggle và không bỏ qua readiness.
-
-
-
-## 9. Payment Setup — VNPAY Sandbox (Mặc định & Duy nhất)
-
-Dùng chung Neon **không tự làm VNPAY hoạt động trên mọi máy**. Vẫn cần merchant credentials và callback/IPN hợp lệ, máy callback owner đang sẵn sàng và cấu hình member đúng. `npm run dev` chọn MOCK rõ ràng; chỉ dùng `npm run dev:vnpay` khi Sandbox đã cấu hình và callback có thể kiểm chứng. Sandbox lỗi phải báo lỗi/giữ trạng thái chờ; không tự chuyển MOCK hoặc hiển thị thanh toán thành công.
-
-### A. Merchant Sandbox
-
-Cần Merchant/TmnCode/HashSecret hợp lệ được cấp quyền sử dụng. Không chia sẻ HashSecret qua GitHub và không mặc nhiên dùng Merchant/domain owner. Chỉ dùng **thẻ TEST do VNPAY cung cấp**, không dùng thẻ thật.
-
-### B. Private environment
-
-```powershell
-Copy-Item .env.vnpay.local.example .env.vnpay.local
-```
-
-Điền riêng các giá trị sau; ví dụ đều là placeholder:
+Trong **`docker/local.env`**, điền:
 
 ```dotenv
-PAYMENT_PROVIDER_MODE=VNPAY_SANDBOX
-VNPAY_SANDBOX_ENABLED=true
-VNPAY_ACCEPT_NEW_PAYMENTS=true
-VNPAY_ENV=SANDBOX
-VNPAY_VERSION=2.1.0
-VNPAY_TMN_CODE=YOURCODE
-VNPAY_HASH_SECRET=replace_with_merchant_issued_secret
-VNPAY_PAYMENT_URL=https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
-VNPAY_RETURN_URL=https://your-registered-host.example/payments/vnpay/return
-VNPAY_IPN_URL=https://your-registered-host.example/payments/vnpay/ipn
-VNPAY_RESULT_URL=http://localhost:3000/payments/vnpay/result
-BREWLITE_CALLBACK_ROLE=owner
-BREWLITE_NGROK_CONFIG=C:/path/to/private/ngrok.yml
+DOCKER_DB_PASSWORD=REPLACE_WITH_RANDOM_LETTERS_AND_DIGITS
+DOCKER_JWT_SECRET=REPLACE_WITH_RANDOM_SECRET
+DOCKER_VNPAY_TMN_CODE=YOUR_MERCHANT_CODE
+DOCKER_VNPAY_HASH_SECRET=YOUR_MERCHANT_HASH_SECRET
+DOCKER_CALLBACK_ORIGIN=https://YOUR_REGISTERED_OWNER_DOMAIN
+DOCKER_ACCEPT_PAYMENTS=false
 ```
 
-Ba cờ đầu diễn tả Sandbox sẵn sàng; launcher vẫn tự chuyển DRAIN_ONLY → nhận mới sau checks. `VNPAY_RESULT_URL` tùy chọn nhưng nếu đặt phải đúng URL trên. `VNPAY_ATTEMPT_TTL_SECONDS`, nếu khai báo, dùng `600`; Order mới có deadline10 phút cố định. Attempt cũ giữ expiry đã lưu. [Cart độc lập, timeout an toàn và session sau reload](Docs/CHECKOUT_SESSION_UPDATE.md).
-
-`VNPAY_IPN_URL` dùng kiểm tra profile/đăng ký callback, **không gửi dưới dạng `vnp_IpnUrl` trong payment initiation**. `BREWLITE_VNPAY_ENV_FILE` chọn overlay riêng; `BREWLITE_NGROK_BIN` chọn executable khi ngrok không trong PATH. Token ngrok chỉ nằm trong private config.
-
-### C. Public callback
-
-Cài và xác thực ngrok riêng. IPN/Return phải là cặp HTTPS cùng origin, đúng domain/path VNPAY đăng ký cho Merchant môi trường đó. Launcher không đăng ký hay thay URL.
-
-Chỉ tunnel ingress `127.0.0.1:3102`, với hai GET routes `/payments/vnpay/ipn` và `/payments/vnpay/return`. Không expose toàn bộ backend, Admin hay PostgreSQL. Không đổi key/profile khi Attempt cũ còn cần callback.
-
-### D. Khởi động Normal Sandbox Mode
-
-```powershell
-npm run dev:vnpay
-# Terminal khác:
-npm run dev:status
-npm run dev:restart-backend
-npm run dev:stop
-```
-
-Nếu MOCK đang chạy, dùng `dev:stop`, chờ dừng an toàn rồi chọn mode mới. Launcher từ chối port/listener lạ, không kill process không thuộc nó. `restart-backend` giữ ingress/ngrok. Không cần Gate A/B/C, không giới hạn một Attempt/30 phút; admission phụ thuộc cấu hình, health và drain.
-
-`dev:stop` đóng admission trước. Nếu có pending/UNKNOWN/REVIEW, receipt hoặc reservation chưa xử lý, lệnh **từ chối cắt callback**; giữ terminal/mạng và xử lý theo contract. Xem [NORMAL_SANDBOX_MODE](Docs/NORMAL_SANDBOX_MODE.md) cho `dev:drain`/`dev:recover`.
-
-### E. Kiểm thử trên giao diện
-
-1. Chỉ bắt đầu khi status báo `READY`, provider `VNPAY_SANDBOX`, `acceptingNewPayments=true`, callback healthy.
-2. Đăng nhập, thêm món tại `/cart`; mở `/checkout` và kiểm tra size/topping, promotion, điểm cùng **tổng cuối cùng**.
-3. Nhấn thanh toán một lần; hoàn tất trên Sandbox bằng thẻ TEST.
-4. Xem result/lịch sử. **Verified IPN** mới settlement; Return chỉ điều hướng/đọc trạng thái.
-5. Hủy được xác minh đưa về Home với thông báo/link xem đơn. Nếu còn `PAYMENT_FAILED`, chỉ retry khi backend cho phép hoặc hủy unpaid hợp lệ để tạo đơn mới. `CANCELLED` cần checkout intent/key mới.
-
-Pending/UNKNOWN/REVIEW không được force PAID hoặc tạo giao dịch thay thế. External QueryDr mặc định OFF. Nhận callback không đồng nghĩa SUCCESS E2E đã nghiệm thu.
-
-### F. Troubleshooting
-
-| Hiện tượng | Kiểm tra an toàn |
+| Biến | Nội dung cần điền |
 | --- | --- |
-| `EADDRINUSE` 3000/3001 | `dev:status`; không chạy thêm server; xác minh ownership trước thao tác |
-| CORS | Dùng `localhost:3000` nhất quán; `127.0.0.1` là origin khác |
-| Thiếu DATABASE_URL/JWT_SECRET | Kiểm tra root `.env`, chạy helper auth nếu còn placeholder |
-| Thiếu Prisma Client | `npm run db:generate` tại root |
-| VNPAY chưa bật/admission CLOSED | Đọc status/config; UI giải thích tạm ngừng nhận giao dịch mới |
-| Callback/ngrok không reachable | Kiểm tra mạng, profile/domain đăng ký và ngrok config; giữ continuity cho Attempt mở |
-| Ngrok Free (`ERR_NGROK_6024`) | Cảnh báo nằm trước ứng dụng; frontend/Return không sửa được, không bypass headers/User-Agent |
-| Đơn chờ xử lý | Xem đơn/status; không đổi key để trả trùng hoặc force trạng thái |
+| `DOCKER_DB_PASSWORD` | Tự đặt mật khẩu chỉ gồm chữ/số cho DB Docker; không phải mật khẩu Neon. |
+| `DOCKER_JWT_SECRET` | Secret ngẫu nhiên tối thiểu 32 byte; tạo bằng lệnh bên dưới. |
+| `DOCKER_VNPAY_TMN_CODE`, `DOCKER_VNPAY_HASH_SECRET` | Đúng thông tin Sandbox của nhóm, nhận qua kênh riêng. |
+| `DOCKER_CALLBACK_ORIGIN` | HTTPS domain callback owner đã đăng ký cho merchant; không có `/` cuối hoặc đường dẫn IPN. |
+| `DOCKER_ACCEPT_PAYMENTS` | Giữ `false` khi chuẩn bị hoặc owner chưa online. |
 
-Muốn bỏ hẳn interstitial cần HTTPS callback không chèn cảnh báo, ví dụ tunnel phù hợp hoặc Shared Staging. Staging cần backend HTTPS, DNS/TLS, database/secrets riêng và callback đăng ký tương ứng. Guard hiện giới hạn local/development nên cần task deployment riêng; chưa deploy staging hay đổi IPN trong lần bàn giao này.
+Tạo secret bằng PowerShell, sao chép chuỗi xuất ra vào `DOCKER_JWT_SECRET`:
 
-## 11. API và Database
+```powershell
+$secretBytes = New-Object byte[] 32
+$generator = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$generator.GetBytes($secretBytes)
+$generator.Dispose()
+([BitConverter]::ToString($secretBytes)).Replace('-', '').ToLowerInvariant()
+```
 
-API gồm catalog, auth, cart, orders, payments, loyalty và routes Admin/Staff được phân quyền. Database nhóm catalog/options, user/cart, order snapshots, idempotency, payment/attempt/verification, loyalty award/journal.
+Các biến Docker được truyền qua Compose; không cần chỉnh provider của launcher npm để chạy container. **Không commit `.env`, `docker/local.env`, token ngrok hoặc khóa thật.**
 
-Chi tiết: [API_DESIGN](Docs/API_DESIGN.md), [DATABASE_DESIGN](Docs/DATABASE_DESIGN.md). Frontend không phải nguồn quyết định settlement.
+### Bước 6 — Kiểm tra, build và chạy
 
-## 12. Tài liệu dự án
+```powershell
+docker compose --env-file .env --env-file docker/local.env -f compose.yaml -f compose.neon.yaml config --quiet
+docker compose --env-file .env --env-file docker/local.env -f compose.yaml -f compose.neon.yaml build
+docker compose --env-file .env --env-file docker/local.env -f compose.yaml -f compose.neon.yaml up -d
+docker compose --env-file .env --env-file docker/local.env -f compose.yaml -f compose.neon.yaml ps -a
+```
 
-| Tài liệu | Nội dung |
+- `config --quiet` không báo lỗi: cú pháp cấu hình hợp lệ, chưa chứng minh thông tin đăng nhập đúng.
+- Build đầu có thể mất nhiều phút để tải image/thư viện; các lần sau tận dụng cache.
+- Chờ backend và frontend **healthy**; `health: starting` ngay sau khởi động là bình thường.
+- Mở **http://localhost:3000**, đăng nhập bằng tài khoản Neon hoặc đăng ký Customer mới.
+
+**Không chạy migration, reset, seed hay restore lên Neon chung.** Chỉnh menu/tồn kho/đơn trên profile này ảnh hưởng cả nhóm. Luôn giữ cả hai `--env-file` và hai `-f` khi dùng Neon; bỏ override có thể chuyển backend về DB local.
+
+## 5. Test thanh toán khi owner online
+
+Trước khi owner online, vẫn test được menu, đăng ký/đăng nhập, giỏ hàng và tạo đơn; không coi thanh toán đã nghiệm thu.
+
+1. Owner giữ backend cùng Neon/merchant và ngrok callback đã đăng ký hoạt động. Thành viên không cài hay mở ngrok riêng.
+2. Kiểm tra bằng domain đúng trong `DOCKER_CALLBACK_ORIGIN`:
+
+```powershell
+curl.exe -i "https://YOUR_REGISTERED_OWNER_DOMAIN/payments/vnpay/ipn"
+curl.exe -i "https://YOUR_REGISTERED_OWNER_DOMAIN/payments/vnpay/return"
+```
+
+IPN không chữ ký phải trả HTTP 200 và JSON `RspCode: "99"`; Return không dữ liệu phải trả HTTP 303 về trang kết quả localhost. Đây là kiểm tra đường truyền, chưa xác nhận giao dịch.
+
+3. Khi callback/profile sẵn sàng, đổi `DOCKER_ACCEPT_PAYMENTS=true` trong `docker/local.env`, rồi áp dụng:
+
+```powershell
+docker compose --env-file .env --env-file docker/local.env -f compose.yaml -f compose.neon.yaml up -d --no-build backend frontend
+```
+
+4. Test **chọn món → giỏ → checkout → VNPAY bằng thẻ TEST → xác nhận/lịch sử**. Chỉ IPN được backend xác minh hợp lệ mới chuyển đơn `PAID`; quay về trang thành công chưa đủ. Kiểm tra lỗi/hủy giữ giỏ và không cộng điểm lặp.
+
+Giữ owner online suốt buổi demo. Không tự đổi merchant/domain/khóa hoặc ép trạng thái bằng SQL khi giao dịch chưa rõ kết quả. Chỉ sửa URL trong env không đăng ký lại IPN phía VNPAY.
+
+## 6. Sử dụng hằng ngày
+
+Mở Docker Desktop trước. **Bật lại** mà không build:
+
+```powershell
+docker compose --env-file .env --env-file docker/local.env -f compose.yaml -f compose.neon.yaml up -d --no-build
+```
+
+**Xem lỗi:**
+
+```powershell
+docker compose --env-file .env --env-file docker/local.env -f compose.yaml -f compose.neon.yaml logs --tail 80 backend frontend
+```
+
+Sau khi cập nhật code bằng `git pull`, build lại nếu source/Dockerfile thay đổi. Sửa env thì chạy `up -d` để recreate; `restart` không cập nhật environment. Không dùng `npm run dev:status/recover/stop` để quản lý container.
+
+**Dừng:** đóng nhận thanh toán mới và kiểm tra giao dịch còn chờ, bảo đảm callback owner vẫn hoạt động trước khi chạy:
+
+```powershell
+docker compose --env-file .env --env-file docker/local.env -f compose.yaml -f compose.neon.yaml down
+```
+
+Compose không có cơ chế `safeToStop` của launcher npm. Không dừng máy đang giữ callback khi còn giao dịch chưa giải quyết. `down` giữ volume; **`down -v` xóa volume DB local**. Dữ liệu Neon nằm ngoài volume.
+
+## 7. Tùy chọn: PostgreSQL Docker riêng
+
+Dùng để chạy đủ frontend/backend/DB local theo đề. Không dùng override Neon; điền `docker/local.env`, giữ thanh toán `false`:
+
+```powershell
+docker compose --env-file docker/local.env build
+docker compose --env-file docker/local.env up -d db
+docker compose --env-file docker/local.env ps
+```
+
+Chờ `db` healthy, rồi lần lượt chạy; chỉ tiếp tục khi lệnh trước thành công:
+
+```powershell
+docker compose --env-file docker/local.env run --rm --no-deps backend npm run db:migrate:deploy --workspace backend
+docker compose --env-file docker/local.env run --rm --no-deps backend npm run db:seed --workspace backend
+docker compose --env-file docker/local.env up -d
+```
+
+DB local lưu tài khoản/giỏ/đơn/tồn trong volume, seed chỉ có **2 món mẫu** và không có tài khoản Neon. Hình món nằm trong image frontend. Hai database không tự đồng bộ; callback owner nối Neon không xác nhận được đơn chỉ tồn tại ở DB local. Không chuyển profile trong khi đang thanh toán.
+
+## 8. Xử lý lỗi nhanh
+
+| Lỗi | Cách xử lý |
 | --- | --- |
-| [PDF gốc](Docs/BrewLite-CongNghePhanMem.pdf) / [REQUIREMENTS](Docs/REQUIREMENTS.md) | Baseline và extension được duyệt |
-| [ARCHITECTURE](Docs/ARCHITECTURE.md) | Modules, transactions, callback boundary |
-| [PROJECT_STRUCTURE](Docs/PROJECT_STRUCTURE.md) | Cây thư mục thực tế |
-| [API_DESIGN](Docs/API_DESIGN.md) / [DATABASE_DESIGN](Docs/DATABASE_DESIGN.md) | API, schema và invariants |
-| [DECISIONS](Docs/DECISIONS.md) / [DESIGN_REVIEW](Docs/DESIGN_REVIEW.md) | Quyết định và giới hạn nghiệm thu |
-| [DEVELOPMENT_PLAN](Docs/DEVELOPMENT_PLAN.md) / [TRACEABILITY_MATRIX](Docs/TRACEABILITY_MATRIX.md) | Backlog, requirement/source/tests |
-| [NORMAL_SANDBOX_MODE](Docs/NORMAL_SANDBOX_MODE.md) | Setup, lifecycle, shutdown/recovery |
-| [P00 payment contract](Docs/P00_VNPAY_SANDBOX_PAYMENT_CONTRACT.md) | Frozen VNPAY contract |
-| [Loyalty contract](Docs/L00_LOYALTY_REDEMPTION_CONTRACT.md) | Redeem/reserve/settle/release, debt |
+| Không tìm thấy `docker` | Cài Docker Desktop, mở terminal mới. |
+| Không kết nối `dockerDesktopLinuxEngine` | Mở/restart Docker Desktop; kiểm tra Linux containers và `docker info`. |
+| WSL/virtualization lỗi | Cập nhật WSL, bật virtualization trong BIOS/UEFI, khởi động lại Windows. |
+| Cổng 3000 bị chiếm | Dừng đúng frontend khác nếu không dùng; không cần đóng toàn bộ Docker Desktop. |
+| Cổng 3001 bị chiếm | Docker dùng host **3002 → container 3001**; kiểm tra mapping Compose, không đổi cổng nội bộ. |
+| API sai địa chỉ | Frontend build arg phải là `NEXT_PUBLIC_API_BASE_URL=http://localhost:3002`; đổi giá trị này cần build lại frontend. |
+| Chỉ thấy 2 món / mất tài khoản cũ | Kiểm tra đang dùng DB local hay Neon; đăng nhập đúng database. |
+| Backend không healthy | Xem logs; Neon không tự reset/migrate để sửa lỗi. |
+| `ERR_NGROK_3200` | Callback owner offline; giữ `DOCKER_ACCEPT_PAYMENTS=false`. |
+| Thanh toán chưa có kết quả | Xem trạng thái đơn và callback; không ép PAID hay tạo yêu cầu trả tiền thay thế. |
 
-Các contract B/A/P bổ sung thiết kế. Báo cáo phiên cũ được giữ do script phụ thuộc không phải hướng dẫn vận hành hiện hành.
+## 9. Phạm vi bàn giao
 
-## 13. Kiểm thử
+Đã build image và chạy giao diện Docker đến bước thanh toán; **VNPAY PAID toàn luồng còn chờ kiểm chứng khi owner online**. Bộ Docker hiện phục vụ demo localhost, chưa phải cấu hình Cloud/production.
 
-```powershell
-npm test                                      # Backend unit/HTTP tests
-npm run test --workspace frontend              # Frontend fixture/unit tests
-npm run test:runtime                           # Launcher lifecycle fixtures
-npm run typecheck --workspace frontend
-node node_modules/typescript/bin/tsc --noEmit --project backend/tsconfig.json
-npm run lint
-npm run build
-```
+Cấu trúc chính: `frontend/`, `backend/`, `docker/`, `Docs/`, `Dockerfile`, `compose.yaml`, `compose.neon.yaml`. Test source dùng Jest/Supertest và Node test runner; không chạy automated financial/database tests trên Neon chung.
 
-Database integration chỉ dành cho người chuẩn bị môi trường test PostgreSQL **cô lập**, không phải bước clone/chạy ứng dụng. Không chạy `test:database` hoặc browser harness tạo dữ liệu trên Neon chung. Các suite có điều kiện database/schema riêng; đọc [database test config](backend/jest.database.config.cjs) và [foundation tests](backend/test/database/foundation.spec.ts) trước khi cấu hình. Generate Prisma Client trước typecheck backend.
-
-Browser harness/reconciliation có điều kiện riêng, không chạy tùy tiện trên database demo. Con số PASS lịch sử không bảo đảm kết quả trên máy mới. Không cần chạy migrations, seed hay gateway transactions để kiểm tra tài liệu.
-
-## 14. Git Workflow / Đóng góp
-
-Làm việc trên nhánh được phân công, kiểm tra diff và chỉ stage các file hợp lệ:
-
-```powershell
-git switch sang
-# Kiểm tra diff và chọn đúng từng path để stage
-git add README.md
-git diff --cached
-git commit -m "docs: update BrewLite setup guide"
-git push -u origin sang
-```
-
-Review trước khi merge `sang` vào `main`; tuân thủ branch protection và quy trình của nhóm. Không force push, không bỏ qua conflict. Không commit secrets, `.env`, dump, log hoặc generated artifacts; không `git add .` khi worktree còn thay đổi chưa phân loại.
-
-## 15. Trạng thái dự án
-
-Source có Customer/MOCK, Admin/Staff, Loyalty redemption, VNPAY verified IPN/Return read-only, cancel/recovery UX và Normal launcher. Không coi successful PAID Sandbox E2E đã nghiệm thu chỉ từ tests/giao dịch hủy.
-
-Docker Compose theo PDF chưa có trong repository; browser matrix, hiệu năng và clean-clone đầy đủ cần bằng chứng riêng. Shared Staging/production chưa triển khai. Việc còn lại: [DEVELOPMENT_PLAN](Docs/DEVELOPMENT_PLAN.md).
+Tài liệu bổ sung nằm trong `Docs/`. Hướng dẫn cài đặt hệ thống tham khảo [Docker Desktop Windows](https://docs.docker.com/desktop/setup/install/windows-install/) và [Microsoft WSL](https://learn.microsoft.com/en-us/windows/wsl/install).

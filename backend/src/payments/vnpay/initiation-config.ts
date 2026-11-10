@@ -20,9 +20,10 @@ export function initiationSettings(values: Record<string, unknown>): {
         let database: URL;
         try { database = new URL(String(values.DATABASE_URL)); } catch { throw Error('Invalid Sandbox database'); }
         const local = ['localhost', '127.0.0.1', '[::1]'].includes(database.hostname);
+        const compose = values.BREWLITE_CONTAINER_SANDBOX === 'true' && database.hostname === 'db' && database.pathname === '/brewlite_dev';
         const neon = database.hostname.endsWith('.neon.tech') && database.hostname.includes('-pooler.')
             && database.pathname === '/brewlite_dev' && ['require', 'verify-full'].includes(database.searchParams.get('sslmode') ?? '');
-        if (!['postgresql:', 'postgres:'].includes(database.protocol) || !(local || neon))
+        if (!['postgresql:', 'postgres:'].includes(database.protocol) || !(local || neon || compose))
             throw Error('Sandbox development requires a local database or TLS pooled Neon brewlite_dev');
         if (Number(values.PORT ?? 3001) !== 3001 || (values.FRONTEND_ORIGIN ?? 'http://localhost:3000') !== 'http://localhost:3000'
             || (values.VNPAY_RESULT_URL !== undefined && values.VNPAY_RESULT_URL !== 'http://localhost:3000/payments/vnpay/result')

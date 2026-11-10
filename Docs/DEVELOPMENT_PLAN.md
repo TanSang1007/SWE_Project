@@ -1,3 +1,8 @@
+## Docker local — 2026-11-10
+
+- [x] Thêm source Compose ba service, build targets, database volume, callback ingress và hướng dẫn cấu hình/migration/seed.
+- [ ] Docker Engine build/up, database integration, clean-clone trên Windows và VNPAY PAID E2E chưa nghiệm thu. B19/B20 vẫn mở.
+
 # BrewLite — Kế hoạch phát triển và bàn giao
 
 - [x] **I03 — Danh mục vật tư tập trung trong một file (2026-10-31)** `ingredient-catalog.ts` điều khiển kho/phiếu mới qua DTO `isListed`/`displayName`; bỏ dòng ngừng liệt kê, label đổi tên hiển thị, thêm lại giữ tồn/ID, form tạo thủ công được bỏ khỏi UI. Frontend22/22, backend catalog+policy13/13, PostgreSQL35/35, Edge17 luồng, typecheck/lint source+test và backend/Next build PASS. Database test/profile đã được harness dọn; không ghi Neon hoặc restart runtime người dùng. [Acceptance, evidence và giới hạn](I03_RECEIVING_CATALOG.md).
@@ -96,3 +101,9 @@ Documentation-only checks không chạy migrations/seed/gateway. Nếu dọn evi
 - [x] PENDING/PAYMENT_FAILED chặn mọi ghi Cart phía backend dưới owner lock; giao diện khóa và dẫn tới thanh toán/hủy.
 - [x] Failure giữ nguyên, success xóa toàn bộ Cart của owner trong transaction MOCK/VNPAY/zero; replay không dọn lần hai. Không migration hoặc ghi provenance mới.
 - [ ] Native PostgreSQL concurrency/rollback và browser/provider E2E; đồng bộ backend các thành viên. Kết quả checks trong CART_FAILURE_FIX.md.
+
+## Ảnh menu — 2026-11-03
+
+- [x] Bổ sung JPEG local Cappuccino/Latte/Cold brew, xử lý URL riêng hỏng và reset lỗi khi đổi src/name; không thay database/seed. Prompt/source mapping tại PRODUCT_IMAGES.md.
+- [x] Frontend277/277 tests, TypeScript, lint, Webpack build PASS;3 HTTP asset routes trả200 image/jpeg đúng bytes.
+- [ ] Đối chiếu catalog thực tế nếu database có thêm món ngoài3 tên trong repo; chưa browser E2E trên máy người dùng.

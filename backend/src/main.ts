@@ -13,8 +13,9 @@ async function bootstrap(): Promise<void> {
   configureApp(app);
   app.enableShutdownHooks();
   const port = app.get(ConfigService).getOrThrow<number>('PORT');
-  await app.listen(port, '127.0.0.1');
-  Logger.log(`Application successfully running on port ${port} (http://127.0.0.1:${port})`, 'NestApplication');
+  const host = process.env.BREWLITE_CONTAINER_SANDBOX === 'true' ? '0.0.0.0' : '127.0.0.1';
+  await app.listen(port, host);
+  Logger.log(`Application successfully running on port ${port} (http://${host}:${port})`, 'NestApplication');
   // Parent-only IPC, available only when forked by the local launcher. No HTTP
   // management route and no request can change provider/admission configuration.
   if (process.send) {
