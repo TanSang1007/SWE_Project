@@ -2,6 +2,14 @@
 
 Ba service frontend Next.js, backend NestJS và PostgreSQL18. Database mới nằm trong volume riêng, không dùng Neon. Đây là demo trên localhost, chưa phải triển khai Cloud/production. Backend chạy compiled code với NODE_ENV=development để giữ policy Sandbox; production vẫn bị chặn. Không đổi schema, API hoặc thuật toán thanh toán.
 
+## Chọn cách chạy
+
+Hướng dẫn chính cho thành viên dùng chung database Neon nằm trong README.md, mục 3–6. Chạy cả compose.yaml và compose.neon.yaml; không migrate, seed hoặc reset database Neon.
+
+Các bước bên dưới dành riêng cho PostgreSQL local trong Docker. Database này độc lập với Neon, không có sẵn tài khoản và dữ liệu của nhóm. Callback owner kết nối Neon không xử lý được đơn chỉ tồn tại trong database local.
+
+Khi chạy cùng Neon, thành viên có thể thử giao diện, đăng nhập và giỏ hàng với DOCKER_ACCEPT_PAYMENTS=false trong lúc owner chưa online. Chỉ mở thanh toán sau khi kiểm tra callback owner hoạt động.
+
 ## Chuẩn bị
 
 Docker Desktop đang chạy Linux containers. Dùng Node24 trong image. Chạy các lệnh dưới đây tại thư mục gốc repo, PowerShell. Không chạy song song launcher local chiếm cổng3000/3001/3102. Nếu launcher cũ còn giao dịch chờ, xử lý theo NORMAL_SANDBOX_MODE; không kill/xóa runtime để lấy cổng.
@@ -10,7 +18,7 @@ Docker Desktop đang chạy Linux containers. Dùng Node24 trong image. Chạy c
 Copy-Item docker/config.example docker/local.env
 ```
 
-Điền cấu hình trong docker/local.env: mật khẩu database chỉ chữ/số; JWT secret ngẫu nhiên tối thiểu32 byte; merchant/hash secret VNPAY được cấp; HTTPS callback origin đã đăng ký, không dấu / cuối. Không commit file này. Không copy database URL Neon vào Compose. Docker build context loại toàn bộ .env và cấu hình riêng; secrets chỉ truyền lúc chạy backend, không qua frontend/build args.
+Điền cấu hình trong docker/local.env: mật khẩu database chỉ chữ/số; JWT secret ngẫu nhiên tối thiểu32 byte; merchant/hash secret VNPAY được cấp; HTTPS callback origin đã đăng ký, không dấu / cuối. Không commit file này. Với chế độ local trong tài liệu này, giữ database Docker riêng. Nếu dùng Neon, làm theo README.md và compose.neon.yaml; không ghi trực tiếp URL chứa mật khẩu vào file Compose. Docker build context loại toàn bộ .env và cấu hình riêng; secrets chỉ truyền lúc chạy backend, không qua frontend/build args.
 
 ## Build, migration và khởi động
 
@@ -29,7 +37,7 @@ Chờ db healthy trước migration; nếu database chưa sẵn sàng, xem compo
 
 ## Callback và thanh toán
 
-Container backend chạy cả NestJS và callback ingress; ingress giữ allowlist GET IPN/Return và upstream loopback cũ. Host chỉ mở các cổng trên127.0.0.1; PostgreSQL không publish cổng. Frontend dùng API public localhost:3001; proxy auth gọi backend:3001 trong mạng Compose.
+Container backend chạy cả NestJS và callback ingress; ingress giữ allowlist GET IPN/Return và upstream loopback cũ. Host chỉ mở các cổng trên127.0.0.1; PostgreSQL không publish cổng. Frontend gọi API qua http://localhost:3002 trên máy người dùng; Docker chuyển cổng này vào backend:3001. Proxy đăng nhập gọi http://backend:3001 trong mạng Compose.
 
 Với DB Docker riêng, callback phải tới backend Docker này. Máy owner đang trỏ Neon không thể xác nhận đơn chỉ tồn tại trong DB Docker. Không dùng đồng thời cùng một ngrok domain cho hai máy/tunnel. Giữ merchant/domain hiện có nếu còn giao dịch cần callback; cấu hình domain riêng được đăng ký cho môi trường Docker hoặc chuyển có kế hoạch sau khi môi trường cũ đã an toàn.
 

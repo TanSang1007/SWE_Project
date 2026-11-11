@@ -95,11 +95,31 @@ test('bundled photos replace absent/placeholder photos of the known menu drinks'
   assert.deepEqual(productImageCandidates(drinkPlaceholder+'?v=1',' Latte '), ['/images/latte.jpg',drinkPlaceholder]);
   assert.deepEqual(productImageCandidates(drinkPlaceholder,'Cold_brew'), ['/images/cold-brew.jpg',drinkPlaceholder]);
 });
-test('custom product photos stay first; broken custom paths have an exact-drink local recovery', () => {
-  const {productImageCandidates,drinkPlaceholder}=require('../src/lib/product-images.ts');
-  assert.deepEqual(productImageCandidates('/images/my-latte.jpg','Latte'), ['/images/my-latte.jpg','/images/latte.jpg',drinkPlaceholder]);
-  assert.deepEqual(productImageCandidates('/images/latte.jpg','Latte'), ['/images/latte.jpg',drinkPlaceholder]);
-  for(const name of ['Unknown drink','constructor','__proto__']) assert.deepEqual(productImageCandidates('',name),[drinkPlaceholder]);
+test('known drinks use bundled photos; unknown drinks keep custom photos', () => {
+  const { productImageCandidates, drinkPlaceholder } =
+    require('../src/lib/product-images.ts');
+
+  assert.deepEqual(
+    productImageCandidates('/images/my-latte.jpg', 'Latte'),
+    ['/images/latte.jpg', drinkPlaceholder]
+  );
+
+  assert.deepEqual(
+    productImageCandidates('/images/latte.jpg', 'Latte'),
+    ['/images/latte.jpg', drinkPlaceholder]
+  );
+
+  assert.deepEqual(
+    productImageCandidates('/images/custom.jpg', 'Unknown drink'),
+    ['/images/custom.jpg', drinkPlaceholder]
+  );
+
+  for (const name of ['Unknown drink', 'constructor', '__proto__']) {
+    assert.deepEqual(
+      productImageCandidates('', name),
+      [drinkPlaceholder]
+    );
+  }
 });
 test('the seed image URLs have real JPEG assets and known placeholder cards render their own photo', () => {
   for(const name of ['cappuccino','latte','cold-brew']) {
