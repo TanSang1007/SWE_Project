@@ -1,3 +1,7 @@
+## Task9 / B19 — Docker local
+
+compose.yaml, Dockerfile, docker/backend.cjs và [DOCKER](DOCKER.md) cung cấp ba service và hướng dẫn migration/seed/callback. Config development mở hostname db chỉ khi container opt-in; regression ở vnpay-initiation.spec.ts. Có source không đồng nghĩa Docker runtime/E2E đạt DoD.
+
 # BrewLite — Ma trận truy vết
 
 **Cart preservation fix 2026-11-02 — FR08:** Người dùng yêu cầu sửa lỗi mất giỏ khi thanh toán thất bại. `POST /orders` giữ nguyên Cart thay vì xóa khi tạo PENDING; settlement tiếp tục không sửa Cart, bao gồm failure/retry/success và callback lặp. Không thay schema, API/DTO, quyền, idempotency hoặc tồn kho. Thay đổi này supersede quy tắc consume-Cart-at-create của amendment 2026-10-22; các mô tả clear/consume cũ bên dưới là lịch sử. Tests: `cart-payment-preservation.spec.ts`, cập nhật database orders/checkout-lifecycle; xem [chi tiết](CART_FAILURE_FIX.md).

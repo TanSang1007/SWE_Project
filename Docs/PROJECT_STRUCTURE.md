@@ -1,3 +1,7 @@
+## Docker local
+
+Root Dockerfile, .dockerignore, compose.yaml; docker/backend.cjs quản lý Nest+ingress; docker/config.example là mẫu cấu hình. docker/local.env bị ignore. [Hướng dẫn](DOCKER.md).
+
 # BrewLite — Cấu trúc repository
 
 I03 amendment2026-10-31: `backend/src/ingredients/ingredient-catalog.ts` là file chỉnh danh mục duy nhất, có label hiển thị và kiểm tra cấu hình; IngredientService cung cấp metadata cho frontend, không có import code backend sang frontend. Kiểm thử mới `backend/test/ingredient-catalog.spec.ts`, mở rộng database/frontend tests và browser harness cho luồng danh mục tập trung. [Hướng dẫn](I03_RECEIVING_CATALOG.md).

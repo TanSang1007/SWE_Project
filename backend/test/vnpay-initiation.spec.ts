@@ -87,3 +87,13 @@ describe('initiation/status HTTP contract', () => {
             await request(app.getHttpServer()).get('/orders/' + orderId + '/payment-attempts?' + query).set('Authorization', token()).expect(400);
     });
 });
+
+test('Compose database requires explicit container opt-in and the dedicated database', () => {
+    const compose = { ...env, NODE_ENV: 'development', VNPAY_INITIATION_TEST_ONLY: 'false', VNPAY_SANDBOX_ENABLED: 'true',
+        DATABASE_URL: 'postgresql://fixture:fixture@db:5432/brewlite_dev', BREWLITE_CONTAINER_SANDBOX: 'true' };
+    expect(initiationSettings(compose).VNPAY_INITIATION_CONFIG).not.toBeNull();
+    expect(() => initiationSettings({ ...compose, BREWLITE_CONTAINER_SANDBOX: 'false' })).toThrow();
+    expect(() => initiationSettings({ ...compose, DATABASE_URL: 'postgresql://fixture:fixture@other:5432/brewlite_dev' })).toThrow();
+    expect(() => initiationSettings({ ...compose, DATABASE_URL: 'postgresql://fixture:fixture@db:5432/other' })).toThrow();
+    expect(() => initiationSettings({ ...compose, NODE_ENV: 'production' })).toThrow();
+});

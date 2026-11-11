@@ -1,3 +1,7 @@
+## Compose local — 2026-11-10
+
+Dockerfile có hai target frontend/backend; Compose có ba service với PostgreSQL18 volume riêng. Backend container chạy Nest và ingress callback cùng network namespace, giữ upstream loopback; auth proxy Next gọi backend:3001. Public/browser URLs giữ localhost. Không đổi schema/API. [Runbook và giới hạn](DOCKER.md).
+
 # BrewLite — Kiến trúc hệ thống
 
 I03 amendment2026-10-31: backend giữ nguồn danh mục tại `ingredient-catalog.ts`, chuẩn hóa/kiểm tra cấu hình trước khi khởi tạo hoặc đọc metadata. GET ingredients trả `isListed`/`displayName`; frontend không import code backend và không có danh sách ẩn riêng theo tên. UI dùng metadata cho kho/phiếu mới và tính tổng từ các bản ghi đang liệt kê; chứng từ/recount dùng bản ghi cũ. Không schema/migration hoặc nhân bản dữ liệu tồn vào file. [Hướng dẫn](I03_RECEIVING_CATALOG.md).
