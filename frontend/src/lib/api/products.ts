@@ -17,7 +17,7 @@ function money(value: unknown): string {
   return value;
 }
 export function isProductId(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+  return /^[A-Za-z0-9_-]{1,64}$/.test(value);
 }
 function product(value: unknown): Product {
   const data = record(value); const id = text(data.id);

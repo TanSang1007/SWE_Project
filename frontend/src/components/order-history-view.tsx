@@ -64,10 +64,10 @@ export function OrderDetailContent({ order, attempt, attemptUnavailable }: { ord
       {order.paidAt && <div><dt>Thời điểm thanh toán</dt><dd><time dateTime={order.paidAt}>{formatOrderTime(order.paidAt)}</time></dd></div>}
       <div><dt>Kết quả thanh toán cục bộ gần nhất</dt><dd>{order.paymentStatus === 'SUCCEEDED' ? 'Thành công' : order.paymentStatus === 'FAILED' ? 'Thất bại' : 'Chưa có kết quả'}</dd></div>
       <div><dt>Điểm từ đơn này</dt><dd>{order.earnedPoints === null ? 'Chưa phát sinh' : order.earnedPoints.toLocaleString('vi-VN') + ' điểm'}</dd></div></dl>
-    {attempt && <div className="gateway-checkout"><p role="status">{paymentMessage(attempt)}</p><p>Kết quả cục bộ ở trên có thể thuộc lần thanh toán trước.</p><Link href={resultPath(attempt.attemptId)}>Kiểm tra kết quả giao dịch hiện tại</Link></div>}
-    {attemptUnavailable && <p role="alert">Chưa đọc được giao dịch hiện tại. Kết quả cục bộ ở trên có thể thuộc lần trước; hãy tải lại trước khi thanh toán.</p>}
+    {attempt && <div className="gateway-checkout"><p role="status">{paymentMessage(attempt)}</p><Link href={resultPath(attempt.attemptId)}>Kiểm tra kết quả giao dịch hiện tại</Link></div>}
+    {attemptUnavailable && <p role="alert">Chưa đọc được trạng thái giao dịch hiện tại. Vui lòng tải lại trước khi thanh toán.</p>}
     {['PENDING', 'PAYMENT_FAILED'].includes(order.status) && <p>Đơn chưa hoàn tất. <Link className="button" href={`/checkout?orderId=${order.id}`}>Tiếp tục thanh toán</Link></p>}
-    {order.status === 'CANCELLED' && <p>Đơn đã hủy. Trạng thái này không xác nhận việc hoàn tiền.</p>}
+    {order.status === 'CANCELLED' && <p>Đơn hàng đã hủy.</p>}
     <div className="order-history-links"><Link href="/orders">Về lịch sử đơn hàng</Link><Link href="/">Về thực đơn</Link></div>
   </article>;
 }

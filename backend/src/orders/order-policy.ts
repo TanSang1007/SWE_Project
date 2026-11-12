@@ -1,7 +1,7 @@
 import { ConflictException } from '@nestjs/common';
 import type { Prisma } from '../generated/prisma/client';
 export async function lockUser(tx: Prisma.TransactionClient, userId: string) {
-  await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
+  await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
 }
 export async function assertNoActiveOrder(tx: Prisma.TransactionClient, userId: string) {
   const order = await tx.order.findFirst({ where: { userId, status: { in: ['PENDING', 'PAYMENT_FAILED'] } }, select: { id: true } });

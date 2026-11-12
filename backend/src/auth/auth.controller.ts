@@ -13,7 +13,7 @@ export class AuthController {
   async login(@Body() credentials: CredentialsDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     this.sessions.assertOrigin(req);
     const result = await this.auth.login(credentials);
-    return this.sessions.create(result.user.id, res);
+    return this.sessions.create(result.user, res);
   }
   @Post('session')
   @HttpCode(200)

@@ -55,7 +55,7 @@ const labels={OPENING:'Số dư đầu kỳ',EARN:'Điểm thưởng',RESERVE:'G
 const change=(n:number|string)=>{const v=BigInt(n);return (v>0n?'+':'')+v.toLocaleString('vi-VN');};
 export function LoyaltyHistoryContent({state,more,retry}:{state:HistoryState;more:()=>void;retry:()=>void}){
   return <section className="state-panel loyalty-history" aria-labelledby="loyalty-history-heading" aria-busy={state.loading}>
-    <h2 id="loyalty-history-heading">Lịch sử điểm tích lũy</h2><p>Lịch sử từ thời điểm nâng cấp tính năng. Số dư đầu kỳ không phải một lần cộng điểm mới.</p>
+    <h2 id="loyalty-history-heading">Lịch sử điểm tích lũy</h2>
     {!state.items.length&&!state.loading&&!state.error&&<p>Chưa có giao dịch điểm.</p>}
     <ol>{state.items.map((e,i)=><li key={`${e.orderId??'opening'}:${e.kind}:${e.createdAt}:${i}`} data-loyalty-kind={e.kind}>
       <strong>{labels[e.kind]} · {e.points.toLocaleString('vi-VN')} điểm</strong><p>Điểm có thể dùng: {change(e.availableChange)}</p>

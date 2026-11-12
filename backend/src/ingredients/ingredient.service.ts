@@ -1,5 +1,4 @@
 import { BadRequestException, ConflictException, HttpException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
 import { Prisma, type Ingredient, type IngredientCountStatus, type UserRole } from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { requireIdempotencyKey } from '../common/idempotency';
@@ -29,7 +28,9 @@ export class IngredientService {
   private async read<T>(work: () => Promise<T>): Promise<T> { try { return await work(); } catch (e) { if (e instanceof HttpException) throw e; throw unavailable(); } }
   private async transaction<T>(actorId: string, work: (tx: Tx) => Promise<T>): Promise<T> {
     try { return await this.db.$transaction(async tx => {
-      await tx.$executeRaw`SELECT set_config('lock_timeout','200ms',true), set_config('statement_timeout','300ms',true)`;
+      await (this.db.transactionOptions?.timeout === 5000
+        ? tx.$executeRaw`SELECT set_config('lock_timeout','2000ms',true), set_config('statement_timeout','4000ms',true)`
+        : tx.$executeRaw`SELECT set_config('lock_timeout','200ms',true), set_config('statement_timeout','300ms',true)`);
       await lockUser(tx, actorId);
       return work(tx);
     }, this.db.transactionOptions ?? { maxWait: 2000, timeout: 5000 }); }
@@ -57,7 +58,7 @@ export class IngredientService {
           count(*) FILTER (WHERE quantity>=low_stock_threshold AND quantity>0)::integer AS "inStock",
           count(*) FILTER (WHERE quantity>0 AND quantity<low_stock_threshold)::integer AS "lowStock",
           count(*) FILTER (WHERE quantity=0)::integer AS "outOfStock",
-          (SELECT count(*)::integer FROM ingredient_counts WHERE status='SUBMITTED' AND (${role === 'ADMIN'} OR created_by_id=${actorId}::uuid)) AS "pendingCounts"
+          (SELECT count(*)::integer FROM ingredient_counts WHERE status='SUBMITTED' AND (${role === 'ADMIN'} OR created_by_id=${actorId})) AS "pendingCounts"
         FROM ingredients`;
       return rows[0];
     });
@@ -87,7 +88,7 @@ export class IngredientService {
       }
       const missing=definitions.filter(i=>!existing.some(e=>e.normalizedName===i.normalizedName));
       const created=missing.length?(await tx.ingredient.createMany({skipDuplicates:true,data:missing.map(i=>({
-        ...i,id:randomUUID(),createdById:actorId,lowStockThreshold:unitThreshold(i.unit),
+        ...i,createdById:actorId,lowStockThreshold:unitThreshold(i.unit),
         requestKey:'catalog-v1:'+requestHash(i.normalizedName),requestHash:requestHash({name:i.name,unit:i.unit,threshold:unitThreshold(i.unit).toFixed(3)}),
       }))})).count:0;
       if(missing.length){
@@ -99,15 +100,15 @@ export class IngredientService {
   }
   private async ingredientRows(tx: Tx, ids: string[], lock: boolean) {
     const sorted = [...ids].sort();
-    if (lock) await tx.$queryRaw(Prisma.sql`SELECT id FROM ingredients WHERE id IN (${Prisma.join(sorted.map(id => Prisma.sql`${id}::uuid`))}) ORDER BY id FOR UPDATE`);
+    if (lock) await tx.$queryRaw(Prisma.sql`SELECT id FROM ingredients WHERE id IN (${Prisma.join(sorted.map(id => Prisma.sql`${id}`))}) ORDER BY id FOR UPDATE`);
     const rows = await tx.ingredient.findMany({ where: { id: { in: sorted } }, orderBy: { id: 'asc' } });
     if (rows.length !== ids.length) throw new NotFoundException({ code: 'INGREDIENT_NOT_FOUND', message: 'Không tìm thấy nguyên liệu.' });
     return new Map(rows.map(i => [i.id, i]));
   }
   private async documentLock(tx: Tx, kind: 'receipt' | 'count', id: string, ownerId?: string) {
-    if (kind === 'receipt') await tx.$queryRaw`SELECT id FROM ingredient_receipts WHERE id=${id}::uuid FOR UPDATE`;
-    else if (ownerId) await tx.$queryRaw`SELECT id FROM ingredient_counts WHERE id=${id}::uuid AND created_by_id=${ownerId}::uuid FOR UPDATE`;
-    else await tx.$queryRaw`SELECT id FROM ingredient_counts WHERE id=${id}::uuid FOR UPDATE`;
+    if (kind === 'receipt') await tx.$queryRaw`SELECT id FROM ingredient_receipts WHERE id=${id} FOR UPDATE`;
+    else if (ownerId) await tx.$queryRaw`SELECT id FROM ingredient_counts WHERE id=${id} AND created_by_id=${ownerId} FOR UPDATE`;
+    else await tx.$queryRaw`SELECT id FROM ingredient_counts WHERE id=${id} FOR UPDATE`;
   }
   async createReceipt(actorId: string, key: string | undefined, input: ReceiptCreateDto) {
     requireIdempotencyKey(key); uniqueLines(input.lines);
@@ -119,17 +120,17 @@ export class IngredientService {
       const ingredients = await this.ingredientRows(tx, lines.map(l => l.ingredientId), false);
       for (const l of lines) quantity(l.quantity, ingredients.get(l.ingredientId)!.unit, true);
       const doc = await tx.ingredientReceipt.create({ data: { createdById: actorId, requestKey: key, requestHash: hash, note } });
-      await tx.ingredientReceiptLine.createMany({ data: lines.map(l => ({ ...l, id: randomUUID(), receiptId: doc.id })) });
+      await tx.ingredientReceiptLine.createMany({ data: lines.map(l => ({ ...l, receiptId: doc.id })) });
       return receiptDto(await tx.ingredientReceipt.findUniqueOrThrow({ where: { id: doc.id }, include: receiptInclude }));
     });
   }
   // One bulk CAS and one movement batch: bounded round trips for up to50 lines.
   private async applyStock(tx: Tx, updates: { ingredient: Ingredient; after: Prisma.Decimal; source: { receiptLineId: string } | { countLineId: string } }[], actorId: string, now: Date) {
     for (const u of updates) if (u.ingredient.version >= 2147483647 || u.after.isNegative() || u.after.gt('999999999.999')) throw new ConflictException({ code: 'INVALID_QUANTITY', message: 'Tồn kho vượt giới hạn cho phép.' });
-    const rows = updates.map(u => Prisma.sql`(${u.ingredient.id}::uuid,${u.ingredient.version}::integer,${u.after.toFixed(3)}::numeric)`);
+    const rows = updates.map(u => Prisma.sql`(${u.ingredient.id}::text,${u.ingredient.version}::integer,${u.after.toFixed(3)}::numeric)`);
     const changed = await tx.$executeRaw(Prisma.sql`UPDATE ingredients AS i SET quantity=v.quantity,version=i.version+1,updated_at=${now} FROM (VALUES ${Prisma.join(rows)}) AS v(id,version,quantity) WHERE i.id=v.id AND i.version=v.version`);
     if (changed !== updates.length) throw stockChanged();
-    await tx.ingredientMovement.createMany({ data: updates.map(u => ({ id: randomUUID(), ingredientId: u.ingredient.id, ...u.source, beforeQuantity: u.ingredient.quantity, afterQuantity: u.after, delta: u.after.minus(u.ingredient.quantity), actorId, createdAt: now })) });
+    await tx.ingredientMovement.createMany({ data: updates.map(u => ({ ingredientId: u.ingredient.id, ...u.source, beforeQuantity: u.ingredient.quantity, afterQuantity: u.after, delta: u.after.minus(u.ingredient.quantity), actorId, createdAt: now })) });
   }
   async confirmReceipt(actorId: string, id: string, expectedVersion: number) {
     return this.transaction(actorId, async tx => {
@@ -162,7 +163,7 @@ export class IngredientService {
       const ingredients = await this.ingredientRows(tx, lines.map(l => l.ingredientId), true);
       for (const l of lines) { const i = ingredients.get(l.ingredientId)!; quantity(l.actualQuantity, i.unit); if (i.version !== l.expectedVersion) throw stockChanged(); }
       const doc = await tx.ingredientCount.create({ data: { createdById: actorId, requestKey: key, requestHash: hash, note, recountOfId } });
-      await tx.ingredientCountLine.createMany({ data: lines.map(l => ({ id: randomUUID(), countId: doc.id, ingredientId: l.ingredientId, actualQuantity: l.actualQuantity, systemQuantity: ingredients.get(l.ingredientId)!.quantity, ingredientVersion: l.expectedVersion, note: l.note })) });
+      await tx.ingredientCountLine.createMany({ data: lines.map(l => ({ countId: doc.id, ingredientId: l.ingredientId, actualQuantity: l.actualQuantity, systemQuantity: ingredients.get(l.ingredientId)!.quantity, ingredientVersion: l.expectedVersion, note: l.note })) });
       return countDto(await tx.ingredientCount.findUniqueOrThrow({ where: { id: doc.id }, include: countInclude }));
     });
   }

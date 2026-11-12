@@ -1,7 +1,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import type { Prisma } from '../generated/prisma/client';
-import type { CatalogProductDto, ProductDetailDto, ProductListDto } from './dto/catalog.dto';
+import { normalizeCatalogId, type CatalogProductDto, type ProductDetailDto, type ProductListDto } from './dto/catalog.dto';
+
+function compareIds(a: string, b: string) {
+  const ma = /^BR(\d+)$/i.exec(a);
+  const mb = /^BR(\d+)$/i.exec(b);
+  if (ma && mb) return Number(ma[1]) - Number(mb[1]);
+  const na = /^\d+$/.test(a) ? Number(a) : Number.POSITIVE_INFINITY;
+  const nb = /^\d+$/.test(b) ? Number(b) : Number.POSITIVE_INFINITY;
+  return na !== nb ? na - nb : a.localeCompare(b);
+}
 
 const productSelect = {
   id: true, name: true, price: true, imageUrl: true, stock: true, isActive: true,
@@ -14,13 +23,15 @@ export class CatalogService {
   constructor(private readonly prisma: PrismaService) {}
 
   async listProducts(): Promise<ProductListDto> {
-    const products = await this.prisma.product.findMany({ where: { isActive: true }, select: productSelect, orderBy: { id: 'asc' } });
+    const products = await this.prisma.product.findMany({ where: { isActive: true }, select: productSelect });
+    products.sort((a, b) => compareIds(a.id, b.id));
     return { items: products.map(toProductDto), currency: 'VND' };
   }
 
   async getProduct(id: string): Promise<ProductDetailDto> {
+    const normalizedId = String(normalizeCatalogId(id));
     const product = await this.prisma.product.findUnique({
-      where: { id },
+      where: { id: normalizedId },
       select: {
         ...productSelect,
         sizes: { where: { isActive: true }, select: { size: true, extraPrice: true } },
@@ -38,9 +49,11 @@ export class CatalogService {
       ...toProductDto(product),
       sizes: product.sizes.sort((a, b) => sizeOrder.indexOf(a.size) - sizeOrder.indexOf(b.size))
         .map(({ size, extraPrice }) => ({ size, extraPrice: extraPrice.toFixed(0) })),
-      toppings: product.toppings.map(({ topping }) => ({
-        id: topping.id, name: topping.name, price: topping.price.toFixed(0),
-      })),
+      toppings: [...product.toppings]
+        .sort((a, b) => compareIds(a.topping.id, b.topping.id))
+        .map(({ topping }) => ({
+          id: topping.id, name: topping.name, price: topping.price.toFixed(0),
+        })),
     };
   }
 }
@@ -55,4 +68,3 @@ function toProductDto(product: CatalogRow): CatalogProductDto {
     available: product.isActive && product.stock > 0 && product.sizes.some(s => ['S', 'M', 'L'].includes(s.size)),
   };
 }
-
