@@ -14,7 +14,7 @@ export async function orderRequest(path: string, method = 'GET', body?: OrderInp
     const value = await res.json();
     if (!res.ok) {
       const id = value?.error?.details?.existingOrderId;
-      throw new OrderError(value?.error?.code ?? 'UNAVAILABLE', typeof id === 'string' && /^[0-9a-f-]{36}$/i.test(id) ? id : undefined);
+      throw new OrderError(value?.error?.code ?? 'UNAVAILABLE', typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id) ? id : undefined);
     }
     if (useAuthStore.getState().accessToken !== token) throw new OrderError('UNAUTHORIZED');
     const order = parseOrder(value);
@@ -33,7 +33,7 @@ export function parseOrder(value: unknown): Order {
       || !(o.cancellationReason === null || typeof o.cancellationReason === 'string')
       || (o.expiresAt !== null && (!o.paymentStartedAt || Date.parse(o.expiresAt) - Date.parse(o.paymentStartedAt) !== 600000))) throw new OrderError('UNAVAILABLE');
   }
-  if (typeof o.id !== 'string' || !/^[0-9a-f-]{36}$/i.test(o.id) || typeof o.orderCode !== 'string'
+  if (typeof o.id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(o.id) || typeof o.orderCode !== 'string'
     || !['PENDING', 'PAYMENT_FAILED', 'CANCELLED', 'PAID', 'PREPARING', 'READY', 'COMPLETED'].includes(o.status)
     || o.currency !== 'VND' || !money(o.subtotal) || !money(o.discountAmount) || !money(o.total)
     || typeof o.createdAt !== 'string' || !Number.isFinite(Date.parse(o.createdAt))

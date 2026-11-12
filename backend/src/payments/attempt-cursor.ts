@@ -24,7 +24,7 @@ export function decodeAttemptCursor(secret: string, owner: string, order: string
         decipher.setAuthTag(raw.subarray(-16));
         const p = JSON.parse(Buffer.concat([decipher.update(raw.subarray(12, -16)), decipher.final()]).toString('utf8')) as Position;
         if (!p || Object.keys(p).sort().join(',') !== 'date,id,order,owner,version' || p.version !== 1 || p.owner !== owner || p.order !== order
-            || typeof p.date !== 'string' || new Date(p.date).toISOString() !== p.date || typeof p.id !== 'string' || !/^[a-f0-9-]{36}$/.test(p.id))
+            || typeof p.date !== 'string' || new Date(p.date).toISOString() !== p.date || typeof p.id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(p.id))
             throw Error();
         return { date: new Date(p.date), id: p.id };
     }

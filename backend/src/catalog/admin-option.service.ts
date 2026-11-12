@@ -2,6 +2,13 @@ import { BadRequestException, ConflictException, HttpException, Injectable, NotF
 import { Prisma, type ProductSize } from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import type { AdminSizeCreateDto, AdminSizeUpdateDto, ToppingCreateDto, ToppingUpdateDto } from './admin-option.dto';
+
+function compareIds(a: string, b: string) {
+  const na = /^\d+$/.test(a) ? Number(a) : Number.POSITIVE_INFINITY;
+  const nb = /^\d+$/.test(b) ? Number(b) : Number.POSITIVE_INFINITY;
+  return na !== nb ? na - nb : a.localeCompare(b);
+}
+
 const topSelect = { id: true, name: true, price: true, isActive: true, version: true, createdAt: true, updatedAt: true } satisfies Prisma.ToppingSelect;
 type ToppingRow = Prisma.ToppingGetPayload<{ select: typeof topSelect }>;
 const conflict = () => new ConflictException({ code: 'CONCURRENT_UPDATE', message: 'Configuration changed; reload and confirm again' });
@@ -29,12 +36,14 @@ export class AdminOptionService {
   }
   private transaction<T>(work: (tx: Prisma.TransactionClient) => Promise<T>) {
     return this.db.$transaction(async tx => {
-      await tx.$executeRaw`SELECT set_config('lock_timeout', '200ms', true), set_config('statement_timeout', '300ms', true)`;
+      await (this.db.transactionOptions?.timeout === 5000
+        ? tx.$executeRaw`SELECT set_config('lock_timeout', '2000ms', true), set_config('statement_timeout', '4000ms', true)`
+        : tx.$executeRaw`SELECT set_config('lock_timeout', '200ms', true), set_config('statement_timeout', '300ms', true)`);
       return work(tx);
-    }, { maxWait: 50, timeout: 400 });
+    }, this.db.transactionOptions ?? { maxWait: 50, timeout: 400 });
   }
   private async parent(tx: Prisma.TransactionClient, id: string, version?: number) {
-    if (version !== undefined) await tx.$queryRaw`SELECT id FROM products WHERE id = ${id}::uuid FOR UPDATE`;
+    if (version !== undefined) await tx.$queryRaw`SELECT id FROM products WHERE id = ${id} FOR UPDATE`;
     const p = await tx.product.findUnique({ where: { id }, include: { sizes: true } });
     if (!p) throw missing('PRODUCT');
     if (version !== undefined && p.version !== version) throw conflict();
@@ -46,12 +55,11 @@ export class AdminOptionService {
     return version + 1;
   }
   sizes(id: string) {
-    return this.safely(() => this.transaction(async tx => {
-      // Keep list and parent revision coherent with config mutations.
-      await tx.$queryRaw`SELECT id FROM products WHERE id = ${id}::uuid FOR SHARE`;
-      const p = await this.parent(tx, id);
+    return this.safely(async () => {
+      const p = await this.db.product.findUnique({ where: { id }, select: { version: true, sizes: true } });
+      if (!p) throw missing('PRODUCT');
       return { items: p.sizes.sort((a, b) => ['S', 'M', 'L'].indexOf(a.size) - ['S', 'M', 'L'].indexOf(b.size)).map(sizeDto), productVersion: p.version };
-    }));
+    });
   }
   createSize(id: string, body: AdminSizeCreateDto) {
     return this.safely(() => this.transaction(async tx => {
@@ -79,11 +87,17 @@ export class AdminOptionService {
       await tx.productSize.delete({ where: { productId_size: { productId: id, size } } }); await this.bump(tx, id, version);
     }));
   }
-  toppings() { return this.safely(async () => ({ items: (await this.db.topping.findMany({ select: topSelect, orderBy: { id: 'asc' } })).map(topDto) })); }
+  toppings() {
+    return this.safely(async () => {
+      const rows = await this.db.topping.findMany({ select: topSelect });
+      rows.sort((a, b) => compareIds(a.id, b.id));
+      return { items: rows.map(topDto) };
+    });
+  }
   topping(id: string) { return this.safely(async () => { const row = await this.db.topping.findUnique({ where: { id }, select: topSelect }); if (!row) throw missing('TOPPING'); return topDto(row); }); }
   createTopping(body: ToppingCreateDto) { return this.safely(async () => topDto(await this.db.topping.create({ select: topSelect, data: { name: body.name, price: new Prisma.Decimal(body.price) } }))); }
   private async currentTopping(tx: Prisma.TransactionClient, id: string, version: number) {
-    await tx.$queryRaw`SELECT id FROM toppings WHERE id = ${id}::uuid FOR UPDATE`;
+    await tx.$queryRaw`SELECT id FROM toppings WHERE id = ${id} FOR UPDATE`;
     const row = await tx.topping.findUnique({ where: { id }, select: topSelect }); if (!row) throw missing('TOPPING'); if (row.version !== version) throw conflict(); return row;
   }
   updateTopping(id: string, body: ToppingUpdateDto) {
@@ -104,21 +118,27 @@ export class AdminOptionService {
     }));
   }
   private async associations(tx: Prisma.TransactionClient, id: string, version: number) {
-    const rows = await tx.productTopping.findMany({ where: { productId: id }, include: { topping: { select: topSelect } }, orderBy: { toppingId: 'asc' } });
+    const rows = await tx.productTopping.findMany({ where: { productId: id }, include: { topping: { select: topSelect } } });
+    rows.sort((a, b) => compareIds(a.toppingId, b.toppingId));
     return { items: rows.map(r => topDto(r.topping)), productVersion: version };
   }
   productToppings(id: string) {
-    return this.safely(() => this.transaction(async tx => {
-      await tx.$queryRaw`SELECT id FROM products WHERE id = ${id}::uuid FOR SHARE`;
-      const p = await this.parent(tx, id); return this.associations(tx, id, p.version);
-    }));
+    return this.safely(async () => {
+      const p = await this.db.product.findUnique({
+        where: { id },
+        select: { version: true, toppings: { include: { topping: { select: topSelect } } } },
+      });
+      if (!p) throw missing('PRODUCT');
+      const sorted = [...p.toppings].sort((a, b) => compareIds(a.toppingId, b.toppingId));
+      return { items: sorted.map(r => topDto(r.topping)), productVersion: p.version };
+    });
   }
   attach(id: string, toppingId: string, version: number) {
     return this.safely(() => this.transaction(async tx => {
       await this.parent(tx, id, version);
-      await tx.$queryRaw`SELECT id FROM toppings WHERE id = ${toppingId}::uuid FOR SHARE`;
       if (!await tx.topping.findUnique({ where: { id: toppingId }, select: { id: true } })) throw missing('TOPPING');
-      await tx.productTopping.create({ data: { productId: id, toppingId } }); return this.associations(tx, id, await this.bump(tx, id, version));
+      await tx.productTopping.create({ data: { productId: id, toppingId } });
+      return this.associations(tx, id, await this.bump(tx, id, version));
     }));
   }
   detach(id: string, toppingId: string, version: number) {

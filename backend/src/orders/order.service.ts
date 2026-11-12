@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, HttpException, Injectable, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
 import { Prisma, type OrderStatus, type UserRole } from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
@@ -103,7 +103,7 @@ export class OrderService {
         effectivePaymentProvider(this.config);
         assertVnpayMinimum(loyalty.total);
         if (loyalty.total.gt(0)) assertPaymentAdmission(this.config);
-        const id = randomUUID();
+        const [{ id }] = await tx.$queryRaw<{ id: string }[]>`SELECT nextval('orders_id_seq')::text AS id`;
         const effects = r > 0 ? [effect(account, 'RESERVE', r, { orderId: id, cycle: 1 })] : [];
         for (const demand of priced.stockRequirements) {
           if (demand.version >= 2147483647) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Stock version bounds exceeded' });
@@ -113,14 +113,15 @@ export class OrderService {
         }
         // VNPAY timestamps have whole-second precision; retain exactly 600s.
         const startedAt = new Date(Math.floor(Date.now() / 1000) * 1000);
-        await tx.order.create({ data: { id, orderCode: `BL-${id.toUpperCase()}`, userId, status: 'PENDING',
+        await tx.order.create({ data: { id, orderCode: `BL${id.padStart(3, '0')}`, userId, status: 'PENDING',
           paymentStartedAt: startedAt, paymentExpiresAt: new Date(startedAt.getTime() + PAYMENT_WINDOW_MS),
           subtotal: priced.subtotal, discountAmount: priced.discountAmount, total: loyalty.total, redeemedPoints: r, loyaltyDiscountAmount: loyalty.discount,
           redemptionState: r > 0 ? 'RESERVED' : 'NONE', reservationCycle: r > 0 ? 1 : 0,
           promotionId: promotion?.id ?? null, promotionCodeSnapshot: promotion?.code ?? null } });
         // Bulk snapshots avoid a nested write for every configuration/topping.
         // Await each parent batch before its children on this same transaction.
-        const snapshots = priced.items.map(item => ({ id: randomUUID(), item }));
+        const itemIds = await tx.$queryRaw<{ id: string }[]>`SELECT nextval('order_items_id_seq')::text AS id FROM generate_series(1, ${priced.items.length}::integer)`;
+        const snapshots = priced.items.map((item, idx) => ({ id: itemIds[idx].id, item }));
         await tx.orderItem.createMany({ data: snapshots.map(({ id: itemId, item }) => ({ id: itemId, orderId: id,
           productId: item.productId, productNameSnapshot: item.productName, size: item.size,
           basePrice: item.basePrice, sizeExtraPrice: item.sizeExtraPrice, unitPrice: item.unitPrice, qty: item.qty, lineTotal: item.lineTotal })) });
@@ -205,7 +206,7 @@ export class OrderService {
         await lockUser(tx, userId);
         // Exclude another owner's row before PostgreSQL tries to lock it.
         // Its existence/lock state must not change the customer's404 contract.
-        const owned = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM orders WHERE id=${id}::uuid AND user_id=${userId}::uuid FOR UPDATE`;
+        const owned = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM orders WHERE id=${id} AND user_id=${userId} FOR UPDATE`;
         if (!owned.length) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
         const order = await tx.order.findFirst({ where: { id, userId }, include });
         if (!order) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
