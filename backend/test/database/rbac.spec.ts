@@ -80,9 +80,11 @@ afterAll(async () => { if (app) await app.close(); await prisma.$disconnect(); a
 test('migration backfills legacy CUSTOMER and preserves legacy plus approved additive tables and foreign keys', async () => {
   expect(await fingerprints()).toEqual(before);
   expect(Object.keys(before).sort()).toEqual([
-    'cart_item_toppings', 'cart_items', 'carts', 'idempotency_requests', 'loyalty_awards', 'loyalty_entries',
-    'order_item_toppings', 'order_items', 'orders', 'payments', 'product_sizes', 'product_toppings',
-    'products', 'promotions', 'toppings', 'users', 'payment_attempts', 'payment_verifications',
+    'auth_sessions', 'cart_item_toppings', 'cart_items', 'carts', 'idempotency_requests',
+    'ingredient_count_lines', 'ingredient_counts', 'ingredient_movements', 'ingredient_receipt_lines',
+    'ingredient_receipts', 'ingredients', 'loyalty_awards', 'loyalty_entries', 'order_item_toppings',
+    'order_items', 'orders', 'payment_attempts', 'payment_verifications', 'payments', 'product_sizes',
+    'product_toppings', 'products', 'promotions', 'toppings', 'users',
   ].sort());
   expect((await client.query("SELECT conname,pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE connamespace=$1::regnamespace AND contype='f' ORDER BY conname", [schema])).rows).toEqual(foreignKeys);
   const row = await prisma.user.findUniqueOrThrow({ where: { id: legacy } });
@@ -123,7 +125,12 @@ test('duplicate email CLI never promotes or overwrites existing password/balance
 });
 async function token(id: string) {
   const row = await prisma.user.findUniqueOrThrow({ where: { id } });
-  const r = await request(app.getHttpServer()).post('/auth/login').send({ email: row.email, password }).expect(200);
+  const r = await request(app.getHttpServer())
+    .post('/auth/login')
+    .set('Origin', 'http://localhost:3000')
+    .set('X-BrewLite-CSRF', '1')
+    .send({ email: row.email, password })
+    .expect(200);
   expect(Object.keys((r.body as { user: object }).user).sort()).toEqual(['email', 'id', 'loyaltyPoints', 'role']);
   return (r.body as { accessToken: string }).accessToken;
 }
@@ -144,7 +151,12 @@ test('invalid/expired token401, wrong password401, cross-owner404 and no product
   const customerBearer = await token(customer); const adminBearer = await token(admin);
   const secret = app.get(ConfigService).getOrThrow<string>('JWT_SECRET'); const expired = new JwtService().sign({ sub: customer }, { secret, expiresIn: -1 });
   for (const bearer of ['invalid', expired]) await request(app.getHttpServer()).get('/isolated-rbac-probe/admin').set('Authorization', `Bearer ${bearer}`).expect(401);
-  await request(app.getHttpServer()).post('/auth/login').send({ email: `${legacy}@example.invalid`, password: randomBytes(20).toString('hex') }).expect(401);
+  await request(app.getHttpServer())
+    .post('/auth/login')
+    .set('Origin', 'http://localhost:3000')
+    .set('X-BrewLite-CSRF', '1')
+    .send({ email: `${legacy}@example.invalid`, password: randomBytes(20).toString('hex') })
+    .expect(401);
   await request(app.getHttpServer()).get(`/orders/${order}`).set('Authorization', `Bearer ${customerBearer}`).expect(404);
   for (const path of ['/auth/admin/register', '/auth/staff/register', '/auth/role', '/__role_verify', '/operator/orders']) await request(app.getHttpServer()).post(path).send({ role: 'ADMIN' }).expect(404);
   await request(app.getHttpServer()).post('/admin/products').send({ role: 'ADMIN' }).expect(401);
