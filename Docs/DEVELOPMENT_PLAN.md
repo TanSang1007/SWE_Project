@@ -1,3 +1,5 @@
+- [x] **2026-11-13 — Giỏ phản hồi ngay và tự lưu:** gom số lượng theo dòng sau 400 ms, hàng đợi tuần tự, rollback/reconcile lỗi, preflight checkout; không migration/API mới. [Phạm vi, test và giới hạn](CART_AUTOSAVE.md).
+
 ## Docker local — 2026-11-10
 
 - [x] Thêm source Compose ba service, build targets, database volume, callback ingress và hướng dẫn cấu hình/migration/seed.

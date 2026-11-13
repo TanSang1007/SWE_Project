@@ -16,6 +16,8 @@ export function AddToCart({ product }: { product: ProductDetail }) {
     if (!token || inFlight.current || cartLock.locked) return;
     inFlight.current = true; setBusy(true); setMessage('');
     try {
+      await useCartStore.getState().flush();
+      if (useAuthStore.getState().accessToken !== token) return;
       const cart = await cartRequest('POST', '/cart/items', input);
       if (useAuthStore.getState().accessToken === token) { useCartStore.getState().setCart(cart); setMessage('Đã thêm vào giỏ.'); }
     } catch (error) {

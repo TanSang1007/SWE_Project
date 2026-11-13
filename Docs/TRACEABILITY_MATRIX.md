@@ -1,3 +1,5 @@
+**Giỏ tự lưu 2026-11-13 — yêu cầu người dùng:** FR03/FR08: số lượng và tạm tính phản hồi ngay; gom PATCH từng dòng sau 400 ms, xếp hàng và chống response cũ. Flush + đọc giỏ + preview hợp lệ trước chuyển checkout. Giữ backend validation, khóa unpaid Order và schema/API hiện có. [Hành vi, kiểm chứng và giới hạn](CART_AUTOSAVE.md).
+
 ## Task9 / B19 — Docker local
 
 compose.yaml, Dockerfile, docker/backend.cjs và [DOCKER](DOCKER.md) cung cấp ba service và hướng dẫn migration/seed/callback. Config development mở hostname db chỉ khi container opt-in; regression ở vnpay-initiation.spec.ts. Có source không đồng nghĩa Docker runtime/E2E đạt DoD.

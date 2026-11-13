@@ -1,3 +1,5 @@
+**Giỏ tự lưu 2026-11-13 — yêu cầu người dùng:** FR03/FR08: số lượng và tạm tính phản hồi ngay; gom PATCH từng dòng sau 400 ms, xếp hàng và chống response cũ. Flush + đọc giỏ + preview hợp lệ trước chuyển checkout. Giữ backend validation, khóa unpaid Order và schema/API hiện có. [Hành vi, kiểm chứng và giới hạn](CART_AUTOSAVE.md).
+
 # B08 — Persistent Cart contract and evidence
 
 User-authorized scope: FR02/03, UI02/UI03/badge; FR08 empty/subtotal portion only. PostgreSQL persistence replaces Q05/D05 client storage. PDF unchanged. No checkout/order/payment/loyalty/staff/admin implementation.

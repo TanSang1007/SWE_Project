@@ -1,3 +1,5 @@
+**Giỏ tự lưu 2026-11-13 — yêu cầu người dùng:** FR03/FR08: số lượng và tạm tính phản hồi ngay; gom PATCH từng dòng sau 400 ms, xếp hàng và chống response cũ. Flush + đọc giỏ + preview hợp lệ trước chuyển checkout. Giữ backend validation, khóa unpaid Order và schema/API hiện có. [Hành vi, kiểm chứng và giới hạn](CART_AUTOSAVE.md).
+
 ## Docker local — 2026-11-10
 
 Theo yêu cầu người dùng: thêm Compose ba service, volume PostgreSQL18 riêng, migration/seed chủ động. Opt-in BREWLITE_CONTAINER_SANDBOX=true chỉ mở hostname db/brewlite_dev trong nhánh development; production vẫn chặn. Backend bind0.0.0.0 khi opt-in, host chỉ publish loopback. Callback ingress cùng container, upstream/allowlist giữ nguyên. Không tự chuyển merchant/domain, không dùng Neon; admission mặc định đóng và mở chủ động sau public callback smoke. Compose không thừa hưởng coordinator safe-stop của launcher. [Runbook](DOCKER.md).

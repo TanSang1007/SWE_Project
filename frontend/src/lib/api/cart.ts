@@ -54,6 +54,7 @@ export async function editCartItem(old: CartItem, input: CartInput): Promise<{ c
 }
 export function cartErrorMessage(error: unknown): string {
   const code = error instanceof CartError ? error.code : 'UNAVAILABLE';
+  if (code === 'CART_CHANGED') return 'Giỏ đã thay đổi trên máy hoặc tab khác. Hãy tải lại giỏ trước khi chỉnh sửa tiếp.';
   if (code === 'UNAUTHORIZED') return 'Vui lòng đăng nhập để xem và chỉnh sửa giỏ.';
   if (code === 'INVALID_ORDER_STATE') return 'Bạn đang có đơn chưa hoàn tất. Hãy mở hoặc hủy đơn trước khi chỉnh sửa giỏ.';
   if (code === 'OUT_OF_STOCK') return 'Món đang tạm hết. Giỏ của bạn vẫn được giữ.';
