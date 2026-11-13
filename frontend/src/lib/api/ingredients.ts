@@ -2,7 +2,7 @@ import { getApiBaseUrl } from '../env';
 import { getAccessToken, useAuthStore } from '../auth-store';
 import type { Ingredient, IngredientCount, IngredientReceipt, InventoryPage, MovementRow, IngredientUnit, IngredientCommand, IngredientSummary, InventoryCategory } from '../../types/ingredient';
 export class IngredientError extends Error { constructor(readonly code: string) { super(code); } }
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const uuid = /^[A-Za-z0-9_-]{1,64}$/;
 export const unitLabels: Record<IngredientUnit,string> = { KG: 'kg', G: 'g', L: 'lít', ML: 'ml', PIECE: 'cái', EGG:'quả' };
 export const inventoryCategory=(unit:IngredientUnit):InventoryCategory=>unit==='PIECE'?'supplies':'materials';
 export const listedIngredients=(items:Ingredient[])=>items.filter(i=>i.isListed!==false);
@@ -73,7 +73,7 @@ export function clearIngredientCommand(){try{sessionStorage.removeItem(storageKe
 export function readIngredientCommand(userId:string,role:string):IngredientCommand|null {
   try{const raw=sessionStorage.getItem(storageKey);if(!raw)return null;const c=JSON.parse(raw) as IngredientCommand;
     if(c.userId!==userId||c.role!==role){clearIngredientCommand();return null;}
-    const allowed=role==='ADMIN'?/^(ingredients|receipts|receipts\/[0-9a-f-]+\/confirm|counts\/[0-9a-f-]+\/review)$/:/^counts$/;
+    const allowed=role==='ADMIN'?/^(ingredients|receipts|receipts\/[A-Za-z0-9_-]+\/confirm|counts\/[A-Za-z0-9_-]+\/review)$/:/^counts$/;
     if(!uuid.test(c.userId)||!uuid.test(c.key)||!allowed.test(c.path)||!c.body||typeof c.body!=='object'||Array.isArray(c.body))throw Error();
     return c;
   }catch{clearIngredientCommand();return null;}

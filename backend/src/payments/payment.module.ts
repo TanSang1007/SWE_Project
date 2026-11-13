@@ -15,6 +15,7 @@ import { BrowserReturnService } from './browser-return.service';
 import { PaymentConfigController } from './payment-config.controller';
 import { SandboxProfileService } from './sandbox-profile.service';
 import { PaymentReceiptWorker } from './payment-receipt.worker';
+import { MockPaymentController, MockPaymentService } from './mock-payment.controller';
 
 @Module({
   imports: [DatabaseModule, AuthModule],
@@ -25,6 +26,7 @@ import { PaymentReceiptWorker } from './payment-receipt.worker';
     ZeroConfirmationController,
     BrowserReturnController,
     PaymentConfigController,
+    MockPaymentController,
   ],
   providers: [
     AttemptService,
@@ -34,6 +36,7 @@ import { PaymentReceiptWorker } from './payment-receipt.worker';
     BrowserReturnService,
     SandboxProfileService,
     PaymentReceiptWorker,
+    MockPaymentService,
     { provide: QUERYDR_TRANSPORT, useValue: disabledQueryDrTransport },
   ],
 })

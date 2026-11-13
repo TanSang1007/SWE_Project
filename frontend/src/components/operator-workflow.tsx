@@ -49,10 +49,10 @@ export function OperatorWorkflow({ order, role, onCurrent, onBusy, onDenied }: {
       const current = await getOperatorOrder(original.id, controller.current.signal); if (!alive.current) return;
       onCurrent(current);
       if (!committed.current && phaseRef.current !== 'conflict' && canRetryOriginal(original, current)) {
-        stage('retry'); setMessage('Chưa xác nhận được kết quả thao tác. Đơn vẫn ở trạng thái và phiên bản đã đọc; bạn có thể thử lại đúng thao tác cũ.');
+        stage('retry'); setMessage('Chưa xác nhận được kết quả thao tác. Bạn có thể thử lại thao tác vừa gửi.');
       } else {
         stage('idle'); command.current = null;
-        setMessage(committed.current ? 'Máy chủ đã xác nhận thao tác. Đã đọc lại trạng thái hiện tại.' : 'Đã đọc lại dữ liệu hiện tại. Hãy kiểm tra và xác nhận thao tác mới nếu cần.');
+        setMessage(committed.current ? 'Đã cập nhật trạng thái đơn hàng.' : 'Đã làm mới dữ liệu đơn hàng.');
       }
     } catch (error) {
       if (denied(error)) return;

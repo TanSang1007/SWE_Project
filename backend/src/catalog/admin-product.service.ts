@@ -3,6 +3,15 @@ import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import type { ProductCreateDto, ProductUpdateDto } from './admin-product.dto';
 
+function compareIds(a: string, b: string) {
+  const ma = /^BR(\d+)$/i.exec(a);
+  const mb = /^BR(\d+)$/i.exec(b);
+  if (ma && mb) return Number(ma[1]) - Number(mb[1]);
+  const na = /^\d+$/.test(a) ? Number(a) : Number.POSITIVE_INFINITY;
+  const nb = /^\d+$/.test(b) ? Number(b) : Number.POSITIVE_INFINITY;
+  return na !== nb ? na - nb : a.localeCompare(b);
+}
+
 const select = { id: true, name: true, price: true, imageUrl: true, stock: true, isActive: true, version: true, createdAt: true, updatedAt: true,
   sizes: { select: { size: true, extraPrice: true, isActive: true } },
   toppings: { orderBy: { toppingId: 'asc' as const }, select: { topping: { select: { id: true, name: true, price: true, createdAt: true, updatedAt: true } } } },
@@ -16,7 +25,7 @@ function response(row: Row) {
   return { id: row.id, name: row.name, price: row.price.toFixed(0), imageUrl: row.imageUrl, stock: row.stock, isActive: row.isActive, version: row.version,
     createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(),
     sizes: row.sizes.sort((a, b) => ['S', 'M', 'L'].indexOf(a.size) - ['S', 'M', 'L'].indexOf(b.size)).map(s => ({ size: s.size, extraPrice: s.extraPrice.toFixed(0) })),
-    toppings: row.toppings.map(({ topping: t }) => ({ id: t.id, name: t.name, price: t.price.toFixed(0), createdAt: t.createdAt.toISOString(), updatedAt: t.updatedAt.toISOString() })) };
+    toppings: [...row.toppings].sort((a, b) => compareIds(a.topping.id, b.topping.id)).map(({ topping: t }) => ({ id: t.id, name: t.name, price: t.price.toFixed(0), createdAt: t.createdAt.toISOString(), updatedAt: t.updatedAt.toISOString() })) };
 }
 @Injectable()
 export class AdminProductService {
@@ -35,16 +44,24 @@ export class AdminProductService {
   }
   private transaction<T>(work: (tx: Prisma.TransactionClient) => Promise<T>) {
     return this.db.$transaction(async tx => {
-      await tx.$executeRaw`SELECT set_config('lock_timeout', '200ms', true), set_config('statement_timeout', '300ms', true)`;
+      await (this.db.transactionOptions?.timeout === 5000
+        ? tx.$executeRaw`SELECT set_config('lock_timeout', '2000ms', true), set_config('statement_timeout', '4000ms', true)`
+        : tx.$executeRaw`SELECT set_config('lock_timeout', '200ms', true), set_config('statement_timeout', '300ms', true)`);
       return work(tx);
-    }, { maxWait: 50, timeout: 400 });
+    }, this.db.transactionOptions ?? { maxWait: 50, timeout: 400 });
   }
-  list() { return this.safely(async () => ({ items: (await this.db.product.findMany({ select, orderBy: { id: 'asc' } })).map(response) })); }
+  list() {
+    return this.safely(async () => {
+      const rows = await this.db.product.findMany({ select });
+      rows.sort((a, b) => compareIds(a.id, b.id));
+      return { items: rows.map(response) };
+    });
+  }
   get(id: string) { return this.safely(async () => { const row = await this.db.product.findUnique({ where: { id }, select }); if (!row) throw missing(); return response(row); }); }
   create(input: ProductCreateDto) {
     return this.safely(() => this.transaction(async tx => {
       const ids = input.toppingIds;
-      if (await tx.topping.count({ where: { id: { in: ids } } }) !== ids.length) throw new NotFoundException({ code: 'TOPPING_NOT_FOUND', message: 'Topping not found' });
+      if (ids.length && await tx.topping.count({ where: { id: { in: ids } } }) !== ids.length) throw new NotFoundException({ code: 'TOPPING_NOT_FOUND', message: 'Topping not found' });
       return response(await tx.product.create({ select, data: { name: input.name, price: new Prisma.Decimal(input.price), imageUrl: input.imageUrl, stock: 0,
         sizes: { create: input.sizes.map(s => ({ size: s.size, extraPrice: new Prisma.Decimal(s.extraPrice) })) },
         toppings: { create: ids.map(toppingId => ({ toppingId })) } } }));
@@ -53,7 +70,7 @@ export class AdminProductService {
   private async current(tx: Prisma.TransactionClient, id: string, expectedVersion: number) {
     // Parent serialization protects explicit config cleanup from concurrent FK
     // consumers. No actor/user lock, so no inversion with customer write paths.
-    await tx.$queryRaw`SELECT id FROM products WHERE id = ${id}::uuid FOR UPDATE`;
+    await tx.$queryRaw`SELECT id FROM products WHERE id = ${id} FOR UPDATE`;
     const row = await tx.product.findUnique({ where: { id }, select });
     if (!row) throw missing();
     if (row.version !== expectedVersion) throw conflict();

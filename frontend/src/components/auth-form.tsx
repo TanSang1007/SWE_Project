@@ -26,7 +26,6 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
         router.replace(`/login?registered=1&returnTo=${encodeURIComponent(returnTo)}`);
       } else {
         const response = await login({ email, password }, controller.current.signal); setPassword(''); signIn(response);
-        const channel = new BroadcastChannel('brewlite-auth'); channel.postMessage('login'); channel.close();
         router.replace(roleDestination(response.user.role, params.get('returnTo')));
       }
     } catch (error) {
@@ -41,8 +40,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
       <label htmlFor="auth-email">Email</label><input id="auth-email" type="email" autoComplete="email" maxLength={254} required value={email}
         onChange={(event) => setEmail(event.target.value)} disabled={pending} aria-invalid={!!error} aria-describedby={error ? 'auth-error' : undefined} />
       <label htmlFor="auth-password">Mật khẩu</label><input id="auth-password" type="password" autoComplete={registering ? 'new-password' : 'current-password'} required value={password}
-        onChange={(event) => setPassword(event.target.value)} disabled={pending} aria-invalid={!!error} aria-describedby={error ? 'password-help auth-error' : 'password-help'} />
-      <p id="password-help" className="section-note">8–72 byte UTF-8. Dấu cách trong mật khẩu được giữ nguyên.</p>
+        onChange={(event) => setPassword(event.target.value)} disabled={pending} aria-invalid={!!error} aria-describedby={error ? 'auth-error' : undefined} />
       {error && <p id="auth-error" role="alert" className="form-error">{error}</p>}
       <button type="submit" className="button auth-submit" disabled={pending}>{pending ? 'Đang xử lý…' : registering ? 'Đăng ký' : 'Đăng nhập'}</button>
     </form>

@@ -1,7 +1,7 @@
 import { ConflictException } from '@nestjs/common';
 import type { Prisma } from '../generated/prisma/client';
 export async function lockAttempts(tx: Prisma.TransactionClient, orderId: string) {
-    await tx.$queryRaw `SELECT id FROM payment_attempts WHERE order_id=${orderId}::uuid ORDER BY id FOR UPDATE`;
+    await tx.$queryRaw `SELECT id FROM payment_attempts WHERE order_id=${orderId} ORDER BY id FOR UPDATE`;
 }
 export async function gatewayBlocks(tx: Prisma.TransactionClient, orderId: string) {
     const review = await tx.paymentAttempt.findFirst({ where: { orderId, applicationState: 'REVIEW' }, select: { id: true } });

@@ -17,7 +17,7 @@ export async function cartRequest(method = 'GET', path = '/cart', body?: CartInp
     const value = await response.json();
     if (!response.ok) {
       const id = value?.error?.details?.existingOrderId;
-      if (value?.error?.code === 'INVALID_ORDER_STATE' && typeof window !== 'undefined' && typeof id === 'string' && /^[0-9a-f-]{36}$/i.test(id)) {
+      if (value?.error?.code === 'INVALID_ORDER_STATE' && typeof window !== 'undefined' && typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id)) {
         window.dispatchEvent(new CustomEvent('brewlite-unpaid-order', { detail: id }));
       }
       throw new CartError(value?.error?.code ?? 'UNAVAILABLE');

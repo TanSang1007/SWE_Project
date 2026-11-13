@@ -23,7 +23,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       if (typeof body === 'object' && 'code' in body && typeof body.code === 'string') code = body.code;
       if (typeof body === 'object' && code === 'INVALID_ORDER_STATE' && 'details' in body
         && typeof body.details === 'object' && body.details !== null && 'existingOrderId' in body.details
-        && typeof body.details.existingOrderId === 'string' && /^[0-9a-f-]{36}$/i.test(body.details.existingOrderId)) {
+        && typeof body.details.existingOrderId === 'string' && /^[A-Za-z0-9_-]{1,64}$/i.test(body.details.existingOrderId)) {
         details = { existingOrderId: body.details.existingOrderId };
       }
       if (typeof body === 'string') message = body;
