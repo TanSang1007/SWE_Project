@@ -7,6 +7,8 @@ import type { LoyaltyHistoryQueryDto } from './loyalty.dto';
 @Injectable()
 export class LoyaltyService {
   constructor(private readonly db: PrismaService, private readonly config: ConfigService) {}
+
+  // Lay thong tin diem hien tai cua tai khoan.
   async balance(userId: string) {
     try {
       return await this.db.$transaction(async tx => {
@@ -22,6 +24,8 @@ export class LoyaltyService {
       throw new ServiceUnavailableException();
     }
   }
+
+  // Lay lich su giao dich diem thuong theo tung trang.
   async history(userId: string, query: LoyaltyHistoryQueryDto) {
     const secret = this.config.getOrThrow<string>('JWT_SECRET');
     const position = query.cursor ? decodeCursor(secret,userId,query.cursor) : null;
