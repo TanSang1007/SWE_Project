@@ -69,4 +69,9 @@ describe('A01 database-derived roles (isolated HTTP harness)', () => {
     await request(app.getHttpServer()).post('/orders').set('Authorization', `Bearer ${jwt.sign({ sub: id })}`).send({}).expect(403);
     await request(app.getHttpServer()).post('/payments/vnpay/attempts').set('Authorization', `Bearer ${jwt.sign({ sub: id })}`).send({}).expect(403);
   });
+
+  it('does not expose public user-directory endpoints', async () => {
+    await request(app.getHttpServer()).get('/users').expect(404);
+    await request(app.getHttpServer()).get(`/users/${id}`).expect(404);
+  });
 });
