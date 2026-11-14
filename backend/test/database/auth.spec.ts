@@ -268,6 +268,7 @@ async function loginToken(): Promise<string> {
     accessToken: expect.any(String) as unknown,
     tokenType: "Bearer",
     expiresIn: 3600,
+    sessionToken: expect.any(String) as unknown,
     user: { id: userId, email, loyaltyPoints: 0, role: "CUSTOMER" },
   });
   expect(response.text).not.toMatch(/passwordHash|password_hash/);
