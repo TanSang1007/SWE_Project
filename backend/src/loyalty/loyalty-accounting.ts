@@ -1,8 +1,10 @@
 import { ConflictException, ServiceUnavailableException } from '@nestjs/common';
 import { Prisma, type LoyaltyEntryKind } from '../generated/prisma/client';
+// Gioi han diem thuong va cong no duoc phep luu tru.
 export const maxPoints = 2147483647n;
 const maxDebt = 9223372036854775807n;
 export const accountingFault = () => new ServiceUnavailableException({ code: 'SERVICE_UNAVAILABLE', message: 'Loyalty accounting is unavailable' });
+// Mo ta bien dong diem thuong phat sinh tu mot nghiep vu.
 export type Effect = {
     kind: LoyaltyEntryKind;
     points: number;
@@ -16,6 +18,7 @@ export type Effect = {
     debtDelta: bigint;
 };
 
+// Trang thai tai khoan diem thuong tai thoi diem xu ly.
 export type Account = {
     userId: string;
     available: bigint;
@@ -23,6 +26,7 @@ export type Account = {
     reserved: bigint;
 };
 
+// Khoa don hang trong transaction de tranh cap nhat dong thoi.
 export async function lockOrder(tx: Prisma.TransactionClient, id: string) {
     await tx.$queryRaw `SELECT id FROM orders WHERE id=${id}::uuid FOR UPDATE`;
 }
@@ -32,6 +36,7 @@ function check(condition: boolean) {
 }
 
 
+// Doi soat so du tai khoan tu lich su giao dich va du lieu don hang.
 export async function reconcileAccount(tx: Prisma.TransactionClient, userId: string): Promise<Account> {
     const user = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { loyaltyPoints: true, loyaltyDebt: true } });
     const entries = await tx.loyaltyEntry.findMany({ where: { userId }, orderBy: { sequence: 'asc' } });
@@ -150,6 +155,7 @@ export async function reconcileAccount(tx: Prisma.TransactionClient, userId: str
     check(a + r - d === opening + earned - spent + refunded - reversed);
     return { userId, available: a, debt: d, reserved: r };
 }
+// Kiem tra so diem duoc phep dung va tinh lai tong tien thanh toan.
 export function validateRedemption(account: Account, points: number, totalAfterPromotion: Prisma.Decimal) {
     if (!Number.isInteger(points) || points < 0 || BigInt(points) > maxPoints)
         throw accountingFault();
@@ -162,6 +168,7 @@ export function validateRedemption(account: Account, points: number, totalAfterP
         throw new ConflictException({ code: 'LOYALTY_REDEMPTION_EXCEEDS_TOTAL', message: 'So diem da chon vuot qua tong so tien can thanh toan' });
     return { discount, total: totalAfterPromotion.minus(discount) };
 }
+// Chan viec dat coc diem neu tai khoan van con khoan no dao nguoc.
 export function reservationGate(account: Account, points: number) {
     if (points > 0 && account.debt > 0n)
         throw new ConflictException({ code: 'LOYALTY_REVERSAL_OUTSTANDING', message: 'Huy don hang chua thanh toan de hoan lai diem thuong cho giao dich dao nguoc chua xu ly' });
@@ -172,6 +179,7 @@ type Source = {
     paymentAttemptId?: string;
     cycle?: number;
 };
+// Tinh cac thay doi diem kha dung, diem tam giu va cong no.
 export function effect(account: Account, kind: Exclude<LoyaltyEntryKind, 'OPENING'>, points: number, source: Source): Effect {
     check(Number.isInteger(points) && points >= 0 && points <= 2147483647);
     check(!source.paymentAttemptId || (kind === 'RESERVE' && (source.cycle ?? 1) > 1 && !source.paymentId));
@@ -180,8 +188,8 @@ export function effect(account: Account, kind: Exclude<LoyaltyEntryKind, 'OPENIN
     if (kind === 'RESERVE') {
         reservationGate(account, points);
         if (account.available < n)
-            throw new ConflictException({ 
-                code: 'LOYALTY_INSUFFICIENT_POINTS', 
+            throw new ConflictException({
+                code: 'LOYALTY_INSUFFICIENT_POINTS',
                 message: 'Khong du diem tich luy kha dung' });
         availableDelta = -n;
         reservedDelta = n;
@@ -216,6 +224,7 @@ export function effect(account: Account, kind: Exclude<LoyaltyEntryKind, 'OPENIN
         orderId, paymentId, ...(paymentAttemptId ? { paymentAttemptId } : {}), effectKey,
         availableDelta: Number(availableDelta), reservedDelta: Number(reservedDelta), debtDelta };
 }
+// Luu so du moi va ghi nhan cac bien dong diem trong transaction.
 export async function persistEffects(tx: Prisma.TransactionClient, before: Account, after: Account, effects: Effect[]) {
     check(after.available >= 0n && after.available <= maxPoints && after.debt >= 0n && after.debt <= maxDebt && after.reserved >= 0n && (after.available === 0n || after.debt === 0n));
     const changed = await tx.user.updateMany({ where: { id: before.userId, loyaltyPoints: Number(before.available), loyaltyDebt: before.debt },
