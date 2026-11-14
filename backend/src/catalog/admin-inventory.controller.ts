@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/roles.decorator';
-import { CatalogQueryDto, ProductParamsDto } from './dto/catalog.dto';
+import { CatalogQueryDto, ProductParamsDto, normalizeCatalogId } from './dto/catalog.dto';
 import { InventoryAdjustmentDto } from './admin-inventory.dto';
 import { AdminInventoryService } from './admin-inventory.service';
 @Controller('admin') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('ADMIN')
@@ -17,7 +17,7 @@ export class AdminInventoryController {
   async adjust(@Req() req: Request & { user: { id: string } }, @Param() params: ProductParamsDto,
     @Headers('idempotency-key') key: string | undefined, @Body() body: InventoryAdjustmentDto,
     @Query() query: CatalogQueryDto, @Res({ passthrough: true }) res: Response) {
-    void query; res.vary('Authorization'); const result = await this.inventory.adjust(req.user.id, params.id.toLowerCase(), key, body);
+    void query; res.vary('Authorization'); const result = await this.inventory.adjust(req.user.id, String(normalizeCatalogId(params.id)), key, body);
     res.status(result.status); if (result.replayed) res.setHeader('Idempotency-Replayed', 'true'); return result.body;
   }
 }

@@ -1,22 +1,22 @@
-"use client";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { AuthError, authErrorMessage, login, register } from "../lib/api/auth";
-import { safeReturnTo, validateCredentials } from "../lib/auth-validation";
-import { useAuthStore } from "../lib/auth-store";
-import { roleDestination } from "../lib/role-policy";
+'use client';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { AuthError, authErrorMessage, login, register } from '../lib/api/auth';
+import { safeReturnTo, validateCredentials } from '../lib/auth-validation';
+import { useAuthStore } from '../lib/auth-store';
+import { roleDestination } from '../lib/role-policy';
 
-export function AuthForm({ mode }: { mode: "login" | "register" }) {
+export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const router = useRouter();
   const params = useSearchParams();
-  const returnTo = safeReturnTo(params.get("returnTo"));
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const returnTo = safeReturnTo(params.get('returnTo'));
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const controller = useRef<AbortController | null>(null);
-  const signIn = useAuthStore((state) => state.signIn);
+  const signIn = useAuthStore(state => state.signIn);
 
   useEffect(() => () => controller.current?.abort(), []);
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -32,49 +32,37 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     setError(null);
     controller.current = new AbortController();
     try {
-      if (mode === "register") {
+      if (mode === 'register') {
         await register({ email, password }, controller.current.signal);
-        setPassword("");
-        router.replace(
-          `/login?registered=1&returnTo=${encodeURIComponent(returnTo)}`,
-        );
+        setPassword('');
+        router.replace(`/login?registered=1&returnTo=${encodeURIComponent(returnTo)}`);
       } else {
-        const response = await login(
-          { email, password },
-          controller.current.signal,
-        );
-        setPassword("");
+        const response = await login({ email, password }, controller.current.signal);
+        setPassword('');
         signIn(response);
-        const channel = new BroadcastChannel("brewlite-auth");
-        channel.postMessage("login");
-        channel.close();
-        router.replace(
-          roleDestination(response.user.role, params.get("returnTo")),
-        );
+        router.replace(roleDestination(response.user.role, params.get('returnTo')));
       }
     } catch (error) {
-      if (!controller.current.signal.aborted)
-        setError(
-          authErrorMessage(
-            error instanceof AuthError ? error.code : "UNAVAILABLE",
-          ),
-        );
+      if (!controller.current.signal.aborted) {
+        setError(authErrorMessage(error instanceof AuthError ? error.code : 'UNAVAILABLE'));
+      }
     } finally {
       if (!controller.current.signal.aborted) setPending(false);
     }
   }
-  const registering = mode === "register";
+
+  const registering = mode === 'register';
 
   return (
     <section className="auth-panel">
       <p className="eyebrow">BrewLite</p>
-      <h1>{registering ? "Tạo tài khoản" : "Chào bạn trở lại."}</h1>
+      <h1>{registering ? 'Tạo tài khoản' : 'Chào bạn trở lại.'}</h1>
       <p className="section-note">
         {registering
-          ? "Đăng ký bằng email, sau đó đăng nhập để tiếp tục."
-          : "Đăng nhập bằng email và mật khẩu của bạn."}
+          ? 'Đăng ký bằng email, sau đó đăng nhập để tiếp tục.'
+          : 'Đăng nhập bằng email và mật khẩu của bạn.'}
       </p>
-      {!registering && params.get("registered") === "1" && (
+      {!registering && params.get('registered') === '1' && (
         <p role="status" className="form-success">
           Đăng ký thành công. Bạn hãy đăng nhập.
         </p>
@@ -88,30 +76,28 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
           maxLength={254}
           required
           value={email}
-          onChange={(event) => {
+          onChange={event => {
             setEmail(event.target.value);
             if (error) setError(null);
           }}
           disabled={pending}
           aria-invalid={!!error}
-          aria-describedby={error ? "auth-error" : undefined}
+          aria-describedby={error ? 'auth-error' : undefined}
         />
         <label htmlFor="auth-password">Mật khẩu</label>
         <input
           id="auth-password"
           type="password"
-          autoComplete={registering ? "new-password" : "current-password"}
+          autoComplete={registering ? 'new-password' : 'current-password'}
           required
           value={password}
-          onChange={(event) => {
+          onChange={event => {
             setPassword(event.target.value);
             if (error) setError(null);
           }}
           disabled={pending}
           aria-invalid={!!error}
-          aria-describedby={
-            error ? "password-help auth-error" : "password-help"
-          }
+          aria-describedby={error ? 'password-help auth-error' : 'password-help'}
         />
         {registering && (
           <p id="password-help" className="section-note">
@@ -124,18 +110,18 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
           </p>
         )}
         <button type="submit" className="button auth-submit" disabled={pending}>
-          {pending ? "Đang xử lý…" : registering ? "Đăng ký" : "Đăng nhập"}
+          {pending ? 'Đang xử lý…' : registering ? 'Đăng ký' : 'Đăng nhập'}
         </button>
       </form>
       <p className="auth-switch">
-        {registering ? "Đã có tài khoản? " : "Chưa có tài khoản? "}
+        {registering ? 'Đã có tài khoản? ' : 'Chưa có tài khoản? '}
         <Link
           href={{
-            pathname: registering ? "/login" : "/register",
+            pathname: registering ? '/login' : '/register',
             query: { returnTo },
           }}
         >
-          {registering ? "Đăng nhập" : "Đăng ký"}
+          {registering ? 'Đăng nhập' : 'Đăng ký'}
         </Link>
       </p>
     </section>

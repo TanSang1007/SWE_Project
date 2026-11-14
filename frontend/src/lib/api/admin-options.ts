@@ -18,7 +18,7 @@ export function parseToppings(value: unknown): AdminTopping[] {
 }
 export function parseSizes(value: unknown, id: string): SizeList {
   const list = value as SizeList; if (!list || !Array.isArray(list.items) || !version(list.productVersion)) throw fail();
-  const items = list.items.map((s): AdminSize => { if (!s || s.productId !== id || !['S', 'M', 'L'].includes(s.size) || !validOptionMoney(s.extraPrice) || typeof s.isActive !== 'boolean') throw fail();
+  const items = list.items.map((s): AdminSize => { if (!s || s.productId.toUpperCase() !== id.toUpperCase() || !['S', 'M', 'L'].includes(s.size) || !validOptionMoney(s.extraPrice) || typeof s.isActive !== 'boolean') throw fail();
     return { productId: s.productId, size: s.size, extraPrice: s.extraPrice, isActive: s.isActive }; });
   if (new Set(items.map(s => s.size)).size !== items.length) throw fail(); return { items, productVersion: list.productVersion };
 }
@@ -26,8 +26,8 @@ export function parseAssociations(value: unknown): AssociationList { const v = v
 export async function optionRequest(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, body?: object, signal?: AbortSignal): Promise<unknown> {
   const token = getAccessToken(); const user = useAuthStore.getState().user;
   if (!token || !user) throw new OptionError('UNAUTHORIZED'); if (user.role !== 'ADMIN') throw new OptionError('FORBIDDEN');
-  const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
-  if (!new RegExp(`^/admin/(?:toppings(?:/${uuid})?|products/${uuid}/(?:sizes(?:/[SML])?|toppings(?:/${uuid})?))$`).test(path)) throw new OptionError('VALIDATION_ERROR');
+  const idToken = '[A-Za-z0-9_-]{1,64}';
+  if (!new RegExp(`^/admin/(?:toppings(?:/${idToken})?|products/${idToken}/(?:sizes(?:/[SML])?|toppings(?:/${idToken})?))$`).test(path)) throw new OptionError('VALIDATION_ERROR');
   const current = () => { const s = useAuthStore.getState(); return s.accessToken === token && s.user?.id === user.id && s.user.role === user.role; };
   try {
     const timeout = AbortSignal.timeout(5000); const r = await fetch(getApiBaseUrl() + path, { method, cache: 'no-store', credentials: 'omit', signal: signal ? AbortSignal.any([signal, timeout]) : timeout,

@@ -60,7 +60,7 @@ export class ZeroConfirmationService {
         const previous = await tx.idempotencyRequest.findUnique({ where });
         if (previous) return replayResult(previous, hash);
         await lockAttempts(tx, orderId);
-        await tx.$queryRaw`SELECT v.id FROM payment_verifications v JOIN payment_attempts a ON a.id=v.attempt_id WHERE a.order_id=${orderId}::uuid ORDER BY v.id FOR UPDATE OF v`;
+        await tx.$queryRaw`SELECT v.id FROM payment_verifications v JOIN payment_attempts a ON a.id=v.attempt_id WHERE a.order_id=${orderId} ORDER BY v.id FOR UPDATE OF v`;
         assertGatewayClear(await gatewayBlocks(tx, orderId));
         // A zero order cannot legitimately have any gateway history: do not bridge
         // historical terminal gateway attempts into an internal confirmation.
