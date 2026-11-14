@@ -9,7 +9,7 @@ export const MAX_HEADER_BYTES = 16384;
 export const MAX_RESPONSE_BYTES = 65536;
 export const UPSTREAM_TIMEOUT_MS = 5000;
 const paths = new Set(['/payments/vnpay/ipn', '/payments/vnpay/return']);
-const resultLocation = /^http:\/\/localhost:3000\/payments\/vnpay\/result(?:\?attemptId=[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})?$/i;
+const resultLocation = /^http:\/\/localhost:3000\/payments\/vnpay\/result(?:\?attemptId=[A-Za-z0-9_-]{1,64})?$/i;
 
 function reject(res: ServerResponse, status: number): void {
   if (res.destroyed || res.writableEnded) return;

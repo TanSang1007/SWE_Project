@@ -1,3 +1,4 @@
+import { clearPurchasedCart } from './cart-cleanup';
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
@@ -43,7 +44,7 @@ export class IpnService {
     // Internal shared T1/T2 entrypoints; no HTTP handler accepts evidence or config.
     transaction<T>(work: (tx: Prisma.TransactionClient) => Promise<T>) {
         return this.db.$transaction(async (tx) => {
-            await tx.$executeRaw `SELECT set_config('lock_timeout','200ms',true),set_config('statement_timeout','300ms',true),set_config('TimeZone','UTC',true)`;
+            await (this.db.transactionOptions?.timeout === 5000 ? tx.$executeRaw `SELECT set_config('lock_timeout','2000ms',true),set_config('statement_timeout','4000ms',true),set_config('TimeZone','UTC',true)` : tx.$executeRaw `SELECT set_config('lock_timeout','200ms',true),set_config('statement_timeout','300ms',true),set_config('TimeZone','UTC',true)`);
             return work(tx);
         }, this.db.transactionOptions ?? { maxWait: 50, timeout: 400 });
     }
@@ -52,9 +53,9 @@ export class IpnService {
         await lockUser(tx, lookup.order.userId);
         await lockOrder(tx, lookup.order.id);
         await lockAttempts(tx, lookup.order.id);
-        await tx.$queryRaw `SELECT v.id FROM payment_verifications v JOIN payment_attempts a ON a.id=v.attempt_id WHERE a.order_id=${lookup.order.id}::uuid ORDER BY v.id FOR UPDATE OF v`;
+        await tx.$queryRaw `SELECT v.id FROM payment_verifications v JOIN payment_attempts a ON a.id=v.attempt_id WHERE a.order_id=${lookup.order.id} ORDER BY v.id FOR UPDATE OF v`;
         const a = await tx.paymentAttempt.findUniqueOrThrow({ where: { id }, include });
-        await tx.$queryRaw `SELECT id FROM idempotency_requests WHERE id=${a.idempotencyRequestId}::uuid FOR UPDATE`;
+        await tx.$queryRaw `SELECT id FROM idempotency_requests WHERE id=${a.idempotencyRequestId} FOR UPDATE`;
         return a;
     }
     binding(a: Bound, settings: VnpayConfig) {
@@ -261,6 +262,7 @@ export class IpnService {
                 if (o.redeemedPoints)
                     effects.push(effect(account, success ? 'SETTLE' : 'RELEASE', o.redeemedPoints, { orderId: o.id, paymentId: payment.id, cycle: o.reservationCycle }));
                 if (success) {
+                    await clearPurchasedCart(tx, o.userId);
                     const points = o.total.dividedBy(10000).floor().toNumber();
                     await tx.loyaltyAward.create({ data: { orderId: o.id, userId: o.userId, points } });
                     effects.push(effect(account, 'EARN', points, { orderId: o.id, paymentId: payment.id }));

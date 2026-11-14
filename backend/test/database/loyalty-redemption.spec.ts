@@ -15,7 +15,6 @@ import request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { PrismaService } from '../../src/database/prisma.service';
 import { PrismaClient } from '../../src/generated/prisma/client';
-import { MockPaymentService } from '../../src/payments/mock-payment.service';
 import { OrderService } from '../../src/orders/order.service';
 import { configureApp } from '../../src/common/configure-app';
 import { lockUser } from '../../src/orders/order-policy';
@@ -35,7 +34,7 @@ const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: utcC
 let app: NestExpressApplication;
 let jwt: JwtService;
 let orders: OrderService;
-let mode: 'SUCCESS' | 'FAILURE' = 'SUCCESS';
+let mode: 'SUCCESS' | 'FAILURE' = 'SUCCESS'; void mode;
 let mockCalls = 0;
 let preserved: boolean;
 let legacyId: string;
@@ -80,8 +79,7 @@ beforeAll(async () => {
         preserved &&= before.get(t) === JSON.stringify((await client.query(`SELECT row_to_json(s) AS row FROM (SELECT ${columns.get(t)!.join(',')} FROM ${t} ORDER BY id) s`)).rows);
     for (const name of names.filter(name => name > cutover))
         await client.query(readFileSync(resolve(dir, name, 'migration.sql'), 'utf8'));
-    const module = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(PrismaService).useValue(prisma)
-        .overrideProvider(MockPaymentService).useValue({ result: () => { mockCalls++; return mode; } }).compile();
+    const module = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(PrismaService).useValue(prisma).compile();
     app = module.createNestApplication<NestExpressApplication>({ bodyParser: false });
     configureApp(app);
     await app.init();
@@ -518,7 +516,7 @@ test('C11 real owner lock timeout has no partial Payment/reservation/journal and
     await proof(u);
 });
 test.each(['reversal', 'payment-success', 'payment-failure'] as const)('C07 database lock barrier forces%s to win reversal versus existing reservation', async (first) => {
-    const { PaymentService } = await import('../../src/payments/payment.service');
+    const { ZeroConfirmationService } = await import('../../src/payments/zero-confirmation.service');
     const { PricingService } = await import('../../src/pricing/pricing.service');
     const u = await owner();
     const a = await earn(u, '100000');
@@ -535,7 +533,7 @@ test.each(['reversal', 'payment-success', 'payment-failure'] as const)('C07 data
     await Promise.all(actors.map(p => p.$connect()));
     await Promise.all(actors.map(p => p.$queryRaw`SELECT 1`));
     const reverseService = new OrderService(actors[0] as unknown as PrismaService, app.get(PricingService), app.get(ConfigService));
-    const paymentService = new PaymentService(actors[1] as unknown as PrismaService, app.get(MockPaymentService));
+    const paymentService = new ZeroConfirmationService(actors[1] as unknown as PrismaService);
     const blocker = new Client({ connectionString: scoped.toString() });
     await blocker.connect();
     await blocker.query('BEGIN');
@@ -545,7 +543,7 @@ test.each(['reversal', 'payment-success', 'payment-failure'] as const)('C07 data
     const runReverse = () => reverseService.transitionOrder(a, version, 'CANCELLED').then(() => 200, (e: unknown) => (e as {
         getStatus(): number;
     }).getStatus());
-    const runPayment = () => paymentService.pay(u.id, randomUUID(), { orderId: b, method: 'WALLET' }).then(() => 200, (e: unknown) => (e as {
+    const runPayment = () => paymentService.confirm(u.id, randomUUID(), b).then(() => 200, (e: unknown) => (e as {
         getStatus(): number;
     }).getStatus());
     const waiting = async (tag: string) => { for (let i = 0; i < 15; i++) {

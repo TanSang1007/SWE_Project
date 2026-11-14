@@ -65,8 +65,6 @@ const server = createServer(async (req, res) => {
   if (url.pathname === '/orders/' + orderId + '/confirm-zero') { assert(zero); assert.deepEqual(body, {}); orderStatus = 'PAID'; return send({ payment: { id: randomUUID(), orderId, amount: '0', provider: 'INTERNAL_ZERO', method: 'ZERO_TOTAL', status: 'SUCCEEDED' },
     order: { id: orderId, orderCode: 'BL-SYNTHETIC', status: 'PAID' }, loyalty: { awardedPoints: 0 } }); }
   if (url.pathname === '/orders/' + orderId + '/cancel') { if (current && outcome !== 'FAILED') return error('PAYMENT_PENDING', 409); orderStatus = 'CANCELLED'; return send(snapshot()); }
-  if (url.pathname === '/payments' && req.method === 'POST') { assert.equal(mode, 'MOCK'); assert(!zero); orderStatus = 'PAID'; return send({ payment: { id: randomUUID(), orderId, status: 'SUCCEEDED', amount: '85000', method: body.method },
-    order: { id: orderId, orderCode: 'BL-SYNTHETIC', status: 'PAID' }, loyalty: { awardedPoints: 8 } }); }
   if (url.pathname === '/loyalty') return send({ loyaltyPoints: 0, reservedPoints: 0, outstandingReversalPoints: '0', pointValueVnd: '100' });
   if (url.pathname === '/orders/me') return send({ items: [] });
   return error('NOT_FOUND', 404);
@@ -168,9 +166,6 @@ try {
   await reset(); configFail = true; await login('/cart?orderId=' + orderId); await text('Chưa tải được cấu hình thanh toán.');
   assert(await evaluate('!document.querySelector("#checkout-method") && !document.querySelector("[data-checkout-action=gateway-payment]")'));
   configFail = false; await click('Tải lại cấu hình thanh toán'); await readyPay(); checks.push('config unavailable disables payments/no MOCK fallback/retry');
-  await reset(); mode = 'MOCK'; await login('/cart?orderId=' + orderId); await until(() => evaluate('!!document.querySelector("#checkout-method")'), 'Mock selector');
-  await until(() => evaluate('!!document.querySelector("[data-checkout-action=payment]:not(:disabled)")'), 'enabled Mock payment');
-  const mockCount = count('/payments'); await evaluate('document.querySelector("[data-checkout-action=payment]").click()'); await text('Thanh toán thành công.'); assert.equal(count('/payments'), mockCount + 1); checks.push('existing Mock selector/payment baseline');
   // Verified backend capabilities allow cancellation despite the saved completed intent.
   await reset(); current = true; outcome = 'FAILED'; orderStatus = 'PAYMENT_FAILED';
   await evaluate('sessionStorage.setItem("brewlite-gateway-intent",' + JSON.stringify(JSON.stringify({ userId: owner, orderId, key: 'known-failed-key', kind: 'VNPAY', attemptId })) + ')');

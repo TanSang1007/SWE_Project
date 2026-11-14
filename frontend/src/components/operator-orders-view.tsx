@@ -74,7 +74,7 @@ export function OperatorOrderList({ items, basePath = '/operator/orders' }: { it
   return <ol className="order-history-list" aria-label="Đơn hàng vận hành">{items.map((order) => <li key={order.id} className="order-history-card" data-operator-order={order.id}>
     <h3>Đơn {order.orderCode}</h3><p className="order-status" data-order-status={order.status}>{orderStatusLabels[order.status]}</p>
     <p>Thời điểm đặt: <time dateTime={order.createdAt}>{formatOrderTime(order.createdAt)}</time></p><p>Tổng đơn: <strong>{formatVnd(order.total)}</strong></p>
-    <p>Phiên bản: {order.version} · Cập nhật: <time dateTime={order.updatedAt}>{formatOrderTime(order.updatedAt)}</time></p>
+    <p>Cập nhật: <time dateTime={order.updatedAt}>{formatOrderTime(order.updatedAt)}</time></p>
     <p>Điểm từ đơn này: {order.earnedPoints === null ? 'Chưa phát sinh' : order.earnedPoints.toLocaleString('vi-VN')}</p>
     <Link className="button" href={`${basePath}/${order.id}`} aria-label={`Xem chi tiết đơn ${order.orderCode}`}>Xem chi tiết</Link>
   </li>)}</ol>;
@@ -82,10 +82,10 @@ export function OperatorOrderList({ items, basePath = '/operator/orders' }: { it
 export function OperatorOrderSnapshot({ order }: { order: OperatorOrderDetail }) {
   return <article className="order-confirmation" data-operator-detail={order.id}><OrderSummary order={order} localizedStatus />
     <dl className="order-metadata"><div><dt>Thời điểm đặt</dt><dd><time dateTime={order.createdAt}>{formatOrderTime(order.createdAt)}</time></dd></div>
-      <div><dt>Phiên bản hiện tại</dt><dd>{order.version}</dd></div><div><dt>Cập nhật gần nhất</dt><dd><time dateTime={order.updatedAt}>{formatOrderTime(order.updatedAt)}</time></dd></div>
+      <div><dt>Cập nhật gần nhất</dt><dd><time dateTime={order.updatedAt}>{formatOrderTime(order.updatedAt)}</time></dd></div>
       {order.paidAt && <div><dt>Thời điểm thanh toán</dt><dd><time dateTime={order.paidAt}>{formatOrderTime(order.paidAt)}</time></dd></div>}
       <div><dt>Kết quả thanh toán gần nhất</dt><dd>{order.paymentStatus === 'SUCCEEDED' ? 'Thành công' : order.paymentStatus === 'FAILED' ? 'Thất bại' : 'Chưa có kết quả'}</dd></div>
       <div><dt>Điểm từ đơn này</dt><dd>{order.earnedPoints === null ? 'Chưa phát sinh' : order.earnedPoints.toLocaleString('vi-VN') + ' điểm'}</dd></div></dl>
-    {order.status === 'CANCELLED' && <p>Đơn đã hủy. Trạng thái này không xác nhận việc hoàn tiền.</p>}
+    {order.status === 'CANCELLED' && <p>Đơn hàng đã hủy.</p>}
   </article>;
 }

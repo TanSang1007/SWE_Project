@@ -1,6 +1,7 @@
 export interface CartItem {
   id: string; productId: string; productName: string; imageUrl: string; available: boolean;
   size: string; qty: number; toppings: { id: string; name: string; price: string }[];
+  stock?: number; requestedQuantity?: number;
   unitPrice: string; lineTotal: string;
 }
 export interface Cart { items: CartItem[]; totalQuantity: number; subtotal: string; currency: 'VND'; }

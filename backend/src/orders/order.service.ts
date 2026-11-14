@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, HttpException, Injectable, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
 import { Prisma, type OrderStatus, type UserRole } from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
@@ -76,7 +76,7 @@ export class OrderService {
   constructor(private readonly db: PrismaService, private readonly pricing: PricingService, private readonly config: ConfigService) {}
   private transaction<T>(work: (tx: Prisma.TransactionClient) => Promise<T>) {
     return this.db.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT set_config('lock_timeout', '200ms', true), set_config('statement_timeout', '300ms', true), set_config('TimeZone', 'UTC', true)`;
+      await (this.db.transactionOptions?.timeout === 5000 ? tx.$executeRaw`SELECT set_config('lock_timeout', '2000ms', true), set_config('statement_timeout', '4000ms', true), set_config('TimeZone', 'UTC', true)` : tx.$executeRaw`SELECT set_config('lock_timeout', '200ms', true), set_config('statement_timeout', '300ms', true), set_config('TimeZone', 'UTC', true)`);
       return work(tx);
     }, this.db.transactionOptions ?? { maxWait: 50, timeout: 400 });
   }
@@ -100,11 +100,10 @@ export class OrderService {
         const account = await reconcileAccount(tx, userId); const before = { ...account };
         const r = input.redeemedPoints ?? 0;
         const loyalty = validateRedemption(account, r, priced.finalAmount);
-        if (effectivePaymentProvider(this.config) === 'VNPAY_SANDBOX') {
-          assertVnpayMinimum(loyalty.total);
-          if (loyalty.total.gt(0)) assertPaymentAdmission(this.config);
-        }
-        const id = randomUUID();
+        effectivePaymentProvider(this.config);
+        assertVnpayMinimum(loyalty.total);
+        if (loyalty.total.gt(0)) assertPaymentAdmission(this.config);
+        const [{ id }] = await tx.$queryRaw<{ id: string }[]>`SELECT nextval('orders_id_seq')::text AS id`;
         const effects = r > 0 ? [effect(account, 'RESERVE', r, { orderId: id, cycle: 1 })] : [];
         for (const demand of priced.stockRequirements) {
           if (demand.version >= 2147483647) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Stock version bounds exceeded' });
@@ -114,18 +113,25 @@ export class OrderService {
         }
         // VNPAY timestamps have whole-second precision; retain exactly 600s.
         const startedAt = new Date(Math.floor(Date.now() / 1000) * 1000);
-        const order = await tx.order.create({ data: { id, orderCode: `BL-${id.toUpperCase()}`, userId, status: 'PENDING',
+        await tx.order.create({ data: { id, orderCode: `BL${id.padStart(3, '0')}`, userId, status: 'PENDING',
           paymentStartedAt: startedAt, paymentExpiresAt: new Date(startedAt.getTime() + PAYMENT_WINDOW_MS),
           subtotal: priced.subtotal, discountAmount: priced.discountAmount, total: loyalty.total, redeemedPoints: r, loyaltyDiscountAmount: loyalty.discount,
           redemptionState: r > 0 ? 'RESERVED' : 'NONE', reservationCycle: r > 0 ? 1 : 0,
-          promotionId: promotion?.id ?? null, promotionCodeSnapshot: promotion?.code ?? null,
-          items: { create: priced.items.map((item) => ({ productId: item.productId, productNameSnapshot: item.productName, size: item.size,
-            basePrice: item.basePrice, sizeExtraPrice: item.sizeExtraPrice, unitPrice: item.unitPrice, qty: item.qty, lineTotal: item.lineTotal,
-            toppings: { create: item.toppings.map((t) => ({ toppingId: t.id, toppingNameSnapshot: t.name, priceSnapshot: t.price })) } })) } }, include });
+          promotionId: promotion?.id ?? null, promotionCodeSnapshot: promotion?.code ?? null } });
+        // Bulk snapshots avoid a nested write for every configuration/topping.
+        // Await each parent batch before its children on this same transaction.
+        const itemIds = await tx.$queryRaw<{ id: string }[]>`SELECT nextval('order_items_id_seq')::text AS id FROM generate_series(1, ${priced.items.length}::integer)`;
+        const snapshots = priced.items.map((item, idx) => ({ id: itemIds[idx].id, item }));
+        await tx.orderItem.createMany({ data: snapshots.map(({ id: itemId, item }) => ({ id: itemId, orderId: id,
+          productId: item.productId, productNameSnapshot: item.productName, size: item.size,
+          basePrice: item.basePrice, sizeExtraPrice: item.sizeExtraPrice, unitPrice: item.unitPrice, qty: item.qty, lineTotal: item.lineTotal })) });
+        const toppings = snapshots.flatMap(({ id: itemId, item }) => item.toppings.map(t => ({ orderItemId: itemId,
+          toppingId: t.id, toppingNameSnapshot: t.name, priceSnapshot: t.price })));
+        if (toppings.length) await tx.orderItemTopping.createMany({ data: toppings });
+        const order = await tx.order.findUniqueOrThrow({ where: { id }, include });
         if (effects.length) await persistEffects(tx, before, account, effects);
-        // Entire Cart was matched to this snapshot under the user lock. Later
-        // Cart writes cannot be included in this deletion or touched by settlement.
-        await tx.cartItem.deleteMany({ where: { cart: { userId } } });
+        // Keep the Cart intact: a PENDING order is not a successful payment.
+        // Cart writes stay locked until this order succeeds or is cancelled.
         const body = response(order);
         await tx.idempotencyRequest.update({ where: { id: claim.id }, data: { state: 'COMPLETED', orderId: id,
           responseStatus: 201, responseBody: body, completedAt: new Date() } });
@@ -180,8 +186,10 @@ export class OrderService {
     } catch (error) { if (error instanceof HttpException) throw error; throw new ServiceUnavailableException(); }
   }
   async active(userId: string) {
-    const order = await this.db.order.findFirst({ where: { userId, status: { in: ['PENDING', 'PAYMENT_FAILED'] } }, include });
-    return { order: order ? detail(order) : null, serverNow: new Date().toISOString() };
+    try {
+      const order = await this.db.order.findFirst({ where: { userId, status: { in: ['PENDING', 'PAYMENT_FAILED'] } }, include });
+      return { order: order ? detail(order) : null, serverNow: new Date().toISOString() };
+    } catch (error) { if (error instanceof HttpException) throw error; throw new ServiceUnavailableException(); }
   }
   async history(userId: string) {
     try {
@@ -196,7 +204,10 @@ export class OrderService {
     try {
       return await this.transaction(async (tx) => {
         await lockUser(tx, userId);
-        await lockOrder(tx, id);
+        // Exclude another owner's row before PostgreSQL tries to lock it.
+        // Its existence/lock state must not change the customer's404 contract.
+        const owned = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM orders WHERE id=${id} AND user_id=${userId} FOR UPDATE`;
+        if (!owned.length) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
         const order = await tx.order.findFirst({ where: { id, userId }, include });
         if (!order) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
         if (order.status === 'CANCELLED') return detail(order);
@@ -205,9 +216,10 @@ export class OrderService {
         await lockAttempts(tx, id);
         const blocks = await gatewayBlocks(tx, id);
         if (timeout) {
-          if (!order.paymentExpiredAt) await tx.order.update({ where: { id }, data: { paymentExpiredAt: new Date() } });
+          const expiredAt = order.paymentExpiredAt ?? new Date();
+          if (!order.paymentExpiredAt) await tx.order.update({ where: { id }, data: { paymentExpiredAt: expiredAt } });
           // Time proves URL expiry, never a financial failure. Preserve late IPN.
-          if (blocks.pending || blocks.receipt || blocks.review) return detail(order);
+          if (blocks.pending || blocks.receipt || blocks.review) return detail({ ...order, paymentExpiredAt: expiredAt });
         } else assertGatewayClear(blocks);
         const account = await reconcileAccount(tx, userId); const before = { ...account };
         const effects = order.status === 'PENDING' && order.redeemedPoints > 0 ? [effect(account, 'RELEASE', order.redeemedPoints, { orderId: id, cycle: order.reservationCycle })] : [];

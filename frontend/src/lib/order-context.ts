@@ -1,18 +1,17 @@
 import type { OrderInput } from '../types/order';
-import type { PaymentContext } from './payment-context';
 export interface OrderContext { userId: string; key: string; payload: OrderInput; orderId?: string; previewSubtotal?: string; }
 export function newOrderContext(userId: string, payload: OrderInput, previewSubtotal: string): OrderContext {
   return { userId, key: crypto.randomUUID(), payload, previewSubtotal };
 }
-export function recoveryOrderId(saved: OrderContext | null, payment: PaymentContext | null, requestedId?: string) {
+export function recoveryOrderId(saved: OrderContext | null, requestedId?: string) {
   // Unknown create results keep their original key/payload; history must not replace them.
-  return payment?.payload.orderId ?? saved?.orderId ?? (saved ? undefined : requestedId);
+  return saved?.orderId ?? (saved ? undefined : requestedId);
 }
 const storageKey = 'brewlite-order-context';
 export function readOrderContext(userId: string): OrderContext | null {
   try { const value = JSON.parse(sessionStorage.getItem(storageKey) ?? 'null') as OrderContext | null;
     if (!value || value.userId !== userId || typeof value.key !== 'string' || !value.payload || !Array.isArray(value.payload.items)
-      || (value.orderId !== undefined && !/^[0-9a-f-]{36}$/i.test(value.orderId))) { sessionStorage.removeItem(storageKey); return null; }
+      || (value.orderId !== undefined && !/^[A-Za-z0-9_-]{1,64}$/.test(value.orderId))) { sessionStorage.removeItem(storageKey); return null; }
     return { userId: value.userId, key: value.key, payload: value.payload, ...(value.orderId ? { orderId: value.orderId } : {}),
       ...(typeof value.previewSubtotal === 'string' && /^(0|[1-9]\d{0,11})$/.test(value.previewSubtotal) ? { previewSubtotal: value.previewSubtotal } : {}) };
   } catch { return null; }

@@ -1,13 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
-import { isUUID } from 'class-validator';
 import type { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { authenticateIpn } from './vnpay/ipn-verification';
 import { toVnpayAmount, verifyPayCallback } from './vnpay/vnpay-pay';
 import { validateVnpayConfig, type VnpayConfig } from './vnpay/vnpay-config';
 import { browserReturnBase } from './vnpay/return-redirect';
+import { IpnService } from './ipn.service';
 
 const select = { id: true, orderId: true, provider: true, merchantCode: true, txnRef: true, amount: true, currency: true, createDate: true,
   requestParameters: true, order: { select: { id: true, userId: true, total: true } },
@@ -17,7 +17,7 @@ function contextMatches(a: Context, config: VnpayConfig, fields: Readonly<Record
   const c = a.idempotencyRequest, body = c.responseBody;
   const p = a.requestParameters;
   if (!p || typeof p !== 'object' || Array.isArray(p) || Object.values(p).some(v => typeof v !== 'string')) return false;
-  return isUUID(a.id) && a.provider === 'VNPAY_SANDBOX' && a.merchantCode === config.merchantCode && a.currency.trim() === 'VND'
+  return /^[A-Za-z0-9_-]{1,64}$/.test(a.id) && a.provider === 'VNPAY_SANDBOX' && a.merchantCode === config.merchantCode && a.currency.trim() === 'VND'
     && a.order.id === a.orderId && a.amount.equals(a.order.total) && c.userId === a.order.userId && c.orderId === a.orderId
     && c.operation === 'PAY_ORDER' && c.state === 'COMPLETED' && c.responseStatus === 201
     && c.requestHash === createHash('sha256').update(JSON.stringify({ action: 'VNPAY_INITIATE_V1', orderId: a.orderId })).digest('hex')
@@ -29,7 +29,7 @@ function contextMatches(a: Context, config: VnpayConfig, fields: Readonly<Record
 
 @Injectable()
 export class BrowserReturnService {
-  constructor(private readonly db: PrismaService, private readonly config: ConfigService) {}
+  constructor(private readonly db: PrismaService, private readonly config: ConfigService, @Optional() private readonly ipn?: IpnService) {}
   async resolve(raw: string): Promise<string> {
     // An invalid server origin fails closed with503, never a request-derived URL.
     const base = browserReturnBase(this.config.get<unknown>('FRONTEND_ORIGIN'));
@@ -50,6 +50,7 @@ export class BrowserReturnService {
       }, { isolationLevel: 'RepeatableRead', ...(this.db.transactionOptions ?? { maxWait: 50, timeout: 400 }) });
       if (!id) return base;
       const destination = new URL(base); destination.searchParams.set('attemptId', id);
+      if (/^http:\/\/(localhost|127\.0\.0\.1):3001\/payments\/vnpay\/return$/.test(settings.returnUrl) && this.ipn) await this.ipn.receive(raw).catch(() => {});
       return destination.href;
     } catch {
       // Same generic redirect for syntax/signature/context/DB errors, no raw logs.

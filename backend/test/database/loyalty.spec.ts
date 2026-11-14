@@ -12,12 +12,11 @@ import request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { PrismaService } from '../../src/database/prisma.service';
 import { PrismaClient } from '../../src/generated/prisma/client';
-import { MockPaymentService } from '../../src/payments/mock-payment.service';
 import { configureApp } from '../../src/common/configure-app';
 
 config({ path: resolve(__dirname, '../../../.env'), quiet: true });
 
-// Chỉ cho phép chạy trên database local có tên kết thúc bằng _dev hoặc _test
+
 const connectionString = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
 if (!connectionString) throw new Error('Local database required');
 
@@ -33,20 +32,13 @@ if (
 const schema = `brewlite_b14_test_${randomUUID().replaceAll('-', '')}`;
 const client = new Client({ connectionString });
 
-const scopedUrl = new URL(connectionString);
+const scopedUrl = new URL(connectionString); 
 scopedUrl.searchParams.set('options', `-c search_path=${schema}`);
-
-const prisma = new PrismaClient({
-  adapter: new PrismaPg(
-    { connectionString: utcConnectionString(scopedUrl.toString()) },
-    { schema },
-  ),
-});
-
-let app: NestExpressApplication;
-let jwt: JwtService;
+const prisma = new PrismaClient({ 
+  adapter: new PrismaPg({ connectionString: utcConnectionString(scopedUrl.toString()) }, { schema }) });
+let app: NestExpressApplication; let jwt: JwtService;
 // Kết quả thanh toán giả lập: SUCCESS hoặc FAILURE
-let mode: 'SUCCESS' | 'FAILURE' = 'SUCCESS';
+let mode: 'SUCCESS' | 'FAILURE' = 'SUCCESS'; void mode;
 
 beforeAll(async () => {
   // Tạo schema và chạy tuần tự các migration
@@ -55,33 +47,20 @@ beforeAll(async () => {
   await client.query(`SET search_path TO "${schema}"`);
 
   const dir = resolve(__dirname, '../../prisma/migrations');
-  for (const name of readdirSync(dir).filter((n) => /^\d+_/.test(n)).sort()) {
-    await client.query(readFileSync(resolve(dir, name, 'migration.sql'), 'utf8'));
-  }
 
+  for (const name of readdirSync(dir).filter((n) => /^\d+_/.test(n)).sort()) 
+    await client.query(readFileSync(resolve(dir, name, 'migration.sql'), 'utf8'));
+  
   // Dùng Prisma thật (schema riêng) và mock kết quả thanh toán
   const module = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(PrismaService)
     .useValue(prisma)
-    .overrideProvider(MockPaymentService)
-    .useValue({ result: () => mode })
     .compile();
-
-  app = module.createNestApplication<NestExpressApplication>({ bodyParser: false });
-  configureApp(app);
-  await app.init();
+  
+  app = module.createNestApplication<NestExpressApplication>({ bodyParser: false }); 
+  configureApp(app); 
+  await app.init(); 
   jwt = app.get(JwtService);
-});
-
-beforeEach(() => {
-  mode = 'SUCCESS';
-});
-
-afterAll(async () => {
-  if (app) await app.close();
-  await prisma.$disconnect();
-  await client.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
-  await client.end();
 });
 
 // Tạo người dùng mới và JWT tương ứng

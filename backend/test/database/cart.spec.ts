@@ -143,3 +143,26 @@ test('50 configuration bound permits merge but rejects new configuration without
   await add({ ...input, size: 'L', toppingIds: [], qty: 1 }).expect(400);
   expect(((await get()).body as CartBody).items).toHaveLength(50);
 });
+
+test('atomic options edit at 50 lines does not allocate a temporary configuration', async () => {
+  const source = await prisma.cartItem.findFirstOrThrow({where: {productId, size: 'L'}});
+  const response = await request(app.getHttpServer()).patch(`/cart/items/${source.id}/options`)
+    .set('Authorization', `Bearer ${token}`).send({size: 'L', toppingIds: []}).expect(200);
+  expect((response.body as CartBody).items).toHaveLength(50);
+  const updated = await prisma.cartItem.findUniqueOrThrow({where: {id: source.id}});
+  expect(updated.configurationKey).toBe(`${productId}:L`); expect(updated.qty).toBe(source.qty);
+});
+
+test('atomic merge rolls back source, target and toppings when monetary validation fails', async () => {
+  const user = await prisma.user.create({data: {email: `${randomUUID()}@example.invalid`, passwordHash: 'unused'}});
+  const p = await prisma.product.create({data: {name: 'Atomic overflow', price: '400000000000', stock: 10, imageUrl: '',
+    sizes: {create: [{size: 'M', extraPrice: '0'}, {size: 'L', extraPrice: '0'}]}}});
+  const cart = await prisma.cart.create({data: {userId: user.id, items: {create: ['M','L'].map(size => ({productId: p.id, size, qty: 1, configurationKey: `${p.id}:${size}`}))}}, include: {items: true}});
+  // Force invalid catalog data via legal DB bound: read-time arithmetic must still roll back the merge.
+  await prisma.product.update({where: {id: p.id}, data: {price: '600000000000'}});
+  const {CartService} = await import('../../src/cart/cart.service');
+  const service = new CartService(prisma as unknown as PrismaService);
+  const source = cart.items.find(row => row.size === 'M')!;
+  await expect(service.editOptions(user.id, source.id, {size: 'L', toppingIds: []})).rejects.toMatchObject({status: 400});
+  expect(await prisma.cartItem.findMany({where: {cartId: cart.id}, orderBy: {id: 'asc'}})).toEqual([...cart.items].sort((a,b) => a.id.localeCompare(b.id)));
+});

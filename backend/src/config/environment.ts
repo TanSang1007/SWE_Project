@@ -7,8 +7,7 @@ export interface Environment {
   DATABASE_URL: string;
   JWT_SECRET: string;
   JWT_EXPIRES_IN: number;
-  PAYMENT_MOCK_MODE: 'SUCCESS' | 'FAILURE';
-  PAYMENT_PROVIDER_MODE: 'MOCK' | 'VNPAY_SANDBOX';
+  PAYMENT_PROVIDER_MODE: 'VNPAY_SANDBOX';
   VNPAY_INITIATION_CONFIG: VnpayConfig | null;
   VNPAY_ACCEPT_NEW_PAYMENTS?: boolean;
   VNPAY_SANDBOX_ENABLED?: boolean;
@@ -34,10 +33,28 @@ export function validateEnvironment(values: Record<string, unknown>): Environmen
   }
   const expiresIn = Number(values.JWT_EXPIRES_IN ?? 3600);
   if (expiresIn !== 3600) throw new Error('JWT_EXPIRES_IN must be 3600 seconds per the approved design.');
-  const paymentMode = values.PAYMENT_MOCK_MODE ?? 'SUCCESS';
-  if (paymentMode !== 'SUCCESS' && paymentMode !== 'FAILURE') throw new Error('PAYMENT_MOCK_MODE must be SUCCESS or FAILURE.');
-  return { NODE_ENV: nodeEnv, PORT: port, DATABASE_URL: databaseUrl, FRONTEND_ORIGIN: frontendOrigin, JWT_SECRET: secret, JWT_EXPIRES_IN: expiresIn, PAYMENT_MOCK_MODE: paymentMode,
-    ...initiationSettings({ ...values, NODE_ENV: nodeEnv }) };
+  if (values.PAYMENT_MOCK_MODE !== undefined) {
+    throw new Error('PAYMENT_MOCK_MODE is no longer supported; use VNPAY_SANDBOX.');
+  }
+  const providerMode = values.PAYMENT_PROVIDER_MODE ?? 'VNPAY_SANDBOX';
+  if (providerMode !== 'VNPAY_SANDBOX') {
+    throw new Error('PAYMENT_PROVIDER_MODE must be VNPAY_SANDBOX.');
+  }
+  const shouldValidateVnpay = nodeEnv === 'test'
+    ? values.VNPAY_INITIATION_TEST_ONLY === 'true'
+    : (values.VNPAY_SANDBOX_ENABLED !== undefined || values.VNPAY_ENV !== undefined || values.VNPAY_TMN_CODE !== undefined || values.VNPAY_HASH_SECRET !== undefined);
+  const vnpaySettings = shouldValidateVnpay
+    ? initiationSettings({ ...values, NODE_ENV: nodeEnv, PAYMENT_PROVIDER_MODE: providerMode })
+    : { PAYMENT_PROVIDER_MODE: 'VNPAY_SANDBOX' as const, VNPAY_INITIATION_CONFIG: null };
+  return {
+    NODE_ENV: nodeEnv,
+    PORT: port,
+    DATABASE_URL: databaseUrl,
+    FRONTEND_ORIGIN: frontendOrigin,
+    JWT_SECRET: secret,
+    JWT_EXPIRES_IN: expiresIn,
+    ...vnpaySettings,
+  };
 }
 
 function requireUrl(value: unknown, name: string, protocols: string[]): string {

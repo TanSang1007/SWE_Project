@@ -28,7 +28,7 @@ export type Account = {
 
 // Khoa don hang trong transaction de tranh cap nhat dong thoi.
 export async function lockOrder(tx: Prisma.TransactionClient, id: string) {
-    await tx.$queryRaw `SELECT id FROM orders WHERE id=${id}::uuid FOR UPDATE`;
+    await tx.$queryRaw `SELECT id FROM orders WHERE id=${id} FOR UPDATE`;
 }
 function check(condition: boolean) {
     if (!condition)

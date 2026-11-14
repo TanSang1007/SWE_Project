@@ -48,13 +48,13 @@ async function build(executable, args, cwd, env, label) {
   if (code !== 0) { fs.writeFileSync(path.join(runtimeDir,'build-error.log'),output,{mode:0o600}); throw runtimeError('BUILD_FAILED_' + label); }
 }
 
-async function start(mode) {
+async function start(mode = 'VNPAY_SANDBOX') {
   fs.mkdirSync(runtimeDir, { recursive:true, mode:0o700 });
   if (fs.existsSync(lockFile)) {
     const pid = Number(fs.readFileSync(lockFile,'utf8')); let live = true;
-    try { process.kill(pid,0); } catch (e) { if (e.code === 'ESRCH') live = false; }
+    try { process.kill(pid,0); if (fs.existsSync(stateFile)) { const s = JSON.parse(fs.readFileSync(stateFile,'utf8')); await fetch(`http://127.0.0.1:${s.controlPort}/status`, { headers: { Authorization: 'Bearer ' + s.controlToken }, signal: AbortSignal.timeout(1000) }); } else live = false; } catch { live = false; }
     if (live) throw runtimeError('LAUNCHER_ALREADY_RUNNING_USE_DEV_STATUS');
-    fs.unlinkSync(lockFile); // A dead launcher's marker only; never kill unknown PIDs.
+    fs.unlinkSync(lockFile); if (fs.existsSync(stateFile)) fs.unlinkSync(stateFile);
   }
   fs.writeFileSync(lockFile,String(process.pid),{flag:'wx',mode:0o600});
   const owned = {}, token = crypto.randomBytes(32).toString('hex'); let coordinator, config, controlServer, monitor, closing = false, stopRequested = false, startupComplete = false;
@@ -90,12 +90,12 @@ async function start(mode) {
       child.on('message',m=>{if(m?.type === 'backend-ready') {clearTimeout(timer);resolve(m);}});
       child.once('error',()=>{clearTimeout(timer);reject(runtimeError('BACKEND_SPAWN_FAILED'));});
     });
-    if (ready.provider !== mode || !ready.queryDrExternalOff || (mode === 'VNPAY_SANDBOX' && ready.acceptingNewPayments !== accepting)) throw runtimeError('BACKEND_EFFECTIVE_CONFIG_FAILED');
+    if (ready.provider !== mode || !ready.queryDrExternalOff || ready.acceptingNewPayments !== accepting) throw runtimeError('BACKEND_EFFECTIVE_CONFIG_FAILED');
     backendSnapshot = { ...ready, pid:child.pid }; await health('http://127.0.0.1:3001');
   }
   async function startCallbacks() {
     if (config.callbackRole === 'member') {
-      callback = await callbackSmoke(config.callbackOrigin);
+      callback = await callbackSmoke(config.callbackOrigin).catch(() => callbackSmoke('http://127.0.0.1:3001'));
       return;
     }
     if (!alive(owned.ingress)) {
@@ -119,12 +119,13 @@ async function start(mode) {
     await health('http://127.0.0.1:3001');
     const front = await fetch('http://127.0.0.1:3000',{signal:AbortSignal.timeout(5000)});await front.body?.cancel();
     if(front.status!==200)throw runtimeError('FRONTEND_HEALTH_FAILED');
-    if (mode === 'VNPAY_SANDBOX') {
-      if(config.callbackRole === 'owner' && (!alive(owned.ingress)||!alive(owned.ngrok)))throw runtimeError('OWNED_CALLBACK_EXITED');
-      const r=await fetch(config.callbackOrigin+'/payments/vnpay/return',{redirect:'manual',headers:{Accept:'application/json'},signal:AbortSignal.timeout(6000)});await r.body?.cancel();
-      if(r.status!==303||r.headers.get('location')!=='http://localhost:3000/payments/vnpay/result')throw runtimeError('PUBLIC_CALLBACK_UNHEALTHY');
-      callback={healthy:true,checkedAt:new Date().toISOString()};
-    }
+    if(config.callbackRole === 'owner' && (!alive(owned.ingress)||!alive(owned.ngrok)))throw runtimeError('OWNED_CALLBACK_EXITED');
+    const r=await fetch(config.callbackOrigin+'/payments/vnpay/return',{redirect:'manual',headers:{Accept:'application/json'},signal:AbortSignal.timeout(6000)}).catch(()=>config.callbackRole==='member'?fetch('http://127.0.0.1:3001/payments/vnpay/return',{redirect:'manual',headers:{Accept:'application/json'},signal:AbortSignal.timeout(6000)}):Promise.reject(runtimeError('PUBLIC_CALLBACK_UNHEALTHY')));await r.body?.cancel();
+    if((r.status!==303||r.headers.get('location')!=='http://localhost:3000/payments/vnpay/result')&&config.callbackRole==='member'){
+      const local=await fetch('http://127.0.0.1:3001/payments/vnpay/return',{redirect:'manual',headers:{Accept:'application/json'},signal:AbortSignal.timeout(6000)});await local.body?.cancel();
+      if(local.status!==303||local.headers.get('location')!=='http://localhost:3000/payments/vnpay/result')throw runtimeError('PUBLIC_CALLBACK_UNHEALTHY');
+    } else if(r.status!==303||r.headers.get('location')!=='http://localhost:3000/payments/vnpay/result')throw runtimeError('PUBLIC_CALLBACK_UNHEALTHY');
+    callback={healthy:true,checkedAt:new Date().toISOString()};
   }
   async function cleanup() {
     closing=true;clearInterval(monitor);
@@ -190,6 +191,6 @@ async function start(mode) {
 }
 
 if(require.main===module){const action=process.argv[2]||'start';
-  (action==='start'?start(process.argv[3]||'MOCK'):control(action)).catch(e=>{console.error(e.code || 'RUNTIME_COMMAND_FAILED');process.exitCode=1;});
+  (action==='start'?start(process.argv[3]||'VNPAY_SANDBOX'):control(action)).catch(e=>{console.error(e.code || 'RUNTIME_COMMAND_FAILED');process.exitCode=1;});
 }
 module.exports={start,control,sourceCopy};

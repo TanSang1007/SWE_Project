@@ -4,8 +4,8 @@
 
 ## Nghiệp vụ và API
 
-- Transaction `POST /orders` khóa user, giữ active-order guard, kiểm tra full Cart, giá/tồn/điểm như trước; tạo snapshot PENDING và lấy các dòng Cart hiện tại ra khỏi Cart trong cùng transaction. Cart mới có thể thêm/sửa/xóa ngay, bao gồm cùng cấu hình sản phẩm. Không thay snapshot Order. Nếu tạo Order rollback, Cart cũng rollback.
-- Settlement MOCK, INTERNAL_ZERO và VNPAY không đọc/kiểm tra/xóa Cart. Vì vậy Cart B không mất dòng khi A thành công, thất bại, bị hủy hoặc nhận IPN muộn. Đơn đang chờ trước migration không bị sửa dữ liệu; Cart hiện tại của chúng tiếp tục chỉnh sửa và không bị settlement xóa.
+- **Luồng giỏ mới theo user2026-11-02:** POST /orders giữ nguyên Cart; PENDING/PAYMENT_FAILED khóa thêm/sửa/xóa giỏ dưới owner lock. Thất bại giữ nguyên; muốn đổi món phải hủy đơn cũ rồi tạo đơn mới. Không còn Cart B trong lúc chờ.
+- Thành công MOCK/VNPAY/INTERNAL_ZERO xóa toàn bộ CartItem của owner trong transaction PAID/Payment/điểm. Callback/replay lặp không xóa thêm. Cancel/UNKNOWN/failure không xóa giỏ. Không schema/migration hoặc metadata provenance mới; xem CART_FAILURE_FIX.md.
 - `GET /orders/active`: CUSTOMER/JWT, trả `{order: <owned detail>|null, serverNow}`. PENDING/PAYMENT_FAILED của cùng user chặn tạo mới; không khóa admission của khách khác. `POST /orders`/preview tiếp tục enforce guard trong backend, lỗi409 `INVALID_ORDER_STATE`, `details.existingOrderId`. Không tạo Order/Attempt B khi bị chặn.
 - Response create/detail Order bổ sung `paymentStartedAt`, `expiresAt`, `paymentExpiredAt`, `cancellationReason`, `serverNow` (ISO UTC, nullable cho lịch sử). Lịch sử không được backfill deadline. Idempotency replay giữ nguyên snapshot/deadline; frontend đọc lại detail để lấy `serverNow` mới.
 - Deadline bắt đầu khi snapshot PENDING được commit từ thao tác xác nhận Order: thời điểm backend chuẩn hóa tới giây, cộng đúng600 giây. Hai bước create Order/initiate Attempt vẫn dùng API/idempotency hiện có; chậm giữa hai bước không cấp thêm thời gian. MOCK/zero cũng không được xác nhận mới sau deadline.

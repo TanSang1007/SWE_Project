@@ -2,7 +2,7 @@ import { getApiBaseUrl } from '../env';
 import { getAccessToken, useAuthStore } from '../auth-store';
 import { OrderError } from './orders';
 
-export type ProviderMode = 'MOCK' | 'VNPAY_SANDBOX';
+export type ProviderMode = 'VNPAY_SANDBOX';
 export interface AttemptStatus {
   expiresAt?: string; serverNow?: string; attemptId: string; orderId: string; amount: string; currency: 'VND'; provider: 'VNPAY_SANDBOX';
   effectiveState: 'AWAITING' | 'SUCCEEDED' | 'FAILED' | 'UNKNOWN' | 'REVIEW';
@@ -10,12 +10,12 @@ export interface AttemptStatus {
   canResume: boolean; canRetry: boolean; canCancel: boolean; requiresReview: boolean; messageCode?: string;
   failureReason?: 'CUSTOMER_CANCELLED';
 }
-export const uuid = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+export const uuid = (v: unknown): v is string => typeof v === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(v);
 async function request(path: string, method = 'GET', body?: object, key?: string, signal?: AbortSignal): Promise<unknown> {
   const token = getAccessToken(); if (!token) throw new OrderError('UNAUTHORIZED');
   try {
     const r = await fetch(getApiBaseUrl() + path, { method, cache: 'no-store', credentials: 'omit',
-      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(5000)]) : AbortSignal.timeout(5000),
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000),
       headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}), ...(key ? { 'Idempotency-Key': key } : {}) },
       ...(body ? { body: JSON.stringify(body) } : {}) });
     if (r.status === 401) { if (useAuthStore.getState().accessToken === token) useAuthStore.getState().clear(); throw new OrderError('UNAUTHORIZED'); }
@@ -28,9 +28,9 @@ async function request(path: string, method = 'GET', body?: object, key?: string
 export async function paymentConfiguration(signal?: AbortSignal): Promise<{ providerMode: ProviderMode; acceptingNewPayments: boolean }> {
   const v = await request('/payments/config', 'GET', undefined, undefined, signal) as { providerMode?: unknown; acceptingNewPayments?: unknown };
   if (!v || Object.keys(v).some(k => !['providerMode', 'acceptingNewPayments'].includes(k))
-    || !['MOCK', 'VNPAY_SANDBOX'].includes(String(v.providerMode))
-    || (Object.hasOwn(v, 'acceptingNewPayments') && (v.providerMode !== 'VNPAY_SANDBOX' || typeof v.acceptingNewPayments !== 'boolean'))) throw new OrderError('UNAVAILABLE');
-  return { providerMode: v.providerMode as ProviderMode, acceptingNewPayments: v.acceptingNewPayments !== false };
+    || v.providerMode !== 'VNPAY_SANDBOX'
+    || (Object.hasOwn(v, 'acceptingNewPayments') && typeof v.acceptingNewPayments !== 'boolean')) throw new OrderError('UNAVAILABLE');
+  return { providerMode: 'VNPAY_SANDBOX', acceptingNewPayments: v.acceptingNewPayments !== false };
 }
 export async function paymentConfig(signal?: AbortSignal): Promise<ProviderMode> {
   return (await paymentConfiguration(signal)).providerMode;

@@ -1,5 +1,53 @@
 # BrewLite — Quyết định thiết kế
 
+**Cart preservation fix 2026-11-02 — FR08:** Người dùng yêu cầu sửa lỗi mất giỏ khi thanh toán thất bại. `POST /orders` giữ nguyên Cart thay vì xóa khi tạo PENDING; settlement tiếp tục không sửa Cart, bao gồm failure/retry/success và callback lặp. Không thay schema, API/DTO, quyền, idempotency hoặc tồn kho. Thay đổi này supersede quy tắc consume-Cart-at-create của amendment 2026-10-22; các mô tả clear/consume cũ bên dưới là lịch sử. Tests: `cart-payment-preservation.spec.ts`, cập nhật database orders/checkout-lifecycle; xem [chi tiết](CART_FAILURE_FIX.md).
+
+## I03 — Quản lý vật tư trong một file (ACCEPTED USER / TECHNICAL,2026-10-31)
+
+Người dùng yêu cầu thêm/bỏ/sửa vật tư trong một file và frontend cập nhật theo. Dùng `ingredient-catalog.ts` làm nguồn danh mục; `name`/`unit` so khớp bản ghi kho, `label` tùy chọn đổi tên hiển thị an toàn. GET ingredients bổ sung `isListed`/`displayName` nhưng vẫn trả bản ghi cũ cho recount/history; frontend dùng metadata cho kho, lựa chọn phiếu mới và thống kê các mặt hàng đang liệt kê. Bỏ form thêm thủ công khỏi UI kho. Xóa dòng chỉ ngừng liệt kê, không xóa tồn hoặc chứng từ; thêm lại dùng kho cũ, thêm tên mới tạo tồn0 bằng Admin initializer. Không migration, không thay quyền hoặc chặn API chứng từ cũ. Thay thế điều kiện ẩn riêng từng tên trong ReceiptForm của quyết định2026-10-30 dưới đây. [Hướng dẫn và acceptance](I03_RECEIVING_CATALOG.md).
+
+## I03 — Bỏ lựa chọn “Ly và nắp nhựa” và “sữa (lít)” khỏi phiếu nhập mới (ACCEPTED USER,2026-10-30)
+
+Người dùng yêu cầu bỏ “Ly và nắp nhựa” và sau đó “sữa (lít)” khỏi ô chọn khi tạo phiếu nhập, giữ “Ly nhựa”, “Sữa tươi” và “Sữa đặc”. ReceiptForm lọc riêng tên “Ly và nắp nhựa” với đơn vị PIECE và tên “sữa” với đơn vị L trước khi khởi tạo/chọn/thêm dòng và gửi form; không giới hạn các mặt hàng khác theo danh mục mặc định. Bản ghi kho và chứng từ cũ được giữ nguyên, không xóa/gộp hoặc đổi tồn. Đây là điều chỉnh lựa chọn trên UI, không thay API/schema hoặc chặn thao tác qua API. [Chi tiết](I03_RECEIVING_CATALOG.md).
+
+## I03 — Danh mục nhập hàng và quả (ACCEPTED USER,2026-10-29)
+
+Người dùng chỉ định12 mặt hàng và xác nhận trứng cảnh báo dưới10 quả. Thêm EGG thuộc nguyên liệu, không dùng chung PIECE để tránh phân trứng vào vật dụng. Tạo danh mục còn thiếu ở quantity0 qua POST Admin có xác thực khi mở trang kho/nhập hàng, dùng đúng actor thực, không ghi quantity giả trong migration. Reuse normalizedName/unit đúng, không chuyển đơn vị hàng cũ; mismatch409 rollback. Giữ các mặt hàng khác và audit. [Contract, danh sách và kiểm chứng](I03_RECEIVING_CATALOG.md).
+
+## I02 — Phân nhóm kho và nhập hàng (ACCEPTED USER / TECHNICAL,2026-10-29)
+
+Người dùng chốt sáu mục Admin, hai nhóm kho và ba lựa chọn nhập hàng; cảnh báo strict `<` theo đơn vị: cái10/lít5/kg10. Dùng lại I01, PIECE là vật dụng, các đơn vị đo là nguyên liệu; tạo mới chỉ PIECE/L/KG. G/ML cũ giữ dữ liệu và quy trình, ngưỡng tương đương10000g/5000ml. Backend tự đặt ngưỡng, DB CHECK bảo vệ; migration chỉ thay metadata ngưỡng, không qty/version/audit. Tạo request cũ replay theo hash trước kiểm tra chính sách mới để không mất recovery. Chuyển A06 sang Sản phẩm → Tồn sản phẩm; API cũ giữ nguyên. [Contract](I02_INVENTORY_CATEGORIES.md). Thay thế quy định ngưỡng Admin tùy chọn trong I01 dưới đây.
+
+## I01 — Tồn kho nguyên liệu (ACCEPTED USER / TECHNICAL,2026-10-29)
+
+Sửa lỗi tích hợp cùng ngày: áp dụng migration còn thiếu trên database thật, thêm aggregate summary và tải riêng từng nhóm dữ liệu với timeout12 giây. Lỗi lịch sử không được làm mất danh sách nguyên liệu hoặc tạo trạng thái loading vô hạn. Giữ kho trống khi chưa có dữ liệu, cho Admin thêm qua API thật. Fallback migration chỉ cho I01, không reset/seed hoặc sửa dữ liệu cũ. [Kết quả kiểm chứng](I01_INGREDIENT_INVENTORY_IMPLEMENTATION.md).
+
+Người dùng giao triển khai riêng nhập hàng, kiểm kê Staff, duyệt Admin và lịch sử; chưa recipe consumption/nhà cung cấp. Giữ A06 Product.stock và mọi luồng khách/payment nguyên trạng. Nguyên liệu dùng6 bảng mới, Decimal(12,3), đơn vị KG/G/L/ML/PIECE bất biến và ngưỡng sắp hết do Admin chọn (mặc định0, không tự suy business cutoff). Staff gửi snapshot có version→Admin review; bất kỳ stock/version thay đổi trả409 yêu cầu kiểm kê lại, không cộng delta cũ vào tồn mới hoặc overwrite. Phiếu kiểm kê lại là resource mới liên kết bản cũ, không sửa audit lịch sử. Receipt draft→confirm, nguồn movement unique, actor locks/sorted ingredient locks/bulk CAS/single transaction bảo đảm một lần và rollback toàn phiếu. Key/hash của6 bảng tách payment claims để không thay enum/contract tài chính. Giao diện thêm hai route và nav links trong shell hiện có; CSS chỉ scope nguyên liệu. Đây là extension được yêu cầu, không sửa baseline PDF. [Contract](I01_INGREDIENT_INVENTORY_CONTRACT.md), [schema](DATABASE_DESIGN.md), [API](API_DESIGN.md).
+
+## Order controller/service review — ownership và lỗi đọc (TECHNICAL, 2026-10-27)
+
+Controller giữ nguyên JWT/current-role CUSTOMER, strict DTO/body/query, route tĩnh trước UUID,200/201 và cache headers. Sửa service theo test tái hiện: active-order DB error trả503 sanitized như detail/history; customer cancel dùng SELECT FOR UPDATE với cả Order ID và owner ID, không khóa/chờ đơn người khác trước khi trả404; expiration giữ đúng marker đã persist trong kết quả trả về khi gateway pending/review/receipt. Lock user → owned Order → Attempts, status/OCC, ledger/stock/idempotency và UNKNOWN safeguards giữ nguyên. Không schema, quyền mới hoặc public timeout input. HTTP tests bao phủ active auth/role/owner/input/no-store/DB fault; PostgreSQL test giữ khóa Order của khách A rồi yêu cầu hủy từ B phải404 và không đổi hai khách; service tests kiểm tra marker mới/cũ và không giải phóng reservation khi chưa rõ kết quả.
+
+## B09/B10 — Ghi snapshot theo lô trong cùng transaction (TECHNICAL, 2026-10-26)
+
+Rà soát DTO và PostgreSQL orders suite tái hiện lỗi ở đơn50 cấu hình: nested create phát nhiều lệnh cha/con, có lượt vượt deadline local400ms; SQL trace cho thấy rollback xảy ra trước các lệnh insert con còn chờ, dẫn tới lỗi FK/503. OrderService đổi sang await tạo Order, createMany OrderItem với UUID gán trước, createMany OrderItemTopping liên kết đúng UUID rồi đọc snapshot. Tất cả vẫn nằm trong transaction hiện có cùng stock, Cart, Loyalty và idempotency claim; không retry ngầm, không đổi deadline local/Neon, schema, API hay bounds sau gộp. DTO giữ nguyên. Orders integration kiểm tra ánh xạ đầy đủ50 cấu hình/topping và fault ở topping rollback cả parent/stock/claim, cùng key retry không nhân đôi. Đây là sửa cách thực thi, không mở admission VNPAY hoặc thay cho nghiệm thu hiệu năng/E2E.
+
+Riêng fixture `test/database/orders.spec.ts` công khai budget transaction maxWait2000/timeout5000ms cho các ca chức năng; SQL lock200ms/statement300ms vẫn do service áp dụng. Các lượt local400ms đã thất bại ở những ca khác nhau khi cold/JIT/host contention, nên không dùng deadline hiệu năng để quyết định kết quả business/rollback trong fixture này. Chính sách runtime local400ms/Neon5000ms không sửa và vẫn có assertion riêng ở `sandbox-gate.spec.ts`. Test pass với budget fixture không chứng minh local400ms hay NFR01<500ms đạt trên máy bàn giao; giữ protocol nghiệm thu hiệu năng riêng.
+
+## Một root .env duy nhất — ACCEPTED USER / TECHNICAL (2026-10-26)
+
+Người dùng yêu cầu chỉ giữ một `.env`, bỏ file env mẫu. Root `.env` private là nguồn cho NestJS, Prisma, CLI, launcher và hai URL frontend; cấu hình callback được chuyển từ overlay vào root sau khi đối chiếu không mất giá trị. Bỏ các template và overlay, giữ `.env`/`.env.*` trong gitignore. Mẫu cấu hình chỉ nằm trong README; không commit credentials. Next config chỉ đọc hai biến URL từ root file, không export secret; shell/launcher overrides giữ ưu tiên cao hơn. Source snapshot nhận root path từ launcher. Provider/admission/UNKNOWN policy không thay đổi. PDF giữ nguyên: yêu cầu env template ở NFR08 được ghi là khác biệt bàn giao theo lựa chọn này, không đánh dấu đạt NFR08.
+
+## B03/B19, A04–A06, checkout/session — correctness fixes (TECHNICAL, 2026-10-26)
+
+Theo yêu cầu sửa sáu finding của đợt rà soát: `dev:recover` bảo đảm frontend được chạy nếu startup dừng ở callback; process còn sống được giữ, port lạ vẫn bị từ chối. Launcher giữ monitor khi phải giữ backend/callback để phục hồi. Admission chỉ mở sau readiness, stop/drain/UNKNOWN guards giữ nguyên. Product/Option/Inventory dùng `PrismaService.transactionOptions`: Neon 2000/5000ms, local 50/400ms; SQL lock/statement limits giữ nguyên.
+
+Hai worker quét tối đa50 bản ghi/lượt theo keyset `(deadline,id)` hoặc `(receivedAt,id)`, tiến qua cả các bản lỗi và quay về đầu sau trang cuối. Cursor chỉ giữ ID trong memory; Prisma đối chiếu timestamp gốc tại DB để không mất microsecond, loại anchor bằng ID thay vì offset skip. Restart đọc lại eligibility từ DB. Không schema, queue, auto financial retry hay tự chuyển UNKNOWN. Frontend giải phóng Mock context khi server xác nhận `PAYMENT_TIMEOUT` hoặc đọc được Order terminal, giữ context khi network outcome chưa rõ/PENDING/PAYMENT_FAILED. Link retry đi `/checkout?orderId=...`. Cookie session phải chứa UUID hợp lệ trước SQL; cookie lỗi trả401/session hoặc được xóa bởi logout. Không đổi role, đường dẫn API, công thức tài chính hoặc PDF.
+
+## B03/B19 — Windows startup compatibility (TECHNICAL, 2026-10-26)
+
+Frontend development, production build và source-snapshot build của launcher dùng `--webpack`. Log local xác nhận Windows Application Control có thể chặn native SWC; khi chỉ còn WASM, Turbopack không build được. Giữ lựa chọn Webpack đã có trong frontend build và áp dụng nhất quán cho các entrypoint. Pin `@nestjs/platform-express` **11.2.7** cùng core/common/testing để npm đặt adapter ở root workspace, nơi Nest tự resolve khi khởi động. Không đổi API, schema, requirement hoặc payment policy. Backend đang chạy và gateway chưa hoàn tất được giữ nguyên khi kiểm tra frontend độc lập.
+
 ## Checkout expiry, independent Cart, persistent auth — ACCEPTED USER / TECHNICAL (2026-10-22)
 
 Người dùng giao triển khai deadline10 phút, Cart độc lập và persistent auth cho3 roles. [Contract cập nhật](CHECKOUT_SESSION_UPDATE.md) supersede D19/B07 memory-only session, D31/B10 khóa Cart và clear Cart khi Payment success, cùng P00 TTL900s. Snapshot và lấy các CartItem hiện tại diễn ra atomically ở create Order; settlement không chạm Cart mới. PostgreSQL lưu deadline, worker catch-up sau restart, không force FAILED/CANCELLED UNKNOWN. VNPAY expiry GMT+7 và verified-IPN/QueryDr OFF giữ nguyên. Quyết định kỹ thuật: JWT3600s memory + opaque HttpOnly rotating session absolute7 ngày, hash DB, sid revocation, same-origin Next auth proxy + exact Origin/custom CSRF header. Migration additive, không đổi PDF hoặc cập nhật dữ liệu tài chính lịch sử.
@@ -438,3 +486,17 @@ when safeToStop=false. Automatic health recovery never cancels explicit intent.
 No financial writes, QueryDr activation, quota or session gate is part of recovery.
 Existing running parent is not hot-reloaded; use its existing recovery path and
 defer replacing it until safe shutdown. See [operation](NORMAL_SANDBOX_MODE.md).
+
+## Cart/pricing correction2026-11-02 — user scope: no migration
+
+User selected four fixes without database structure changes: atomic options edit/merge using existing owner lock; edit at50 rows without temporary extra row; aggregate stock warning; successful current quote required for new checkout intents. Browser add receives an immediate in-flight guard and reload-on-error, not durable deduplication. This supersedes B08 two-request options orchestration. Keep schema, migrations, Order/payment engines and pricing formulas unchanged. See CART_PRICING_FIXES.md for evidence and limitations.
+
+
+## Luồng giỏ đơn giản theo yêu cầu người dùng — 2026-11-02
+
+- Tạo PENDING giữ nguyên Cart, không xóa ở create. Giỏ của owner bị khóa mọi POST/PATCH/options/DELETE khi có PENDING hoặc PAYMENT_FAILED. GET vẫn được phép. Kiểm tra dưới cùng user row lock với create/payment/cancel, không chỉ khóa giao diện. Lỗi409 INVALID_ORDER_STATE kèm existingOrderId hiện có, không endpoint/schema/enum mới.
+- PAYMENT_FAILED, UNKNOWN và hủy đơn không xóa giỏ hoặc tự cộng lại món. Khách có thể thử lại thanh toán; muốn đổi món sau lỗi phải hủy đơn cũ, sau đó sửa giỏ/tạo đơn mới. Không tạo đơn thứ hai khi đơn cũ chưa được xử lý.
+- Lần thanh toán thành công đầu tiên xóa TOÀN BỘ CartItem của owner, trong cùng transaction với PAID/Payment/điểm. MOCK, VNPAY verified settlement (IPN/QueryDr/receipt worker chung apply) và INTERNAL_ZERO đều dùng helper này. Lỗi cleanup rollback settlement. Replay/callback lặp không xóa giỏ của đơn mới.
+- Không giữ phần số lượng thêm hoặc chia Cart A/B. Bỏ ghi metadata `_cartCleanup`, không cần provenance cho đơn mới/cũ. Giữ bộ lọc field nội bộ trên public replay để tương thích receipt đã sinh bởi bản trước. Không thay schema/migration, không backfill hoặc reset dữ liệu.
+- Giao diện khóa nút thêm/sửa/xóa trong lúc kiểm tra đơn, khi lỗi kiểm tra và khi có active order; banner dẫn tới tiếp tục thanh toán/hủy. Poll/focus cập nhật trạng thái; trước khi mở khóa sau success/cancel tải lại giỏ. Backend luôn quyết định, kể cả tab khác/cache cũ.
+- Các thành viên cần dùng backend mới đồng bộ; một backend phiên bản cũ vẫn có thể cho sửa Cart vì đây là rule ứng dụng, không phải constraint schema.

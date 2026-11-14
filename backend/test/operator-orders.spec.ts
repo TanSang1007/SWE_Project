@@ -85,7 +85,7 @@ describe('A02 operator read contract and authorization', () => {
     role = value; order.findFirst.mockResolvedValue(row()); const r = await get(`/operator/orders/${id.toUpperCase()}`).expect(200);
     expect(r.body).toEqual({ id, orderCode: 'BL-fixture', status: 'PAID', currency: 'VND', items: [{ productId: id, productName: 'Historical drink', size: 'M', qty: 1,
       unitPrice: '105000', lineTotal: '105000', toppings: [{ name: 'Cream', price: '5000' }] }], subtotal: '105000', discountAmount: '10000', total: '95000',
-      redeemedPoints: 0, loyaltyDiscountAmount: '0', redemptionState: 'NONE', estimatedEarnedPoints: 9, promotionCode: 'SNAPSHOT', createdAt: '2026-10-07T00:00:00.000Z', paidAt: '2026-10-07T00:01:00.000Z', earnedPoints: 9, paymentStatus: 'SUCCEEDED',
+      redeemedPoints: 0, loyaltyDiscountAmount: '0', redemptionState: 'NONE', estimatedEarnedPoints: 9, promotionCode: 'SNAPSHOT', createdAt: '2026-10-07T00:00:00.000Z', paymentStartedAt: null, expiresAt: null, paymentExpiredAt: null, cancellationReason: null, serverNow: (r.body as { serverNow: string }).serverNow, paidAt: '2026-10-07T00:01:00.000Z', earnedPoints: 9, paymentStatus: 'SUCCEEDED',
       version: 7, updatedAt: '2026-10-09T00:01:00.000Z' });
     expect(order.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: value === 'ADMIN' ? { id } : { id, status: { in: ['PAID', 'PREPARING', 'READY', 'COMPLETED'] } } }));
     expect(r.text).not.toMatch(/userId|email|passwordHash|idempotencyKey|payments|loyaltyAward/);

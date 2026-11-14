@@ -53,7 +53,7 @@ export function GatewayCheckout({ order, disabled, acceptingNewPayments = true, 
     if (!userId || inFlight.current || loading || disabled || error || !permitted || (!zero && !acceptingNewPayments)) return;
     inFlight.current = true; setBusy(true); onBusy(true); setError('');
     try {
-      if (!zero && status?.canResume) { const url = await resumePayment(order.id); if (current()) window.location.assign(url); return; }
+      if (!zero && status?.canResume) { const url = await resumePayment(order.id); if (current()) { window.location.href = url; } return; }
       let saved = nextGatewayIntent(userId, order, status, intent.current);
       writeGatewayContext(saved); intent.current = saved; setRecovery(saved);
       if (zero) {
@@ -63,9 +63,9 @@ export function GatewayCheckout({ order, disabled, acceptingNewPayments = true, 
         const r = await initiatePayment(order.id, saved.key); if (!current()) return;
         saved = { ...saved, attemptId: r.attemptId }; intent.current = saved; setRecovery(saved); writeGatewayContext(saved);
         const a = await attemptStatus(r.attemptId); if (!current()) return; setStatus(a);
-        if (!a.canResume || a.effectiveState !== 'AWAITING' || a.requiresReview) { window.location.assign(resultPath(a.attemptId)); return; }
+        if (!a.canResume || a.effectiveState !== 'AWAITING' || a.requiresReview) { window.location.href = resultPath(a.attemptId); return; }
         // URL stays in this call's memory only. A failed navigation keeps the same intent.
-        window.location.assign(r.paymentUrl);
+        window.location.href = r.paymentUrl;
         setError('Nếu chưa chuyển trang, hãy kiểm tra trạng thái hoặc tiếp tục cùng yêu cầu đã lưu.');
       }
     } catch (e) { if (current()) setError(checkoutErrorMessage(e, 'payment')); }

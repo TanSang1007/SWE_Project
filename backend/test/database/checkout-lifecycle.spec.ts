@@ -92,25 +92,18 @@ test('ten-minute immutable deadline, backend provider expiry, resume after reloa
   expect(await db.paymentAttempt.count({ where: { orderId: f.order } })).toBe(1);
   await expect(attempts.initiate(f.user, randomUUID(), f.order, '127.0.0.1')).rejects.toMatchObject({ status: 409 });
 });
-test('Cart CRUD is independent, B checkout blocked, A snapshot unchanged, settlement preserves B', async () => {
-  const f = await fixture(), before = await db.orderItem.findMany({ where: { orderId: f.order } });
+test('active order locks all Cart writes; successful verified IPN clears Cart once', async () => {
+  const f=await fixture(); const before=await cart.get(f.user); const item=before.items[0]; await initiate(f);
+  for (const action of [()=>cart.add(f.user,f.selection),()=>cart.update(f.user,item.id,3),
+    ()=>cart.editOptions(f.user,item.id,{size:'S',toppingIds:[]}),()=>cart.remove(f.user,item.id)]) {
+    await expect(action()).rejects.toMatchObject({status:409,response:{code:'INVALID_ORDER_STATE'}});
+  }
+  expect(await cart.get(f.user)).toEqual(before);
+  const result=await notify(f);expect(result.ack.RspCode).toBe('00');
   expect((await cart.get(f.user)).items).toHaveLength(0);
-  await initiate(f);
-  const value = await cart.add(f.user, { ...f.selection, qty: 2 });
-  await cart.update(f.user, value.items[0].id, 3);
-  await expect(orders.create(f.user, randomUUID(), { items: [{ ...f.selection, qty: 3 }] })).rejects.toMatchObject({ status: 409 });
-  expect(await db.order.count({ where: { userId: f.user } })).toBe(1);
-  expect((await notify(f)).ack.RspCode).toBe('00');
-  expect(await db.orderItem.findMany({ where: { orderId: f.order } })).toEqual(before);
-  expect((await cart.get(f.user)).items[0].qty).toBe(3);
-  expect((await orders.create(f.user, randomUUID(), { items: [{ ...f.selection, qty: 3 }] })).body).toMatchObject({ status: 'PENDING' });
-});
-test('Cart edits/removal do not gate IPN or clear newly added identical configuration', async () => {
-  const f = await fixture(); await initiate(f);
-  const added = await cart.add(f.user, f.selection); await cart.remove(f.user, added.items[0].id);
-  await cart.add(f.user, { ...f.selection, qty: 4 });
-  expect((await notify(f)).ack.RspCode).toBe('00');
-  expect((await cart.get(f.user)).items[0].qty).toBe(4);
+  await cart.add(f.user,f.selection);
+  expect((await ipn.receive(result.raw)).RspCode).toBe('02');
+  expect((await cart.get(f.user)).items).toHaveLength(1);
 });
 test('expired unresolved attempt holds stock/loyalty, rejects resume and B, late success and duplicate settle once', async () => {
   const f = await fixture(50), key = randomUUID(); await attempts.initiate(f.user, key, f.order, '127.0.0.1'); due(f);
@@ -121,7 +114,7 @@ test('expired unresolved attempt holds stock/loyalty, rejects resume and B, late
   await expect(attempts.resume(f.user, f.order)).rejects.toMatchObject({ status: 409 });
   await expect(attempts.initiate(f.user, key, f.order, '127.0.0.1')).rejects.toMatchObject({ status: 409 });
   expect((await fixture()).body.id).not.toBe(f.order); // Another customer is not blocked by A's unknown outcome.
-  await cart.add(f.user, f.selection);
+  await expect(cart.add(f.user, f.selection)).rejects.toMatchObject({status:409});
   await expect(orders.create(f.user, randomUUID(), { items: [f.selection] })).rejects.toMatchObject({ status: 409 });
   const result = await notify(f); expect(result.ack.RspCode).toBe('00');
   expect((await ipn.receive(result.raw)).RspCode).toBe('02'); await worker.tick();
@@ -141,7 +134,7 @@ test('late failure then restart/multiple expiration workers cancels once and rel
   expect(await db.loyaltyEntry.count({ where: { orderId: f.order, kind: 'RELEASE' } })).toBe(1);
   expect((await ipn.receive(result.raw)).RspCode).toBe('02');
   expect(await db.payment.count({ where: { orderId: f.order, status: 'SUCCEEDED' } })).toBe(0);
-  await cart.add(f.user, f.selection); expect((await orders.create(f.user, randomUUID(), { items: [f.selection] })).body).toMatchObject({ status: 'PENDING' });
+  expect((await cart.get(f.user)).items).toMatchObject([{ qty: 1 }]); expect((await orders.create(f.user, randomUUID(), { items: [f.selection] })).body).toMatchObject({ status: 'PENDING' });
 });
 test('success racing expiration cannot cancel PAID or release paid inventory', async () => {
   const f = await fixture(); await initiate(f); due(f);
@@ -150,7 +143,7 @@ test('success racing expiration cannot cancel PAID or release paid inventory', a
   expect((await db.product.findUniqueOrThrow({ where: { id: f.product } })).stock).toBe(19);
 });
 test('restart scan cancels expired order with no issued attempt, preserving Cart B', async () => {
-  const f = await fixture(50); await cart.add(f.user, f.selection); due(f);
+  const f = await fixture(50); due(f);
   await new PaymentExpirationWorker(db as unknown as PrismaService, orders).tick();
   expect((await db.order.findUniqueOrThrow({ where: { id: f.order } })).status).toBe('CANCELLED');
   expect((await cart.get(f.user)).items).toHaveLength(1);
@@ -191,4 +184,17 @@ test('session origin/CSRF fail closed; expired/reused refresh cannot restore or 
   await db.authSession.updateMany({ where: { userId: user.id }, data: { expiresAt: new Date(0) } });
   await post().set('Cookie', old).expect(401);
   expect(app.get(JwtService).verify<{ sub: string }>((result.body as { accessToken: string }).accessToken).sub).toBe(user.id);
+});
+
+test('verified failed payment and duplicate callback retain the original Cart including its quantity', async () => {
+  const f = await fixture();
+  const before = await cart.get(f.user);
+  expect(before.items).toMatchObject([{ qty: 1 }]);
+  await initiate(f);
+  const failed = await notify(f, false);
+  expect(failed.ack.RspCode).toBe('00');
+  expect((await db.order.findUniqueOrThrow({ where: { id: f.order } })).status).toBe('PAYMENT_FAILED');
+  expect(await cart.get(f.user)).toEqual(before);
+  expect((await ipn.receive(failed.raw)).RspCode).toBe('02');
+  expect(await cart.get(f.user)).toEqual(before);
 });

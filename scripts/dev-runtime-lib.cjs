@@ -5,19 +5,18 @@ const { Client } = require('pg');
 const dotenv = require('dotenv');
 
 function runtimeError(code) { return Object.assign(new Error(code), { code }); }
-function loadConfiguration(root, mode, inherited = process.env) {
-  if (!['MOCK', 'VNPAY_SANDBOX'].includes(mode)) throw runtimeError('INVALID_MODE');
+function loadConfiguration(root, mode = 'VNPAY_SANDBOX', inherited = process.env) {
+  if (mode !== 'VNPAY_SANDBOX') throw runtimeError('INVALID_MODE');
   const base = dotenv.parse(fs.readFileSync(path.join(root, '.env')));
   let privateValues = {};
-  if (mode === 'VNPAY_SANDBOX') {
-    const profile = inherited.BREWLITE_VNPAY_ENV_FILE || path.join(root, '.env.vnpay.local');
-    if (fs.existsSync(profile)) privateValues = dotenv.parse(fs.readFileSync(profile));
-  }
+  const profile = inherited.BREWLITE_VNPAY_ENV_FILE || path.join(root, '.env.vnpay.local');
+  if (fs.existsSync(profile)) privateValues = dotenv.parse(fs.readFileSync(profile));
   const merged = { ...base, ...inherited, ...privateValues };
   // Explicit launcher selection wins over an old shell/session; no fallback.
   const env = { ...merged, NODE_ENV: 'development', PORT: '3001', FRONTEND_ORIGIN: 'http://localhost:3000',
-    PAYMENT_PROVIDER_MODE: mode, VNPAY_SANDBOX_ENABLED: mode === 'VNPAY_SANDBOX' ? 'true' : 'false',
+    PAYMENT_PROVIDER_MODE: 'VNPAY_SANDBOX', VNPAY_SANDBOX_ENABLED: 'true',
     VNPAY_ACCEPT_NEW_PAYMENTS: 'false', NEXT_PUBLIC_API_BASE_URL: 'http://127.0.0.1:3001', NEXT_TELEMETRY_DISABLED: '1' };
+  delete env.PAYMENT_MOCK_MODE;
   delete env.NODE_OPTIONS; delete env.BREWLITE_RECOVERY_PHASE; delete env.BREWLITE_RECOVERY_INSTANCE;
   delete env.VNPAY_INITIATION_TEST_ONLY; delete env.TEST_DATABASE_URL;
   const u = new URL(env.DATABASE_URL);
@@ -25,17 +24,17 @@ function loadConfiguration(root, mode, inherited = process.env) {
   const neonDatabase = u.hostname.endsWith('.neon.tech') && u.hostname.includes('-pooler.')
     && u.pathname === '/brewlite_dev' && ['require', 'verify-full'].includes(u.searchParams.get('sslmode'));
   if (!['postgres:', 'postgresql:'].includes(u.protocol) || !(localDatabase || neonDatabase)) throw runtimeError('LOCAL_OR_NEON_DATABASE_REQUIRED');
-  let callbackOrigin, ngrokConfig, callbackRole;
-  if (mode === 'VNPAY_SANDBOX') {
-    callbackRole = merged.BREWLITE_CALLBACK_ROLE || (localDatabase ? 'owner' : undefined);
-    if (!['owner', 'member'].includes(callbackRole)) throw runtimeError('SET_BREWLITE_CALLBACK_ROLE_OWNER_OR_MEMBER');
-    // Use the application's existing parser. No hostname or merchant is baked in.
-    const { validateEnvironment } = require(path.join(root, 'backend/dist/config/environment.js'));
-    const settings = validateEnvironment(env);
-    callbackOrigin = new URL(settings.VNPAY_INITIATION_CONFIG.ipnUrl).origin;
-    ngrokConfig = merged.BREWLITE_NGROK_CONFIG;
-    if (callbackRole === 'owner' && (!ngrokConfig || !fs.existsSync(ngrokConfig))) throw runtimeError('SET_BREWLITE_NGROK_CONFIG');
-  }
+  const callbackRole = merged.BREWLITE_CALLBACK_ROLE || (localDatabase ? 'owner' : undefined);
+  if (!['owner', 'member'].includes(callbackRole)) throw runtimeError('SET_BREWLITE_CALLBACK_ROLE_OWNER_OR_MEMBER');
+  // Use the application's existing parser. No hostname or merchant is baked in.
+  const envModulePath = fs.existsSync(path.join(root, 'backend/dist/config/environment.js'))
+    ? path.join(root, 'backend/dist/config/environment.js')
+    : path.resolve(__dirname, '../backend/dist/config/environment.js');
+  const { validateEnvironment } = require(envModulePath);
+  const settings = validateEnvironment(env);
+  const callbackOrigin = new URL(settings.VNPAY_INITIATION_CONFIG.ipnUrl).origin;
+  const ngrokConfig = merged.BREWLITE_NGROK_CONFIG;
+  if (callbackRole === 'owner' && (!ngrokConfig || !fs.existsSync(ngrokConfig))) throw runtimeError('SET_BREWLITE_NGROK_CONFIG');
   return { mode, env, callbackOrigin, callbackRole, ngrokConfig, ngrokExecutable: merged.BREWLITE_NGROK_BIN || 'ngrok' };
 }
 

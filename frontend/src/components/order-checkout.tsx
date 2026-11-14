@@ -8,9 +8,6 @@ import { clearOrderContext, readOrderContext, writeOrderContext, recoveryOrderId
 import { formatVnd } from '../lib/money';
 import type { Cart } from '../types/cart';
 import type { Order } from '../types/order';
-import { paymentRequest } from '../lib/api/payments';
-import { clearPaymentContext, readPaymentContext, writePaymentContext, type PaymentContext } from '../lib/payment-context';
-import type { PaymentInput } from '../types/payment';
 import { checkoutErrorMessage, checkoutStatusMessage, unpaid } from '../lib/checkout-policy';
 import { previewOrder, type OrderPreview } from '../lib/api/loyalty-redemption';
 import { OrderSummary } from './order-summary';
@@ -22,11 +19,10 @@ export { OrderSummary } from './order-summary';
 export function OrderCheckout({ cart, disabled, onLock, resumeOrderId }: { cart: Cart | null; disabled: boolean; onLock: (locked: boolean) => void; resumeOrderId?: string }) {
   const token = useAuthStore((s) => s.accessToken); const userId = useAuthStore((s) => s.user?.id);
   const [order, setOrder] = useState<Order | null>(null); const [context, setContext] = useState<OrderContext | null>(null);
-  const [paymentContext, setPaymentContext] = useState<PaymentContext | null>(null);
   const [busy, setBusy] = useState(false); const [restoring, setRestoring] = useState(true);
   const [error, setError] = useState(''); const [cartStale, setCartStale] = useState(false);
   const [cartSynced, setCartSynced] = useState(false);
-  const [promotion, setPromotion] = useState(''); const [method, setMethod] = useState<PaymentInput['method']>('WALLET');
+  const [promotion, setPromotion] = useState('');
   const [selectedPoints,setSelectedPoints]=useState('0'); const [quote,setQuote]=useState<OrderPreview|null>(null);
   const [quoteBusy,setQuoteBusy]=useState(false); const [quoteError,setQuoteError]=useState(''); const [quoteAttempt,setQuoteAttempt]=useState(0);
   const [debtBlocked,setDebtBlocked]=useState(false);
@@ -54,9 +50,9 @@ export function OrderCheckout({ cart, disabled, onLock, resumeOrderId }: { cart:
   const isCurrent = useCallback(() => mounted.current && useAuthStore.getState().accessToken === token, [token]);
   const invalidateRead = useCallback(() => { readSequence.current++; }, []);
   const active = unpaid(order); const waiting = busy || restoring || gatewayBusy;
-  const knownId = order?.id ?? paymentContext?.payload.orderId ?? context?.orderId ?? discoveredId;
+  const knownId = order?.id ?? context?.orderId ?? discoveredId;
   const createUncertain = (!!context || !!discoveredId) && !order;
-  const locked = waiting || active || createUncertain || !!paymentContext || cartStale;
+  const locked = waiting || active || createUncertain || cartStale;
   useEffect(() => { onLock(locked); }, [locked, onLock]);
   const recover = useCallback(async (id: string) => {
     const sequence = ++readSequence.current;
@@ -81,14 +77,13 @@ export function OrderCheckout({ cart, disabled, onLock, resumeOrderId }: { cart:
     async function restore() {
       await Promise.resolve();
       if (!userId || !alive) return;
-      const saved = readOrderContext(userId); const payment = readPaymentContext(userId);
+      const saved = readOrderContext(userId);
       // Keep original contexts even if current-state GET is unavailable.
-      setContext(saved); setPaymentContext(payment); setPreviewSubtotal(saved?.previewSubtotal);
+      setContext(saved); setPreviewSubtotal(saved?.previewSubtotal);
       if (saved?.payload.promotionCode) setPromotion(saved.payload.promotionCode);
       setSelectedPoints(String(saved?.payload.redeemedPoints ?? 0));
-      if (payment) setMethod(payment.payload.method);
-      const id = recoveryOrderId(saved, payment, resumeOrderId);
-      if (resumeOrderId && id === resumeOrderId && !payment && !saved) setDiscoveredId(id);
+      const id = recoveryOrderId(saved, resumeOrderId);
+      if (resumeOrderId && id === resumeOrderId && !saved) setDiscoveredId(id);
       try { if (id && await recover(id)) await refreshCart(); }
       catch (e) { if (alive) setError(checkoutErrorMessage(e, 'refresh')); }
       finally { if (alive) setRestoring(false); }
@@ -107,25 +102,27 @@ export function OrderCheckout({ cart, disabled, onLock, resumeOrderId }: { cart:
   }, [userId, recover, invalidateRead, refreshCart, resumeOrderId]);
   const quoteInput=useMemo(()=>cart?.items.length ? {items:cart.items.map(i=>({productId:i.productId,size:i.size,qty:i.qty,toppingIds:i.toppings.map(t=>t.id)})),
     ...(promotion.trim()?{promotionCode:promotion.trim().toUpperCase()}:{}),redeemedPoints:Number(selectedPoints)} : null,[cart,promotion,selectedPoints]);
+  const [quotedInput, setQuotedInput] = useState<typeof quoteInput>(null);
+  const quoteReady = !!quote && quotedInput === quoteInput && !quoteBusy && !quoteError;
   useEffect(()=>{
     const controller=new AbortController();
     async function load(){
       await Promise.resolve();
-      if(active||context||paymentContext||restoring||!token||!quoteInput){setQuote(null);setQuoteBusy(false);return;}
+      if(active||context||restoring||!token||!quoteInput){setQuote(null);setQuoteBusy(false);return;}
       setQuote(null);setQuoteError('');
       if(!validPoints){setQuoteError('Nhập số điểm nguyên từ 0 đến 2.147.483.647.');setQuoteBusy(false);return;}
       setQuoteBusy(true);
-      const timer=setTimeout(()=>{void previewOrder(quoteInput,controller.signal).then(q=>{if(!controller.signal.aborted&&isCurrent())setQuote(q);})
+      const timer=setTimeout(()=>{void previewOrder(quoteInput,controller.signal).then(q=>{if(!controller.signal.aborted&&isCurrent()){setQuote(q);setQuotedInput(quoteInput);}})
         .catch(e=>{if(!controller.signal.aborted&&isCurrent())setQuoteError(checkoutErrorMessage(e,'create'));})
         .finally(()=>{if(!controller.signal.aborted&&isCurrent())setQuoteBusy(false);});},200);
       controller.signal.addEventListener('abort',()=>clearTimeout(timer),{once:true});
     }
     void load();return()=>controller.abort();
-  },[quoteInput,validPoints,active,context,paymentContext,restoring,token,quoteAttempt,isCurrent]);
+  },[quoteInput,validPoints,active,context,restoring,token,quoteAttempt,isCurrent]);
   async function maximum(){
-    if(!quoteInput||waiting||context)return;setQuoteBusy(true);setQuoteError('');
-    try{const q=await previewOrder({...quoteInput,redeemedPoints:0});if(isCurrent()){setSelectedPoints(String(q.maxRedeemablePoints));setQuote(q);setQuoteAttempt(v=>v+1);}}
-    catch(e){if(isCurrent())setQuoteError(checkoutErrorMessage(e,'create'));}finally{if(isCurrent())setQuoteBusy(false);}
+    if(!quoteInput||waiting||context||!begin())return;setQuoteBusy(true);setQuoteError('');setQuote(null);setQuotedInput(null);
+    try{const q=await previewOrder({...quoteInput,redeemedPoints:0});if(isCurrent()){setSelectedPoints(String(q.maxRedeemablePoints));setQuoteAttempt(v=>v+1);}}
+    catch(e){if(isCurrent())setQuoteError(checkoutErrorMessage(e,'create'));}finally{if(isCurrent())setQuoteBusy(false);finish();}
   }
   function begin() { if (inFlight.current || restoring) return false; inFlight.current = true; setBusy(true); setError(''); return true; }
   function finish() { inFlight.current = false; if (isCurrent()) setBusy(false); }
@@ -138,7 +135,7 @@ export function OrderCheckout({ cart, disabled, onLock, resumeOrderId }: { cart:
   }
   async function place() {
     if (!context && mode === 'VNPAY_SANDBOX' && !acceptingNewPayments && quote?.finalTotal !== '0') return;
-    if ((!context && (!validPoints || quoteBusy)) || (!context && !cart?.items.length) || !userId || disabled || active || paymentContext || (cartStale && !context) || (discoveredId && !order) || !begin()) return;
+    if ((!context && (!validPoints || !quoteReady)) || (!context && !cart?.items.length) || !userId || disabled || active || (cartStale && !context) || (discoveredId && !order) || !begin()) return;
     let submitted: OrderContext | undefined;
     let operation: 'create' | 'refresh' = 'create';
     try {
@@ -171,43 +168,20 @@ export function OrderCheckout({ cart, disabled, onLock, resumeOrderId }: { cart:
     } finally { finish(); }
   }
   async function cancel() {
-    if (!order || !active || paymentContext || disabled || !begin()) return;
+    if (!order || !active || disabled || !begin()) return;
     try {
       const updated = await orderRequest('/orders/' + order.id + '/cancel', 'POST');
       if (!isCurrent()) return;
       setSelectedPoints('0');setDebtBlocked(false);
-      setOrder(updated); clearOrderContext(); setContext(null); clearPaymentContext(); setPaymentContext(null); await refreshCart();
+      setOrder(updated); clearOrderContext(); setContext(null); await refreshCart();
     } catch (e) { if (isCurrent()) setError(checkoutErrorMessage(e, 'cancel')); }
     finally { finish(); }
-  }
-  async function pay() {
-    if (mode !== 'MOCK' || order?.total === '0') return;
-    const id = paymentContext?.payload.orderId ?? order?.id;
-    if (!id || !userId || (!active && !paymentContext) || disabled || !begin()) return;
-    setCartSynced(false);
-    try {
-      const attempt = paymentContext ?? { userId, key: crypto.randomUUID(), payload: { orderId: id, method } };
-      save(() => writePaymentContext(attempt)); setPaymentContext(attempt);
-      await paymentRequest(attempt.payload, attempt.key);
-      if (!isCurrent()) return;
-      if (!await recover(id)) return; // Historical replay never substitutes for current GET.
-      clearPaymentContext(); setPaymentContext(null); clearOrderContext(); setContext(null);
-      await refreshCart();
-    } catch (e) {
-      if (!isCurrent()) return;
-      setError(checkoutErrorMessage(e, 'payment'));
-      if (e instanceof OrderError && ['OUT_OF_STOCK', 'CONCURRENT_UPDATE', 'ORDER_ALREADY_PAID', 'INVALID_ORDER_STATE', 'VALIDATION_ERROR', 'MISSING_IDEMPOTENCY_KEY', 'ORDER_NOT_FOUND', 'LOYALTY_INSUFFICIENT_POINTS', 'LOYALTY_REVERSAL_OUTSTANDING'].includes(e.code)) {
-        setDebtBlocked(e.code==='LOYALTY_REVERSAL_OUTSTANDING');
-        clearPaymentContext(); setPaymentContext(null);
-        if (await recover(id).catch(() => null)) await refreshCart();
-      }
-    } finally { finish(); }
   }
   return <section className="order-checkout" aria-labelledby="checkout-heading" aria-busy={waiting}>
     <h2 id="checkout-heading">Đặt đơn</h2>{error && <p role="alert" className="checkout-error">{error}</p>}
     {waiting && <p role="status">{restoring ? 'Đang khôi phục đơn và yêu cầu đã lưu…' : 'Đang xử lý đơn…'}</p>}
     {debtBlocked && active && <p role="alert">Nghĩa vụ thu hồi điểm đang chặn thanh toán. Hủy đơn để giải phóng điểm và bù nghĩa vụ; sau đó có thể đặt đơn mới không dùng điểm.</p>}
-    {active && <p role="status">Bạn đang có đơn chưa hoàn tất. Bạn vẫn có thể chỉnh sửa giỏ cho lần đặt tiếp theo.</p>}
+    {active && <p role="status">Bạn đang có đơn chưa hoàn tất. Giỏ được giữ nguyên và khóa chỉnh sửa. Hãy thử lại thanh toán hoặc hủy đơn trước khi thay đổi món.</p>}
     {createUncertain && !waiting && <p role="status">{context ? 'Yêu cầu đặt đơn đã được lưu. Hãy phục hồi yêu cầu này trước khi chỉnh sửa giỏ hoặc tạo đơn mới.' : 'Chưa tải được đơn đang gắn với giỏ. Hãy mở / tải lại đơn hiện tại trước khi chỉnh sửa giỏ.'}</p>}
     {order && <><OrderSummary order={order} /><PaymentCountdown key={order.serverNow} expiresAt={order.expiresAt} serverNow={order.serverNow} verifying={order.status === 'PENDING'} /></>}
     {order && <Link href={`/orders/${order.id}/confirmation`}>Xem lại đơn hàng</Link>}
@@ -218,21 +192,10 @@ export function OrderCheckout({ cart, disabled, onLock, resumeOrderId }: { cart:
     {configError && <p role="alert">{configError} <button type="button" onClick={() => setConfigVersion(v => v + 1)}>Tải lại cấu hình thanh toán</button></p>}
     <PaymentAdmissionNotice closed={mode === 'VNPAY_SANDBOX' && !acceptingNewPayments} />
     {mode === 'VNPAY_SANDBOX' && <button type="button" disabled={waiting} onClick={() => setConfigVersion(v => v + 1)}>Cập nhật trạng thái nhận thanh toán</button>}
-    {mode && order && active && (mode === 'VNPAY_SANDBOX' || order.total === '0') && !paymentContext && <GatewayCheckout key={order.id + token} order={order} disabled={disabled || busy || restoring}
+    {mode && order && active && <GatewayCheckout key={order.id + token} order={order} disabled={disabled || busy || restoring}
       acceptingNewPayments={acceptingNewPayments} onBusy={setGatewayBusy} onConfirmed={refresh} onCancel={cancel} />}
-    {mode === 'VNPAY_SANDBOX' && paymentContext && <p role="alert">Có yêu cầu Mock đã lưu cần được kiểm tra. Hãy tải lại đơn; không chuyển yêu cầu cũ sang cổng thanh toán.</p>}
-    {mode === 'MOCK' && order?.total !== '0' && (active || paymentContext) && <>
-      <label htmlFor="checkout-method">Phương thức thanh toán</label><select id="checkout-method" value={method} disabled={waiting || !!paymentContext} onChange={(e) => setMethod(e.target.value as PaymentInput['method'])}>
-        <option value="WALLET">Ví</option><option value="CARD">Thẻ</option></select>
-      {active && <p id="checkout-payment-note">Xác nhận thanh toán tổng đơn: {order && formatVnd(order.total)}. Thanh toán Ví/Thẻ giả lập; không nhập thông tin thẻ thật.</p>}
-      {paymentContext && <p role="status">Kết quả yêu cầu thanh toán đã lưu cần được xác nhận. Thử lại giữ nguyên phương thức và yêu cầu cũ.</p>}
-      <button data-checkout-action="payment" aria-describedby={active ? 'checkout-payment-note' : undefined} disabled={waiting || disabled || (!order && !paymentContext)} onClick={() => void pay()}>
-        {paymentContext ? 'Thử lại cùng yêu cầu thanh toán' : order?.status === 'PAYMENT_FAILED' ? 'Thử lại thanh toán' : 'Thanh toán'}{active && order ? ' · ' + formatVnd(order.total) : ''}</button>
-    </>}
     {knownId && <button data-checkout-action="refresh" disabled={waiting} onClick={() => void refresh()}>Mở / tải lại đơn hiện tại</button>}
-    {active && mode === 'MOCK' && order?.total !== '0' && <><button data-checkout-action="cancel" disabled={waiting || disabled || !!paymentContext} onClick={() => void cancel()}>{debtBlocked?'Hủy đơn để giải phóng điểm':'Hủy đơn chưa thanh toán'}</button>
-      {paymentContext && <p>Chưa thể hủy khi kết quả thanh toán chưa rõ. Hãy thử lại cùng yêu cầu hoặc tải lại trạng thái đơn.</p>}</>}
-    {!active && !paymentContext && <><label htmlFor="checkout-promotion">Mã giảm giá (tùy chọn)</label><input id="checkout-promotion" aria-describedby="checkout-promotion-note" value={promotion} maxLength={32} disabled={waiting || !!context} onChange={(e) => setPromotion(e.target.value)} />
+    {!active && <><label htmlFor="checkout-promotion">Mã giảm giá (tùy chọn)</label><input id="checkout-promotion" aria-describedby="checkout-promotion-note" value={promotion} maxLength={32} disabled={waiting || !!context} onChange={(e) => setPromotion(e.target.value)} />
       <p id="checkout-promotion-note">Mã được kiểm tra khi đặt hàng. Kiểm tra mức giảm và tổng đơn được xác nhận trước khi thanh toán.</p>
       <label htmlFor="checkout-points">Điểm tích lũy sử dụng (tùy chọn)</label>
       <input id="checkout-points" type="text" inputMode="numeric" pattern="[0-9]*" aria-describedby="checkout-points-note" value={selectedPoints} disabled={waiting||!!context} onChange={e=>setSelectedPoints(e.target.value)} />
@@ -246,7 +209,7 @@ export function OrderCheckout({ cart, disabled, onLock, resumeOrderId }: { cart:
         <dl className="order-totals"><div><dt>Tạm tính</dt><dd>{formatVnd(quote.itemSubtotal)}</dd></div><div><dt>Giảm từ mã{quote.promotionCode ? ' (' + quote.promotionCode + ')' : ''}</dt><dd>{formatVnd(quote.promotionDiscount)}</dd></div>
           <div><dt>Giảm từ điểm</dt><dd>{formatVnd(quote.loyaltyDiscount)}</dd></div><div><dt>Tổng dự kiến</dt><dd data-preview-total={quote.finalTotal}>{formatVnd(quote.finalTotal)}</dd></div>
           <div><dt>Điểm thưởng dự kiến</dt><dd>{quote.earnedPoints}</dd></div></dl></div>}
-      <button data-checkout-action="create" disabled={waiting || disabled || (!context && (quoteBusy||!validPoints)) || (!context && !cart?.items.length) || (cartStale && !context) || (!!discoveredId && !order) || (!context && mode === 'VNPAY_SANDBOX' && !acceptingNewPayments && quote?.finalTotal !== '0')} onClick={() => void place()}>{context ? 'Thử lại cùng yêu cầu' : 'Đặt hàng'}</button>
+      <button data-checkout-action="create" disabled={waiting || disabled || (!context && (!quoteReady||!validPoints)) || (!context && !cart?.items.length) || (cartStale && !context) || (!!discoveredId && !order) || (!context && mode === 'VNPAY_SANDBOX' && !acceptingNewPayments && quote?.finalTotal !== '0')} onClick={() => void place()}>{context ? 'Thử lại cùng yêu cầu' : 'Đặt hàng'}</button>
       {!cart?.items.length && !context && <p>Thêm ít nhất một món vào giỏ để đặt đơn.</p>}</>}
   </section>;
 }

@@ -1,3 +1,4 @@
+import { clearPurchasedCart } from './cart-cleanup';
 import { assertPaymentWindow } from './payment-deadline';
 import { ConflictException, HttpException, Injectable, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
@@ -40,7 +41,7 @@ export class ZeroConfirmationService {
   constructor(private readonly db: PrismaService) {}
   private transaction<T>(work: (tx: Prisma.TransactionClient) => Promise<T>) {
     return this.db.$transaction(async tx => {
-      await tx.$executeRaw`SELECT set_config('lock_timeout','200ms',true),set_config('statement_timeout','300ms',true),set_config('TimeZone','UTC',true)`;
+      await (this.db.transactionOptions?.timeout === 5000 ? tx.$executeRaw`SELECT set_config('lock_timeout','2000ms',true),set_config('statement_timeout','4000ms',true),set_config('TimeZone','UTC',true)` : tx.$executeRaw`SELECT set_config('lock_timeout','200ms',true),set_config('statement_timeout','300ms',true),set_config('TimeZone','UTC',true)`);
       return work(tx);
     }, this.db.transactionOptions ?? { maxWait: 50, timeout: 400 });
   }
@@ -59,7 +60,7 @@ export class ZeroConfirmationService {
         const previous = await tx.idempotencyRequest.findUnique({ where });
         if (previous) return replayResult(previous, hash);
         await lockAttempts(tx, orderId);
-        await tx.$queryRaw`SELECT v.id FROM payment_verifications v JOIN payment_attempts a ON a.id=v.attempt_id WHERE a.order_id=${orderId}::uuid ORDER BY v.id FOR UPDATE OF v`;
+        await tx.$queryRaw`SELECT v.id FROM payment_verifications v JOIN payment_attempts a ON a.id=v.attempt_id WHERE a.order_id=${orderId} ORDER BY v.id FOR UPDATE OF v`;
         assertGatewayClear(await gatewayBlocks(tx, orderId));
         // A zero order cannot legitimately have any gateway history: do not bridge
         // historical terminal gateway attempts into an internal confirmation.
@@ -84,6 +85,7 @@ export class ZeroConfirmationService {
         await tx.loyaltyAward.create({ data: { orderId, userId, points: 0 } });
         effects.push(effect(account, 'EARN', 0, { orderId, paymentId: payment.id }));
         await persistEffects(tx, before, account, effects);
+        await clearPurchasedCart(tx, userId);
         const body = { payment: { id: payment.id, orderId, provider: payment.provider, status: payment.status, amount: '0', method: payment.method },
           order: { id: orderId, orderCode: o.orderCode, status: 'PAID' }, loyalty: { awardedPoints: 0, redeemedPoints: o.redeemedPoints,
             redemptionState: o.redeemedPoints > 0 ? 'SETTLED' : 'NONE', debtOffsetPoints: 0, availablePointsAdded: 0 }, cashRefundStatus: 'NOT_APPLICABLE' };

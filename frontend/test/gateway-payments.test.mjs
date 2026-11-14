@@ -66,8 +66,8 @@ test('future OPEN config permits a new pending checkout; cancelled Order is neve
 });
 test('config requires JWT and exactly one validated mode field', async () => {
   await assert.rejects(api.paymentConfig(), { code: 'UNAUTHORIZED' }); login();
-  for (const providerMode of ['MOCK', 'VNPAY_SANDBOX']) { globalThis.fetch = async () => Response.json({ providerMode }); assert.equal(await api.paymentConfig(), providerMode); }
-  for (const v of [{}, { providerMode: 'INVALID' }, { providerMode: 'MOCK', secret: 'private' }, null]) {
+  globalThis.fetch = async () => Response.json({ providerMode: 'VNPAY_SANDBOX' }); assert.equal(await api.paymentConfig(), 'VNPAY_SANDBOX');
+  for (const v of [{}, { providerMode: 'MOCK' }, { providerMode: 'INVALID' }, { providerMode: 'VNPAY_SANDBOX', secret: 'private' }, null]) {
     globalThis.fetch = async () => Response.json(v); await assert.rejects(api.paymentConfig(), { code: 'UNAVAILABLE' });
   }
 });

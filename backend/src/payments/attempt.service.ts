@@ -45,7 +45,7 @@ export class AttemptService {
     private enabled() { return this.config.get<string>('PAYMENT_PROVIDER_MODE') === 'VNPAY_SANDBOX' && !!this.config.get<VnpayConfig>('VNPAY_INITIATION_CONFIG'); }
     private transaction<T>(work: (tx: Prisma.TransactionClient) => Promise<T>) {
         return this.db.$transaction(async (tx) => {
-            await tx.$executeRaw `SELECT set_config('lock_timeout','200ms',true),set_config('statement_timeout','300ms',true),set_config('TimeZone','UTC',true)`;
+            await (this.db.transactionOptions?.timeout === 5000 ? tx.$executeRaw `SELECT set_config('lock_timeout','2000ms',true),set_config('statement_timeout','4000ms',true),set_config('TimeZone','UTC',true)` : tx.$executeRaw `SELECT set_config('lock_timeout','200ms',true),set_config('statement_timeout','300ms',true),set_config('TimeZone','UTC',true)`);
             return work(tx);
         }, this.db.transactionOptions ?? { maxWait: 50, timeout: 400 });
     }

@@ -50,17 +50,18 @@ test('superseded successful Cart read is not acknowledged as updated when the ne
   reads[0].resolve(Response.json(empty)); assert.equal(await oldRead, false); assert.deepEqual(useCartStore.getState().cart, cart);
   globalThis.fetch = async () => Response.json(empty); assert.equal(await useCartStore.getState().load(), true); assert.deepEqual(useCartStore.getState().cart, empty);
 });
-for (const change of [{ size: 'L' }, { toppingIds: [] }, { toppingIds: ['b'] }]) test(`edit ${JSON.stringify(change)} adds first with current qty then deletes old; merged response retained`, async () => {
+for (const change of [{ size: 'L' }, { toppingIds: [] }, { toppingIds: ['b'] }]) test(`edit ${JSON.stringify(change)} uses one atomic options request; server quantity retained`, async () => {
   const calls = []; globalThis.fetch = async (_url, options) => { calls.push(options); return Response.json(cart); }; signIn();
   calls.length = 0; const result = await api.editCartItem(item, { productId: item.productId, size: item.size, toppingIds: ['a'], qty: 99, ...change });
-  assert.deepEqual(calls.map((c) => c.method), ['POST', 'DELETE']); assert.equal(JSON.parse(calls[0].body).qty, 2); assert.deepEqual(result.cart, cart);
+  assert.deepEqual(calls.map((c) => c.method), ['PATCH']); assert.equal(JSON.parse(calls[0].body).qty, undefined); assert.deepEqual(result.cart, cart);
 });
-test('failed POST never deletes old; partial edit failure returns deletion retry only', async () => {
+test('failed options edit never sends a separate add or delete', async () => {
   globalThis.fetch = async () => Response.json(empty); signIn(); const calls = [];
-  globalThis.fetch = async (_url, options) => { calls.push(options.method); return Response.json({ error: { code: 'INVALID_ITEM_OPTIONS' } }, { status: 400 }); };
-  await assert.rejects(api.editCartItem(item, input)); assert.deepEqual(calls, ['POST']); calls.length = 0;
-  globalThis.fetch = async (_url, options) => { calls.push(options.method); if (options.method === 'DELETE') throw new Error('offline'); return Response.json(cart); };
-  assert.deepEqual(await api.editCartItem(item, input), { cart, pendingDelete: item.id }); assert.deepEqual(calls, ['POST', 'DELETE']);
+  globalThis.fetch = async (url, options) => { calls.push({url, method: options.method}); return Response.json({ error: { code: 'INVALID_ITEM_OPTIONS' } }, { status: 400 }); };
+  await assert.rejects(api.editCartItem(item, input), {code: 'INVALID_ITEM_OPTIONS'});
+  assert.deepEqual(calls, [{url: 'http://example.invalid/cart/items/item/options', method: 'PATCH'}]);
+  globalThis.fetch = async (_url, options) => { assert.equal(options.method, 'PATCH'); throw new Error('offline'); };
+  await assert.rejects(api.editCartItem(item, input), {code: 'UNAVAILABLE'});
 });
 test('edit into existing configuration renders merged qty and server subtotal', async () => {
   const merged = { ...cart, totalQuantity: 3, subtotal: '150000', items: [{ ...item, qty: 3, lineTotal: '150000' }] };
@@ -75,4 +76,47 @@ test('unchanged edit does not merge own quantity; malformed money and API errors
   globalThis.fetch = async (_url, options) => { calls.push(options.method); return Response.json(cart); };
   await api.editCartItem(item, { ...input, size: 'M', toppingIds: ['a'] }); assert.deepEqual(calls, ['GET']);
   globalThis.fetch = async () => new Response('', { status: 401 }); await assert.rejects(api.cartRequest(), { code: 'UNAUTHORIZED' }); assert.equal(useAuthStore.getState().accessToken, null);
+});
+
+test('cart summary shows server total and only enables checkout without a blocking reason', () => {
+  const { CartSummary } = require('../src/components/cart-view.tsx');
+  const ready = renderToStaticMarkup(React.createElement(CartSummary, { cart, reason: '' }));
+  assert.match(ready, /100\.000/); assert.match(ready, /href="\/checkout"/);
+  for (const reason of ['Thêm đồ uống để tiếp tục.', 'Đang cập nhật giỏ hàng…', 'Hãy lưu hoặc hủy chỉnh sửa trước khi tiếp tục.', 'Hãy chỉnh sửa hoặc xóa món hiện không thể đặt.']) {
+    const html = renderToStaticMarkup(React.createElement(CartSummary, { cart, reason }));
+    assert.match(html, /disabled/); assert(html.includes(reason)); assert.doesNotMatch(html, /href="\/checkout"/);
+  }
+});
+
+test('unavailable item allows edit/delete but disables quantity changes', () => {
+  const html = renderItems({ ...cart, items: [{ ...item, available: false }] });
+  assert.match(html, /role="alert"/);
+  assert.match(html, /aria-label="Giảm Latte" disabled/); assert.match(html, /aria-label="Tăng Latte" disabled/);
+  assert.doesNotMatch(html, /aria-label="Chỉnh sửa Latte" disabled/); assert.doesNotMatch(html, /aria-label="Xóa Latte" disabled/);
+});
+
+test('delete confirmation identifies the complete configuration and keeps actions enabled', () => {
+  const { CartRemoveConfirmation } = require('../src/components/cart-remove-confirmation.tsx');
+  const html = renderToStaticMarkup(React.createElement(CartRemoveConfirmation, { item, busy: false, onCancel() {}, onConfirm() {} }));
+  for (const text of ['Latte', 'Size M', 'Kem', 'Số lượng: 2', 'Giữ lại', 'Xóa món', 'Toàn bộ số lượng']) assert(html.includes(text));
+  assert.doesNotMatch(html, /disabled/);
+});
+
+test('delete in progress disables both actions and product names are escaped', () => {
+  const { CartRemoveConfirmation } = require('../src/components/cart-remove-confirmation.tsx');
+  const html = renderToStaticMarkup(React.createElement(CartRemoveConfirmation, { item: { ...item, productName: '<script>bad</script>', toppings: [] }, busy: true, onCancel() {}, onConfirm() {} }));
+  assert.equal((html.match(/disabled=""/g) || []).length, 2);
+  assert.match(html, /Đang xóa/); assert.match(html, /Không topping/);
+  assert.doesNotMatch(html, /<script>/); assert.match(html, /&lt;script&gt;/);
+});
+
+test('stock warning uses combined demand across all configurations and still permits reducing quantity', () => {
+  const html = renderItems({...cart, items: [{...item, stock: 3, requestedQuantity: 5}]});
+  for (const text of ['5', '3', 'qua các size/topping', 'Hãy giảm số lượng']) assert(html.includes(text));
+  assert.doesNotMatch(html, /aria-label="Giảm Latte" disabled/);
+});
+
+test('active-order lock disables every Cart item mutation control', () => {
+  const html = renderToStaticMarkup(React.createElement(CartItems, {cart, locked:true, onQuantity(){},onEdit(){},onRemove(){}}));
+  for(const label of ['Giảm Latte','Tăng Latte','Chỉnh sửa Latte','Xóa Latte']) assert(html.includes(`aria-label="${label}" disabled`));
 });

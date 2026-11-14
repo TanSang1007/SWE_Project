@@ -4,11 +4,11 @@ import type { Cart, CartInput, CartItem } from '../../types/cart';
 export class CartError extends Error {
   constructor(public readonly code: string) { super(code); }
 }
-export async function cartRequest(method = 'GET', path = '/cart', body?: CartInput | { qty: number }): Promise<Cart> {
+export async function cartRequest(method = 'GET', path = '/cart', body?: CartInput | { qty: number } | { size: string; toppingIds: string[] }): Promise<Cart> {
   const token = getAccessToken(); if (!token) throw new CartError('UNAUTHORIZED');
   try {
     const response = await fetch(`${getApiBaseUrl()}${path}`, { method, cache: 'no-store', credentials: 'omit',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(5000),
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(15000),
       ...(body ? { body: JSON.stringify(body) } : {}) });
     if (response.status === 401) {
       if (useAuthStore.getState().accessToken === token) useAuthStore.getState().clear();
@@ -17,7 +17,7 @@ export async function cartRequest(method = 'GET', path = '/cart', body?: CartInp
     const value = await response.json();
     if (!response.ok) {
       const id = value?.error?.details?.existingOrderId;
-      if (value?.error?.code === 'INVALID_ORDER_STATE' && typeof window !== 'undefined' && typeof id === 'string' && /^[0-9a-f-]{36}$/i.test(id)) {
+      if (value?.error?.code === 'INVALID_ORDER_STATE' && typeof window !== 'undefined' && typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id)) {
         window.dispatchEvent(new CustomEvent('brewlite-unpaid-order', { detail: id }));
       }
       throw new CartError(value?.error?.code ?? 'UNAVAILABLE');
@@ -34,6 +34,8 @@ export function parseCart(value: unknown): Cart {
   for (const item of data.items) {
     if (!item || typeof item.id !== 'string' || typeof item.productId !== 'string' || typeof item.productName !== 'string'
       || typeof item.size !== 'string' || typeof item.imageUrl !== 'string' || typeof item.available !== 'boolean'
+      || (item.stock !== undefined && (!Number.isInteger(item.stock) || item.stock < 0 || item.stock > 2147483647))
+      || (item.requestedQuantity !== undefined && (!Number.isInteger(item.requestedQuantity) || item.requestedQuantity < item.qty || item.requestedQuantity > 4950))
       || !Number.isInteger(item.qty) || item.qty < 1 || item.qty > 99 || !validMoney(item.unitPrice) || !validMoney(item.lineTotal)
       || !Array.isArray(item.toppings) || item.toppings.some((t) => !t || typeof t.id !== 'string' || typeof t.name !== 'string' || !validMoney(t.price))) throw new CartError('UNAVAILABLE');
   }
@@ -43,14 +45,12 @@ export function sameConfiguration(old: CartItem, input: CartInput): boolean {
   return old.productId === input.productId && old.size === input.size
     && old.toppings.map((t) => t.id.toLowerCase()).sort().join(':') === input.toppingIds.map((id) => id.toLowerCase()).sort().join(':');
 }
-// Never delete old data until the add has a confirmed successful response.
-export async function editCartItem(old: CartItem, input: CartInput): Promise<{ cart: Cart; pendingDelete?: string }> {
-  const token = getAccessToken();
+// Backend preserves quantity and atomically updates or merges the configuration.
+export async function editCartItem(old: CartItem, input: CartInput): Promise<{ cart: Cart }> {
   if (sameConfiguration(old, input)) return { cart: await cartRequest() };
-  const added = await cartRequest('POST', '/cart/items', { ...input, qty: old.qty });
-  if (getAccessToken() !== token) throw new CartError('UNAUTHORIZED');
-  try { return { cart: await cartRequest('DELETE', `/cart/items/${old.id}`) }; }
-  catch { return { cart: added, pendingDelete: old.id }; }
+  return { cart: await cartRequest('PATCH', `/cart/items/${old.id}/options`, {
+    size: input.size, toppingIds: input.toppingIds,
+  }) };
 }
 export function cartErrorMessage(error: unknown): string {
   const code = error instanceof CartError ? error.code : 'UNAVAILABLE';

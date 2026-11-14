@@ -4,7 +4,7 @@ import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/roles.decorator';
-import { PaymentEmptyDto } from './payment.dto';
+import { AttemptEmptyDto } from './attempt.dto';
 import { initiationSettings } from './vnpay/initiation-config';
 import type { VnpayConfig } from './vnpay/vnpay-config';
 import { acceptsNewPayments } from './payment-admission';
@@ -17,10 +17,9 @@ export class PaymentConfigController {
 
   @Get()
   @Header('Cache-Control', 'private, no-store, max-age=0')
-  get(@Query() query: PaymentEmptyDto, @Body() body: PaymentEmptyDto, @Res({ passthrough: true }) res: Response) {
+  get(@Query() query: AttemptEmptyDto, @Body() body: AttemptEmptyDto, @Res({ passthrough: true }) res: Response) {
     void query; void body; res.vary('Authorization');
-    const mode = this.config.get<unknown>('PAYMENT_PROVIDER_MODE');
-    if (mode === 'MOCK') return { providerMode: 'MOCK' as const };
+    const mode = this.config.get<unknown>('PAYMENT_PROVIDER_MODE') ?? 'VNPAY_SANDBOX';
     try {
       if (mode !== 'VNPAY_SANDBOX') throw Error('Unavailable');
       const c = this.config.get<VnpayConfig>('VNPAY_INITIATION_CONFIG');
