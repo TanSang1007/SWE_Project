@@ -10,6 +10,10 @@ COPY frontend/package.json ./frontend/
 RUN npm ci
 
 COPY backend ./backend
+ARG DIRECT_URL="postgresql://build:build@localhost:5432/brewlite_dev"
+ARG DATABASE_URL="postgresql://build:build@localhost:5432/brewlite_dev"
+ENV DIRECT_URL=$DIRECT_URL
+ENV DATABASE_URL=$DATABASE_URL
 RUN npm run build --workspace backend
 
 FROM node:24-bookworm-slim AS runner
