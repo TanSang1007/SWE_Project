@@ -1,0 +1,7 @@
+$kind: http-request
+name: 4.9 List Order Payment Attempts (GET /orders/:id/payment-attempts)
+url: "{{baseUrl}}/orders/{{orderId}}/payment-attempts"
+method: GET
+headers:
+  Authorization: Bearer {{customerToken}}
+order: 9000

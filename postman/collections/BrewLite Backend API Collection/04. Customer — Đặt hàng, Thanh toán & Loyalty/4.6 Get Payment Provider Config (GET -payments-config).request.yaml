@@ -1,0 +1,7 @@
+$kind: http-request
+name: 4.6 Get Payment Provider Config (GET /payments/config)
+url: "{{baseUrl}}/payments/config"
+method: GET
+headers:
+  Authorization: Bearer {{customerToken}}
+order: 6000

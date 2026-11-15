@@ -1,0 +1,23 @@
+$kind: http-request
+name: 4.7 Initiate VNPAY Attempt (POST /payments/vnpay/attempts)
+url: "{{baseUrl}}/payments/vnpay/attempts"
+method: POST
+headers:
+  Authorization: Bearer {{customerToken}}
+  Idempotency-Key: vnpay-{{$guid}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "orderId": "{{orderId}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      const json = pm.response.json();
+      if (json.attemptId) {
+          pm.environment.set('attemptId', json.attemptId);
+      }
+    language: text/javascript
+order: 7000

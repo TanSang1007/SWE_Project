@@ -62,7 +62,7 @@ export function LoyaltyHistoryContent({state,more,retry}:{state:HistoryState;mor
       {e.reservedChange!==0&&<p>Điểm đang giữ: {change(e.reservedChange)}</p>}
       {e.debtOffsetPoints!=='0'&&<p>Bù nghĩa vụ điểm: {e.debtOffsetPoints}</p>}
       {e.debtCreatedPoints!=='0'&&<p>Phát sinh nghĩa vụ: {e.debtCreatedPoints}</p>}
-      <p><time dateTime={e.createdAt}>{new Date(e.createdAt).toLocaleString('vi-VN')}</time>{e.orderId&&<> · <Link href={`/orders/${e.orderId}`}>{e.orderCode}</Link></>}</p>
+      <p><time dateTime={e.createdAt}>{new Date(e.createdAt).toLocaleString('vi-VN')}</time>{e.orderId&&<> · <Link href={`/orders/${e.orderId}`}>{e.customerOrderCode}</Link></>}</p>
     </li>)}</ol>
     {state.loading&&<p role="status">Đang tải lịch sử điểm…</p>}
     {state.error&&<p role="alert">Chưa tải được lịch sử điểm. Các giao dịch đã tải vẫn được giữ.</p>}

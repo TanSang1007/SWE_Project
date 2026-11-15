@@ -1,8 +1,8 @@
 'use client';
-import Link from 'next/link';
+import { useEffect } from 'react';
 import { useAuthStore } from '../lib/auth-store';
 import { useCancellationNotice } from '../lib/cancellation-notice';
-import { paymentMessage } from '../lib/payment-result';
+import { notifyCenterPopup } from '../lib/notification-store';
 import type { AttemptStatus } from '../lib/api/gateway-payments';
 
 export function CancellationNotice() {
@@ -11,10 +11,19 @@ export function CancellationNotice() {
   return <CancellationNoticeContent token={token} notice={notice} />;
 }
 export function CancellationNoticeContent({ token, notice }: { token: string | null; notice: { token: string; status: AttemptStatus } | null }) {
-  if (!token || notice?.token !== token) return null;
-  return <section role="status" aria-label="Thông báo thanh toán">
-    <p>{paymentMessage(notice.status)} Trạng thái đơn hàng được hiển thị riêng trong chi tiết đơn.</p>
-    <Link href={`/orders/${notice.status.orderId}/confirmation`}>Xem đơn hàng</Link>
-    <button type="button" onClick={() => useCancellationNotice.setState({ notice: null })}>Đóng thông báo</button>
-  </section>;
+  useEffect(() => {
+    if (!token || notice?.token !== token) return;
+    const status = notice.status;
+    useCancellationNotice.setState({ notice: null });
+    notifyCenterPopup({
+      tone: 'error',
+      title: 'Thanh toán không thành công',
+      message: 'Giao dịch chưa được hoàn tất.',
+      actions: [
+        { label: 'Xem chi tiết đơn', href: `/orders/${status.orderId}/confirmation`, variant: 'primary' },
+        { label: 'Đóng', variant: 'secondary' },
+      ],
+    });
+  }, [token, notice]);
+  return null;
 }

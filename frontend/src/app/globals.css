@@ -47,7 +47,15 @@ ul { list-style:none; padding:0; margin:0; }
 @media(prefers-reduced-motion:reduce) { .loading-mark { animation:none; } }
 .auth-nav { display:flex; align-items:center; gap:20px; }
 .nav-button { border:0; background:none; color:var(--ink); font-size:14px; font-weight:600; padding:8px 0; }
-.signed-in-label { color:var(--muted); font-size:12px; }
+.signed-in-label { color:var(--muted); font-size:12px; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.logout-dialog[open] { width:min(92vw, 26rem); }
+.logout-dialog h2 { font-size:20px; margin:0 0 12px; }
+.logout-dialog p { color:var(--muted); font-size:14px; line-height:1.6; overflow-wrap:anywhere; }
+.logout-dialog-actions { display:flex; justify-content:flex-end; gap:12px; margin-top:20px; }
+.logout-dialog-actions .button { margin-top:0; }
+.logout-cancel { border:1px solid var(--line); background:#fff; color:var(--ink); padding:12px 22px; border-radius:6px; font-size:14px; }
+.logout-dialog button:disabled { opacity:.65; cursor:wait; }
+.customer-order-code { color:var(--muted); font-size:13px; margin:2px 0 6px; }
 .auth-panel { max-width:480px; margin:56px auto; padding:36px; background:#fffdf8; border:1px solid var(--line); border-radius:12px; }
 .auth-panel h1 { font-size:38px; }
 .auth-panel label { display:block; margin:22px 0 8px; font-size:14px; }
@@ -279,3 +287,421 @@ dialog::backdrop { background: rgb(0 0 0 / 45%); }
 .ingredient-status.out_of_stock { background:#f9e4df; }
 .ingredient-document-actions { margin-top:18px; }
 @media(max-width:600px) { .ingredient-card { padding:14px; } .ingredient-entry { padding:12px; } .ingredient-summary { grid-template-columns:1fr; } .ingredient-actions>* { flex:1 1 auto; } }
+
+/* ==========================================================================
+   FLOATING NOTIFICATIONS (BOTTOM-RIGHT TOAST & CENTER MODAL POPUP)
+   & PROFESSIONAL CHECKOUT BUTTONS / LAYOUT
+   ========================================================================== */
+
+.brew-toast-stack {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 9990;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: min(380px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.brew-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--ink);
+  border: 1px solid #d5dfcb;
+  box-shadow: 0 12px 32px rgba(24, 63, 53, 0.16);
+  animation: brewToastSlideIn 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes brewToastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.brew-toast-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.brew-toast-success { border-left: 4px solid #1f7a4c; }
+.brew-toast-success .brew-toast-icon { background: #e3f5eb; color: #1f7a4c; }
+
+.brew-toast-error { border-left: 4px solid #b4342a; }
+.brew-toast-error .brew-toast-icon { background: #fbeae8; color: #b4342a; }
+
+.brew-toast-warning { border-left: 4px solid #b76e14; }
+.brew-toast-warning .brew-toast-icon { background: #fef3df; color: #b76e14; }
+
+.brew-toast-info { border-left: 4px solid #183f35; }
+.brew-toast-info .brew-toast-icon { background: #e8eddb; color: #183f35; }
+
+.brew-toast-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.brew-toast-body strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.brew-toast-body p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.brew-toast-close {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.brew-toast-close:hover {
+  background: #f1f5f9;
+  color: var(--ink);
+}
+
+/* Center Modal Popup for Payment Success / Failure */
+.brew-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(15, 29, 25, 0.52);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: brewFadeIn 0.2s ease-out;
+}
+
+@keyframes brewFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.brew-modal-card {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  background: #fffdf8;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 32px 28px 26px;
+  text-align: center;
+  box-shadow: 0 24px 56px rgba(15, 29, 25, 0.28);
+  animation: brewModalPop 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes brewModalPop {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.brew-modal-dismiss {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brew-modal-dismiss:hover {
+  background: #ece8dd;
+  color: var(--ink);
+}
+
+.brew-modal-badge {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.brew-modal-badge-success {
+  background: #e1f5ea;
+  color: #166534;
+  border: 2px solid #86efac;
+}
+
+.brew-modal-badge-error {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 2px solid #fca5a5;
+}
+
+.brew-modal-badge-warning,
+.brew-modal-badge-info {
+  background: #fef3c7;
+  color: #92400e;
+  border: 2px solid #fcd34d;
+}
+
+.brew-modal-title {
+  font-family: Georgia, serif;
+  font-size: 26px;
+  font-weight: 600;
+  margin: 0 0 10px;
+  color: var(--ink);
+}
+
+.brew-modal-message {
+  margin: 0 0 18px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.brew-modal-meta {
+  background: #f4f1e6;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 22px;
+  display: grid;
+  gap: 8px;
+}
+
+.brew-modal-meta > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+}
+
+.brew-modal-meta span {
+  color: var(--muted);
+}
+
+.brew-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* Unified Professional Buttons & Checkout Layout */
+.checkout-page-container {
+  max-width: 780px;
+  margin: 36px auto 0;
+}
+
+.checkout-page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.checkout-page-header h1 {
+  margin: 0;
+  font-size: clamp(32px, 4.5vw, 48px);
+}
+
+.checkout-card-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.checkout-form-grid {
+  display: grid;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.checkout-field-row {
+  display: grid;
+  gap: 8px;
+}
+
+.checkout-points-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.checkout-points-inline input {
+  max-width: 16rem;
+}
+
+.checkout-action-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.brew-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  width: fit-content;
+}
+
+.brew-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.brew-btn-primary,
+.order-checkout button.brew-btn-primary {
+  background: var(--ink);
+  color: #ffffff;
+  border-color: var(--ink);
+}
+
+.brew-btn-primary:hover:not(:disabled),
+.order-checkout button.brew-btn-primary:hover:not(:disabled) {
+  background: #215447;
+}
+
+.brew-btn-secondary,
+.order-checkout button.brew-btn-secondary {
+  background: #ece8dd;
+  color: var(--ink);
+  border-color: #c8d1c0;
+}
+
+.brew-btn-secondary:hover:not(:disabled),
+.order-checkout button.brew-btn-secondary:hover:not(:disabled) {
+  background: #e0dacb;
+}
+
+.brew-btn-outline,
+.order-checkout a.brew-btn-outline {
+  background: transparent;
+  color: var(--ink);
+  border-color: #b7c4b0;
+}
+
+.brew-btn-outline:hover:not(:disabled),
+.order-checkout a.brew-btn-outline:hover:not(:disabled) {
+  background: #f1eee4;
+}
+
+.brew-btn-danger,
+.order-checkout button.brew-btn-danger {
+  background: #992f24;
+  color: #ffffff;
+  border-color: #992f24;
+}
+
+.brew-btn-danger:hover:not(:disabled),
+.order-checkout button.brew-btn-danger:hover:not(:disabled) {
+  background: #7f241b;
+}
+
+.gateway-amount-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-radius: 10px;
+  background: #f2efe4;
+  border: 1px solid var(--line);
+  margin-bottom: 12px;
+}
+
+.gateway-amount-banner span {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.gateway-amount-banner strong {
+  font-size: 20px;
+  color: var(--ink);
+}
+
+.gateway-status-pill {
+  display: inline-block;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: #eef2e6;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.gateway-status-succeeded {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.gateway-status-failed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.payment-result-card {
+  display: grid;
+  gap: 12px;
+}
+

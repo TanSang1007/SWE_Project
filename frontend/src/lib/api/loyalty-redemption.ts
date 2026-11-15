@@ -12,6 +12,7 @@ export type LoyaltyEntry = {
     kind: 'OPENING' | 'EARN' | 'RESERVE' | 'SETTLE' | 'RELEASE' | 'REFUND' | 'REVERSE';
     orderId: string | null;
     orderCode: string | null;
+    customerOrderCode: string | null;
     points: number;
     availableChange: number;
     reservedChange: number;
@@ -108,7 +109,7 @@ export function parseLoyaltyHistory(v: unknown): LoyaltyHistory {
         const delta = BigInt(e.outstandingReversalChange);
         if (BigInt(e.debtOffsetPoints) !== (delta < 0n ? -delta : 0n) || BigInt(e.debtCreatedPoints) !== (delta > 0n ? delta : 0n))
             throw bad();
-        return { kind: e.kind, orderId: e.orderId, orderCode: e.orderCode, points: e.points, availableChange: e.availableChange, reservedChange: e.reservedChange, outstandingReversalChange: e.outstandingReversalChange, debtOffsetPoints: e.debtOffsetPoints, debtCreatedPoints: e.debtCreatedPoints, createdAt: e.createdAt };
+        return { kind: e.kind, orderId: e.orderId, orderCode: e.orderCode, customerOrderCode: typeof e.customerOrderCode === 'string' ? e.customerOrderCode : e.orderCode, points: e.points, availableChange: e.availableChange, reservedChange: e.reservedChange, outstandingReversalChange: e.outstandingReversalChange, debtOffsetPoints: e.debtOffsetPoints, debtCreatedPoints: e.debtCreatedPoints, createdAt: e.createdAt };
     });
     return { scope: 'SINCE_L01_CUTOVER', items, nextCursor: o.nextCursor };
 }

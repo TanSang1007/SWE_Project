@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "workflow",
+  "quality": "showcase",
+  "specification": {
+    "path": "D:\\SWE_Project\\.archify\\workflow-brewlite-payment-flow-20261103-162500\\candidate.json",
+    "sha256": "4583a23304d5dbd6e48f312ea0bbe27b655c1389a614bd2532a832c1316f1cdc",
+    "bytes": 16065
+  },
+  "artifact": {
+    "path": "D:\\SWE_Project\\.archify\\workflow-brewlite-payment-flow-20261103-162500\\brewlite-payment-flow.html",
+    "sha256": "32c70bfdb5122d351bec3e6c779892fa1e548f55d5b980035ea32b5536cf20d3",
+    "bytes": 884267
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "D:\\SWE_Project\\.archify\\workflow-brewlite-payment-flow-20261103-162500\\brewlite-payment-flow.finalize.json",
+    "summaryReceipt": "D:\\SWE_Project\\.archify\\workflow-brewlite-payment-flow-20261103-162500\\brewlite-payment-flow.finalize-summary.json",
+    "browserCheckReceipt": "D:\\SWE_Project\\.archify\\workflow-brewlite-payment-flow-20261103-162500\\brewlite-payment-flow.browser-check.json"
+  },
+  "visualReview": "not-requested",
+  "durationMs": 4799,
+  "browserCheck": {
+    "requested": true,
+    "ran": true
+  }
+}

@@ -1,0 +1,23 @@
+$kind: http-request
+name: 8.2 Inject Forbidden Field (total/userId) -> Expect 400 VALIDATION_ERROR
+url: "{{baseUrl}}/orders"
+method: POST
+headers:
+  Authorization: Bearer {{customerToken}}
+  Idempotency-Key: bad-{{$guid}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "items": [
+        {
+          "productId": "{{cappuccinoId}}",
+          "size": "S",
+          "qty": 1,
+          "toppingIds": []
+        }
+      ],
+      "total": "0"
+    }
+order: 2000

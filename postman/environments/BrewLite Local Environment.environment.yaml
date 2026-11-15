@@ -1,0 +1,62 @@
+name: BrewLite Local Environment
+values:
+  - key: baseUrl
+    value: 'http://127.0.0.1:3001'
+  - key: frontendOrigin
+    value: 'http://localhost:3000'
+  - key: customerEmail
+    value: customer.demo@brewlite.local
+  - key: customerPassword
+    value: Customer123!
+  - key: staffEmail
+    value: staff.demo@brewlite.local
+  - key: staffPassword
+    value: StaffPass123!
+  - key: adminEmail
+    value: admin.demo@brewlite.local
+  - key: adminPassword
+    value: AdminPass123!
+  - key: customerToken
+    value: ''
+  - key: staffToken
+    value: ''
+  - key: adminToken
+    value: ''
+  - key: cappuccinoId
+    value: BR001
+  - key: latteId
+    value: BR002
+  - key: kemToppingId
+    value: '1'
+  - key: caramelToppingId
+    value: '2'
+  - key: promotionCode
+    value: BREW10K
+  - key: cartItemId
+    value: ''
+  - key: orderId
+    value: ''
+  - key: orderVersion
+    value: '0'
+  - key: attemptId
+    value: ''
+  - key: newProductId
+    value: ''
+  - key: newProductVersion
+    value: '0'
+  - key: newToppingId
+    value: ''
+  - key: newToppingVersion
+    value: '0'
+  - key: ingredientId
+    value: ''
+  - key: ingredientVersion
+    value: '0'
+  - key: receiptId
+    value: ''
+  - key: receiptVersion
+    value: '0'
+  - key: countId
+    value: ''
+  - key: countVersion
+    value: '0'

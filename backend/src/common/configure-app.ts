@@ -13,7 +13,7 @@ export function configureApp(app: NestExpressApplication): void {
     if (['GET', 'HEAD'].includes(req.method) && req.path.toLowerCase().replace(/\/+$/, '') === '/payments/vnpay/return'
       && ((req.headers['content-length'] !== undefined && req.headers['content-length'] !== '0') || req.headers['transfer-encoding'])) {
       res.setHeader('Cache-Control', 'no-store'); res.setHeader('Referrer-Policy', 'no-referrer');
-      try { sendBrowserReturn(res, browserReturnBase(config.get<unknown>('FRONTEND_ORIGIN'))); }
+      try { sendBrowserReturn(res, browserReturnBase(config.get<unknown>('FRONTEND_ORIGIN'), Boolean(config.get('VNPAY_DEPLOY_SANDBOX')))); }
       catch (error) { next(error); }
       return;
     }

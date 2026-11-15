@@ -2,10 +2,10 @@ import { OrderError } from './api/orders';
 import type { Order } from '../types/order';
 export const unpaid = (order: Order | null) => !!order && ['PENDING', 'PAYMENT_FAILED'].includes(order.status);
 export function checkoutStatusMessage(status: Order['status']) {
-  return { PENDING: 'Đơn chưa thanh toán. Hãy kiểm tra tổng đơn trước khi xác nhận trả tiền.',
-    PAYMENT_FAILED: 'Thanh toán thất bại. Giỏ được giữ nguyên. Bạn có thể thử lại hoặc hủy đơn.',
-    PAID: 'Thanh toán thành công.', CANCELLED: 'Đơn đã hủy. Bạn có thể chỉnh sửa giỏ và đặt đơn mới.',
-    PREPARING: 'Đơn đã thanh toán và đang được pha chế.', READY: 'Đơn đã sẵn sàng nhận tại quầy.', COMPLETED: 'Đơn đã hoàn tất.' }[status];
+  return { PENDING: 'Đơn chờ thanh toán.',
+    PAYMENT_FAILED: 'Thanh toán không thành công.',
+    PAID: 'Thanh toán thành công.', CANCELLED: 'Đơn hàng đã hủy.',
+    PREPARING: 'Đang pha chế.', READY: 'Sẵn sàng nhận tại quầy.', COMPLETED: 'Đã hoàn tất.' }[status];
 }
 export function checkoutErrorMessage(error: unknown, operation: 'create' | 'payment' | 'cancel' | 'refresh') {
   const code = error instanceof OrderError ? error.code : 'UNAVAILABLE';

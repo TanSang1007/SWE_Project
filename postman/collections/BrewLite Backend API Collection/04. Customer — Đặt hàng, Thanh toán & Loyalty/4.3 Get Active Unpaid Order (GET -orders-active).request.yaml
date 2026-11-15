@@ -1,0 +1,7 @@
+$kind: http-request
+name: 4.3 Get Active Unpaid Order (GET /orders/active)
+url: "{{baseUrl}}/orders/active"
+method: GET
+headers:
+  Authorization: Bearer {{customerToken}}
+order: 3000

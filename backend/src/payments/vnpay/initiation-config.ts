@@ -4,6 +4,7 @@ export function initiationSettings(values: Record<string, unknown>): {
     VNPAY_INITIATION_CONFIG: VnpayConfig | null;
     VNPAY_ACCEPT_NEW_PAYMENTS?: boolean;
     VNPAY_SANDBOX_ENABLED?: boolean;
+    VNPAY_DEPLOY_SANDBOX?: boolean;
 } {
     const mode = values.PAYMENT_PROVIDER_MODE ?? 'VNPAY_SANDBOX';
     if (mode !== 'VNPAY_SANDBOX')
@@ -12,6 +13,7 @@ export function initiationSettings(values: Record<string, unknown>): {
     if (accept !== undefined && accept !== 'true' && accept !== 'false' && typeof accept !== 'boolean')
         throw Error('Invalid VNPAY acceptance configuration');
     const env = Object.fromEntries(Object.entries(values).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
+    const deploySandbox = values.VNPAY_DEPLOY_SANDBOX === 'true' || values.VNPAY_DEPLOY_SANDBOX === true;
     if (values.NODE_ENV === 'development') {
         if (values.VNPAY_SANDBOX_ENABLED !== 'true' && values.VNPAY_SANDBOX_ENABLED !== true)
             throw Error('VNPAY Sandbox requires explicit development opt-in');
@@ -24,6 +26,17 @@ export function initiationSettings(values: Record<string, unknown>): {
             && database.pathname === '/brewlite_dev' && ['require', 'verify-full'].includes(database.searchParams.get('sslmode') ?? '');
         if (!['postgresql:', 'postgres:'].includes(database.protocol) || !(local || neon))
             throw Error('Sandbox development requires a local database or TLS pooled Neon brewlite_dev');
+        if (deploySandbox) {
+            const origin = typeof values.FRONTEND_ORIGIN === 'string' ? values.FRONTEND_ORIGIN : '';
+            let originUrl: URL;
+            try { originUrl = new URL(origin); } catch { throw Error('Invalid deploy Sandbox frontend origin'); }
+            if (originUrl.protocol !== 'https:' || originUrl.origin !== origin
+                || (values.VNPAY_RESULT_URL !== undefined && values.VNPAY_RESULT_URL !== `${origin}/payments/vnpay/result`)
+                || (values.VNPAY_ATTEMPT_TTL_SECONDS !== undefined && values.VNPAY_ATTEMPT_TTL_SECONDS !== '600'))
+                throw Error('Invalid deploy Sandbox result or validity configuration');
+            return { PAYMENT_PROVIDER_MODE: mode, VNPAY_INITIATION_CONFIG: parseVnpayConfig(env), VNPAY_SANDBOX_ENABLED: true,
+                VNPAY_DEPLOY_SANDBOX: true, VNPAY_ACCEPT_NEW_PAYMENTS: accept === 'true' || accept === true };
+        }
         if (Number(values.PORT ?? 3001) !== 3001 || (values.FRONTEND_ORIGIN ?? 'http://localhost:3000') !== 'http://localhost:3000'
             || (values.VNPAY_RESULT_URL !== undefined && values.VNPAY_RESULT_URL !== 'http://localhost:3000/payments/vnpay/result')
             || (values.VNPAY_ATTEMPT_TTL_SECONDS !== undefined && values.VNPAY_ATTEMPT_TTL_SECONDS !== '600'))

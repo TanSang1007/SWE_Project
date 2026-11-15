@@ -5,6 +5,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { Request, Response } from 'express';
 import { PrismaService } from '../database/prisma.service';
 import { UsersService } from '../users/users.service';
+import { sessionCutoff } from './session-cutoff';
 
 const cookieName = 'brewlite_session';
 const duration = 7 * 24 * 60 * 60 * 1000;
@@ -40,10 +41,14 @@ export class SessionService {
     }
   }
 
+  private isSecureCookie(): boolean {
+    return this.config.get('NODE_ENV') === 'production' || Boolean(this.config.get('VNPAY_DEPLOY_SANDBOX'));
+  }
+
   private cookie(res: Response, id: string, token: string, expires: Date) {
     res.cookie(cookieName, id + '.' + token, {
       httpOnly: true,
-      secure: this.config.get('NODE_ENV') === 'production',
+      secure: this.isSecureCookie(),
       sameSite: 'lax',
       path: '/api/auth',
       expires,
@@ -92,7 +97,7 @@ export class SessionService {
     const result = await this.db.$transaction(async tx => {
       await tx.$queryRaw`SELECT id FROM auth_sessions WHERE id=${input.id} FOR UPDATE`;
       const session = await tx.authSession.findUnique({ where: { id: input.id } });
-      if (!session || session.revokedAt || session.expiresAt <= new Date()) return null;
+      if (!session || session.revokedAt || session.expiresAt <= new Date() || session.createdAt < sessionCutoff()) return null;
       if (!equal(session.tokenHash, input.hash)) {
         if (session.previousTokenHash && equal(session.previousTokenHash, input.hash)) {
           await tx.authSession.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
@@ -140,7 +145,7 @@ export class SessionService {
     if (shouldClearCookie) {
       res.clearCookie(cookieName, {
         httpOnly: true,
-        secure: this.config.get('NODE_ENV') === 'production',
+        secure: this.isSecureCookie(),
         sameSite: 'lax',
         path: '/api/auth',
       });

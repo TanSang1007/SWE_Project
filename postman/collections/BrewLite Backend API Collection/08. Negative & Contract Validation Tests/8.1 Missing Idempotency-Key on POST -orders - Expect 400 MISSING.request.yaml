@@ -1,0 +1,21 @@
+$kind: http-request
+name: 8.1 Missing Idempotency-Key on POST /orders -> Expect 400 MISSING_IDEMPOTENCY_KEY
+url: "{{baseUrl}}/orders"
+method: POST
+headers:
+  Authorization: Bearer {{customerToken}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "items": [
+        {
+          "productId": "{{cappuccinoId}}",
+          "size": "S",
+          "qty": 1,
+          "toppingIds": []
+        }
+      ]
+    }
+order: 1000

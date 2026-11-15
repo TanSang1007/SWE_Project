@@ -1,6 +1,7 @@
 'use client';
-import { parseLogin } from './api/auth';
+import { parseLogin, publicUser } from './api/auth';
 import { readTabSession, useAuthStore } from './auth-store';
+import type { PublicUser } from '../types/auth';
 
 let pending: Promise<void> | null = null;
 let generation = 0;
@@ -18,6 +19,24 @@ async function request(action: 'session' | 'logout', sessionToken?: string | nul
   });
 }
 
+function verifyAccess(accessToken: string) {
+  return fetch('/api/auth/me', {
+    method: 'GET',
+    credentials: 'same-origin',
+    cache: 'no-store',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(10000),
+  });
+}
+
+function parseMe(value: unknown): PublicUser | null {
+  try {
+    return publicUser((value as { user?: unknown } | null)?.user);
+  } catch {
+    return null;
+  }
+}
+
 export function restoreSession(): Promise<void> {
   if (pending) return pending;
   const version = generation;
@@ -33,13 +52,24 @@ export function restoreSession(): Promise<void> {
     stored.expiresAt &&
     stored.expiresAt > Date.now() + 60000
   ) {
-    useAuthStore.setState({
-      accessToken: stored.accessToken,
-      user: stored.user,
-      expiresAt: stored.expiresAt,
-      sessionToken: stored.sessionToken ?? null,
+    // F5 in the same tab keeps the session, but only after the server confirms
+    // it is still live: a restarted BrewLite run rejects older sessions.
+    const { accessToken, expiresAt, user: storedUser } = stored;
+    const storedSessionToken = stored.sessionToken ?? null;
+    pending = (async () => {
+      const result = await verifyAccess(accessToken);
+      if (version !== generation || useAuthStore.getState().accessToken) return;
+      if (result.status === 401) {
+        useAuthStore.getState().clear(false);
+        return;
+      }
+      if (!result.ok) throw Error('Chưa kiểm tra được phiên đăng nhập. Vui lòng thử lại.');
+      const user = parseMe(await result.json()) ?? storedUser;
+      useAuthStore.setState({ accessToken, user, expiresAt, sessionToken: storedSessionToken });
+    })().finally(() => {
+      pending = null;
     });
-    return Promise.resolve();
+    return pending;
   }
   const initialToken = useAuthStore.getState().accessToken;
   const sessionToken = useAuthStore.getState().sessionToken ?? stored?.sessionToken ?? null;

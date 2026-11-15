@@ -1,0 +1,24 @@
+$kind: http-request
+name: 6.3 Adjust Product Stock +50 (POST /admin/products/:id/inventory-adjustments)
+url: "{{baseUrl}}/admin/products/{{newProductId}}/inventory-adjustments"
+method: POST
+headers:
+  Authorization: Bearer {{adminToken}}
+  Idempotency-Key: stock-{{$guid}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "delta": 50,
+      "expectedVersion": {{newProductVersion}}
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      const json = pm.response.json();
+      if (typeof json.version === 'number') {
+          pm.environment.set('newProductVersion', String(json.version));
+      }
+    language: text/javascript
+order: 3000

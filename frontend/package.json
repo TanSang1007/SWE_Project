@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "test:ingredients:browser": "node test/ingredients-browser.mjs",
-    "dev": "next dev --hostname 127.0.0.1 --port 3000",
+    "dev": "next dev --hostname localhost --port 3000",
     "build": "next build",
-    "start": "next start --hostname 127.0.0.1 --port 3000",
+    "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test": "node --test test/env.test.mjs test/auth-session.test.mjs test/catalog.test.mjs test/auth.test.mjs test/cart.test.mjs test/orders.test.mjs test/checkout.test.mjs test/promotions.test.mjs test/loyalty.test.mjs test/order-history.test.mjs test/rbac.test.mjs test/operator-orders.test.mjs test/operator-workflow.test.mjs test/admin-products.test.mjs test/ui01.test.mjs test/admin-options.test.mjs test/admin-inventory.test.mjs test/loyalty-redemption.test.mjs test/gateway-payments.test.mjs test/ingredients.test.mjs",

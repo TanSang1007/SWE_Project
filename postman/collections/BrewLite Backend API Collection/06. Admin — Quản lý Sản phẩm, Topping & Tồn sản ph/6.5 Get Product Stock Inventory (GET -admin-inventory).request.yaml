@@ -1,0 +1,7 @@
+$kind: http-request
+name: 6.5 Get Product Stock Inventory (GET /admin/inventory)
+url: "{{baseUrl}}/admin/inventory"
+method: GET
+headers:
+  Authorization: Bearer {{adminToken}}
+order: 5000

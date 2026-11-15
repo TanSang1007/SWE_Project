@@ -11,6 +11,7 @@ export function parseOrderHistory(value: unknown): OrderHistoryItem[] {
     if (!item || typeof item !== 'object') throw new OrderError('UNAVAILABLE');
     const o = item as OrderHistoryItem;
     if (typeof o.id !== 'string' || !validOrderId(o.id) || seen.has(o.id.toLowerCase()) || typeof o.orderCode !== 'string'
+      || !(o.customerOrderCode === undefined || typeof o.customerOrderCode === 'string')
       || !Object.hasOwn(orderStatusLabels, o.status) || o.currency !== 'VND' || typeof o.total !== 'string' || !/^(0|[1-9]\d{0,11})$/.test(o.total)
       || typeof o.createdAt !== 'string' || !Number.isFinite(Date.parse(o.createdAt)) || !points(o.earnedPoints)) throw new OrderError('UNAVAILABLE');
     const hasLoyalty = ['redeemedPoints','loyaltyDiscountAmount','redemptionState'].some(k=>Object.hasOwn(o,k));
@@ -19,7 +20,7 @@ export function parseOrderHistory(value: unknown): OrderHistoryItem[] {
       ||BigInt(o.loyaltyDiscountAmount)!==BigInt(o.redeemedPoints!)*100n||!['NONE','RESERVED','RELEASED','SETTLED','REFUNDED'].includes(o.redemptionState!)))throw new OrderError('UNAVAILABLE');
     const loyalty=hasLoyalty?{redeemedPoints:o.redeemedPoints,loyaltyDiscountAmount:o.loyaltyDiscountAmount,redemptionState:o.redemptionState}:{};
     seen.add(o.id.toLowerCase());
-    return { id: o.id, orderCode: o.orderCode, status: o.status, total: o.total, currency: o.currency, createdAt: o.createdAt, earnedPoints: o.earnedPoints, ...loyalty };
+    return { id: o.id, orderCode: o.orderCode, customerOrderCode: o.customerOrderCode ?? o.orderCode, status: o.status, total: o.total, currency: o.currency, createdAt: o.createdAt, earnedPoints: o.earnedPoints, ...loyalty };
   });
 }
 export function parseOrderDetail(value: unknown): OrderDetail {

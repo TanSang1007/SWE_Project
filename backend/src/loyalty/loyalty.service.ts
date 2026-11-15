@@ -2,6 +2,7 @@ import { HttpException, Injectable, ServiceUnavailableException, UnauthorizedExc
 import { PrismaService } from '../database/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { decodeCursor, encodeCursor } from './loyalty-cursor';
+import { customerOrderCodes } from '../orders/customer-order-code';
 import type { LoyaltyHistoryQueryDto } from './loyalty.dto';
 
 @Injectable()
@@ -33,9 +34,11 @@ export class LoyaltyService {
         const rows = await tx.loyaltyEntry.findMany({ where: { userId, sequence: { lte: upper, ...(position ? { lt: position.last } : {}) } },
           orderBy: { sequence: 'desc' }, take: limit+1, include: { order: { select: { userId: true, id: true, orderCode: true } } } });
         const page = rows.slice(0,limit);
+        const codes = await customerOrderCodes(tx, page.flatMap(e => e.order ? [e.order.id] : []));
         const items = page.map(e => {
           if (e.order && e.order.userId !== userId) throw new ServiceUnavailableException();
-          return { kind: e.kind, orderId: e.order?.id ?? null, orderCode: e.order?.orderCode ?? null, points: e.points,
+          return { kind: e.kind, orderId: e.order?.id ?? null, orderCode: e.order?.orderCode ?? null,
+            customerOrderCode: e.order ? codes.get(e.order.id) ?? e.order.orderCode : null, points: e.points,
             availableChange: e.availableDelta, reservedChange: e.reservedDelta, outstandingReversalChange: e.debtDelta.toString(),
             debtOffsetPoints: (e.debtDelta < 0n ? -e.debtDelta : 0n).toString(), debtCreatedPoints: (e.debtDelta > 0n ? e.debtDelta : 0n).toString(),
             createdAt: e.createdAt.toISOString() };

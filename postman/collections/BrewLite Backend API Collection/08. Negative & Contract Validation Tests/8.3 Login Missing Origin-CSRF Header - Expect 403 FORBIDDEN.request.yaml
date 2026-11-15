@@ -1,0 +1,14 @@
+$kind: http-request
+name: 8.3 Login Missing Origin/CSRF Header -> Expect 403 FORBIDDEN
+url: "{{baseUrl}}/auth/login"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "email": "{{customerEmail}}",
+      "password": "{{customerPassword}}"
+    }
+order: 3000

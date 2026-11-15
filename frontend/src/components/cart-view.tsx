@@ -12,6 +12,7 @@ import { CartOptions } from './cart-options';
 import { CartRemoveConfirmation } from './cart-remove-confirmation';
 import { ProductImage } from './product-image';
 import { PendingOrderBanner, useCartLock } from './pending-order';
+import { notifyToast } from '../lib/notification-store';
 export function CartView({ orderId }: { orderId?: string } = {}) {
   const token = useAuthStore((s) => s.accessToken);
   return <CartSession key={`${token ?? 'guest'}:${orderId ?? ''}`} orderId={orderId} />;
@@ -39,42 +40,54 @@ function CartSession({ orderId }: { orderId?: string }) {
   }, [token]);
   async function reload() {
     setLoading(true); setError('');
-    try { await useCartStore.getState().load(); }
-    catch (e) { if (useAuthStore.getState().accessToken === token) setError(cartErrorMessage(e)); }
+    try { await useCartStore.getState().load(); notifyToast('Đã cập nhật giỏ hàng.', 'info'); }
+    catch (e) { if (useAuthStore.getState().accessToken === token) { const m = cartErrorMessage(e); setError(m); notifyToast(m, 'error'); } }
     finally { if (useAuthStore.getState().accessToken === token) setLoading(false); }
   }
   async function mutate(method: string, id: string, qty?: number) {
     if (cartLock.locked) return;
     setBusy(true); setError('');
     try { const result = await cartRequest(method, `/cart/items/${id}`, qty === undefined ? undefined : { qty });
-      if (useAuthStore.getState().accessToken === token) { useCartStore.getState().setCart(result); if (method === 'DELETE') setRemoving(null); }
-    } catch (e) { setError(cartErrorMessage(e)); await useCartStore.getState().load().catch(() => {}); }
+      if (useAuthStore.getState().accessToken === token) {
+        useCartStore.getState().setCart(result);
+        if (method === 'DELETE') {
+          setRemoving(null);
+          notifyToast('Đã xóa món khỏi giỏ hàng.', 'success');
+        } else {
+          notifyToast('Đã cập nhật số lượng.', 'success');
+        }
+      }
+    } catch (e) { const m = cartErrorMessage(e); setError(m); notifyToast(m, 'error'); await useCartStore.getState().load().catch(() => {}); }
     finally { setBusy(false); }
   }
   async function beginEdit(item: CartItem) {
     if (cartLock.locked) return;
     setBusy(true); setError('');
     try { const product = await getProductById(item.productId); if (useAuthStore.getState().accessToken === token) setEditing({ item, product }); }
-    catch (e) { setError(cartErrorMessage(e)); } finally { setBusy(false); }
+    catch (e) { const m = cartErrorMessage(e); setError(m); notifyToast(m, 'error'); } finally { setBusy(false); }
   }
   async function edit(input: CartInput) {
     if (!editing || cartLock.locked) return; setBusy(true); setError('');
     try { const result = await editCartItem(editing.item, input);
-      if (useAuthStore.getState().accessToken === token) { useCartStore.getState().setCart(result.cart); setEditing(null); }
-    } catch (e) { setError(cartErrorMessage(e)); await useCartStore.getState().load().catch(() => {}); }
+      if (useAuthStore.getState().accessToken === token) {
+        useCartStore.getState().setCart(result.cart);
+        setEditing(null);
+        notifyToast('Đã lưu tùy chỉnh đồ uống.', 'success');
+      }
+    } catch (e) { const m = cartErrorMessage(e); setError(m); notifyToast(m, 'error'); await useCartStore.getState().load().catch(() => {}); }
     finally { setBusy(false); }
   }
   if (!token) return <section className="cart-page"><div className="state-panel"><p className="eyebrow">BrewLite / Giỏ hàng</p><h1>Giỏ hàng của bạn</h1><p>Đăng nhập để tải giỏ đã lưu của bạn.</p><Link className="button" href={orderId ? '/login?returnTo=' + encodeURIComponent(`/cart?orderId=${orderId}`) : '/login?returnTo=/cart'}>Đăng nhập</Link></div></section>;
   const locked = cartLock.locked || busy || loading || !!editing || !!removing;
-  const checkoutReason = cartLock.locked ? (cartLock.order ? 'Giỏ đang khóa theo đơn chưa hoàn tất. Hãy thanh toán hoặc hủy đơn cũ.' : 'Đang kiểm tra đơn chưa hoàn tất; tạm khóa giỏ.')
+  const checkoutReason = cartLock.locked ? (cartLock.order ? 'Vui lòng hoàn tất hoặc hủy đơn đang chờ.' : 'Đang kiểm tra đơn hàng…')
     : loading ? 'Đang cập nhật giỏ hàng…'
-    : !cart && error ? 'Vui lòng tải lại giỏ để kiểm tra dữ liệu trước khi tiếp tục.'
-    : removing ? 'Hãy xác nhận xóa hoặc chọn giữ lại món.'
-    : editing ? 'Hãy lưu hoặc hủy chỉnh sửa trước khi tiếp tục.'
+    : !cart && error ? 'Vui lòng tải lại giỏ hàng.'
+    : removing ? 'Hãy xác nhận xóa hoặc giữ lại món.'
+    : editing ? 'Hãy lưu hoặc hủy chỉnh sửa.'
     : busy ? 'Đang cập nhật giỏ hàng…'
     : !cart || cart.items.length === 0 ? 'Thêm đồ uống để tiếp tục.'
-    : cart.items.some(item => !item.available) ? 'Hãy chỉnh sửa hoặc xóa món hiện không thể đặt.'
-    : cart.items.some(item => item.stock !== undefined && (item.requestedQuantity ?? item.qty) > item.stock) ? 'Số lượng đã chọn vượt tồn kho. Hãy giảm số lượng trước khi thanh toán.' : '';
+    : cart.items.some(item => !item.available) ? 'Vui lòng chỉnh sửa hoặc xóa món hiện không thể đặt.'
+    : cart.items.some(item => item.stock !== undefined && (item.requestedQuantity ?? item.qty) > item.stock) ? 'Số lượng vượt tồn kho hiện tại.' : '';
   return <section className="cart-page">
     <header className="cart-heading"><div><p className="eyebrow">Một chút cà phê, một ngày dễ chịu</p><h1>Giỏ hàng của bạn</h1><p>Kiểm tra đồ uống trước khi đặt và nhận tại quầy.</p></div><Link className="cart-continue" href="/">← Tiếp tục chọn món</Link></header>
     {error && <p className="cart-notice cart-error" role="alert">{error}</p>}

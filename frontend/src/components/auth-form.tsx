@@ -6,6 +6,7 @@ import { AuthError, authErrorMessage, login, register } from '../lib/api/auth';
 import { safeReturnTo, validateCredentials } from '../lib/auth-validation';
 import { useAuthStore } from '../lib/auth-store';
 import { roleDestination } from '../lib/role-policy';
+import { notifyToast } from '../lib/notification-store';
 
 export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const router = useRouter(); const params = useSearchParams();
@@ -23,13 +24,19 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
     try {
       if (mode === 'register') {
         await register({ email, password }, controller.current.signal); setPassword('');
+        notifyToast('Đăng ký tài khoản thành công.', 'success', 'Vui lòng đăng nhập để tiếp tục.');
         router.replace(`/login?registered=1&returnTo=${encodeURIComponent(returnTo)}`);
       } else {
         const response = await login({ email, password }, controller.current.signal); setPassword(''); signIn(response);
+        notifyToast('Đăng nhập thành công.', 'success', `Xin chào ${response.user.email}`);
         router.replace(roleDestination(response.user.role, params.get('returnTo')));
       }
     } catch (error) {
-      if (!controller.current.signal.aborted) setError(authErrorMessage(error instanceof AuthError ? error.code : 'UNAVAILABLE'));
+      if (!controller.current.signal.aborted) {
+        const msg = authErrorMessage(error instanceof AuthError ? error.code : 'UNAVAILABLE');
+        setError(msg);
+        notifyToast(msg, 'error');
+      }
     } finally { if (!controller.current.signal.aborted) setPending(false); }
   }
   const registering = mode === 'register';

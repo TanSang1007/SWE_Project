@@ -1,0 +1,32 @@
+$kind: http-request
+name: 2.2 Login Customer (POST /auth/login) -> Auto saves customerToken
+url: "{{baseUrl}}/auth/login"
+method: POST
+headers:
+  - key: Content-Type
+    value: application/json
+  - key: Origin
+    value: "{{frontendOrigin}}"
+    description: Bắt buộc khớp FRONTEND_ORIGIN theo SessionService.assertOrigin
+  - key: X-Brewlite-Csrf
+    value: "1"
+    description: Header chống CSRF bắt buộc cho /auth/login, /auth/session, /auth/logout
+body:
+  type: text
+  content: |-
+    {
+      "email": "{{customerEmail}}",
+      "password": "{{customerPassword}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Login Customer 200', function () {
+          pm.response.to.have.status(200);
+      });
+      const json = pm.response.json();
+      if (json.accessToken) {
+          pm.environment.set('customerToken', json.accessToken);
+      }
+    language: text/javascript
+order: 2000

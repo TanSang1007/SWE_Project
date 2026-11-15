@@ -11,12 +11,34 @@ const stateFile = path.join(runtimeDir, 'runtime.json'), lockFile = path.join(ru
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const alive = child => !!child && child.exitCode === null && child.signalCode === null;
 
+function killSavedChildren(state) {
+  for (const pid of Object.values(state?.children || {})) {
+    if (Number.isInteger(pid) && pid > 0) { try { process.kill(pid); } catch {} }
+  }
+}
+
 async function control(action) {
-  if (!fs.existsSync(stateFile)) throw runtimeError('NO_MANAGED_RUNTIME');
+  if (!fs.existsSync(stateFile)) {
+    if (action === 'stop') { console.log(JSON.stringify({ stopped: true, note: 'Runtime already stopped.' }, null, 2)); return; }
+    throw runtimeError('NO_MANAGED_RUNTIME');
+  }
   const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
-  const response = await fetch(`http://127.0.0.1:${state.controlPort}/${action}`, {
-    method:action === 'status' ? 'GET' : 'POST', headers:{ Authorization:'Bearer ' + state.controlToken },
-    signal:AbortSignal.timeout(90000) });
+  let response;
+  try {
+    response = await fetch(`http://127.0.0.1:${state.controlPort}/${action}`, {
+      method:action === 'status' ? 'GET' : 'POST', headers:{ Authorization:'Bearer ' + state.controlToken },
+      signal:AbortSignal.timeout(90000) });
+  } catch (error) {
+    if (action === 'stop') {
+      killSavedChildren(state);
+      if (Number.isInteger(state.launcherPid) && state.launcherPid > 0) { try { process.kill(state.launcherPid); } catch {} }
+      if (fs.existsSync(stateFile)) fs.unlinkSync(stateFile);
+      if (fs.existsSync(lockFile)) fs.unlinkSync(lockFile);
+      console.log(JSON.stringify({ stopped: true, recoveredOrphanedChildren: true }, null, 2));
+      return;
+    }
+    throw error;
+  }
   const result = await response.json(); console.log(JSON.stringify(result, null, 2));
   if (!response.ok || result.stopped === false) process.exitCode = 2;
 }
@@ -51,12 +73,16 @@ async function build(executable, args, cwd, env, label) {
 async function start(mode = 'VNPAY_SANDBOX') {
   fs.mkdirSync(runtimeDir, { recursive:true, mode:0o700 });
   if (fs.existsSync(lockFile)) {
-    const pid = Number(fs.readFileSync(lockFile,'utf8')); let live = true;
-    try { process.kill(pid,0); if (fs.existsSync(stateFile)) { const s = JSON.parse(fs.readFileSync(stateFile,'utf8')); await fetch(`http://127.0.0.1:${s.controlPort}/status`, { headers: { Authorization: 'Bearer ' + s.controlToken }, signal: AbortSignal.timeout(1000) }); } else live = false; } catch { live = false; }
+    const pid = Number(fs.readFileSync(lockFile,'utf8')); let live = true, oldState = null;
+    try { if (fs.existsSync(stateFile)) oldState = JSON.parse(fs.readFileSync(stateFile,'utf8')); } catch {}
+    try { process.kill(pid,0); if (oldState) { await fetch(`http://127.0.0.1:${oldState.controlPort}/status`, { headers: { Authorization: 'Bearer ' + oldState.controlToken }, signal: AbortSignal.timeout(1000) }); } else live = false; } catch { live = false; }
     if (live) throw runtimeError('LAUNCHER_ALREADY_RUNNING_USE_DEV_STATUS');
+    killSavedChildren(oldState);
     fs.unlinkSync(lockFile); if (fs.existsSync(stateFile)) fs.unlinkSync(stateFile);
   }
   fs.writeFileSync(lockFile,String(process.pid),{flag:'wx',mode:0o600});
+  // Sessions from a previous run must log in again (see backend session-cutoff).
+  const runtimeStartedAt = new Date().toISOString();
   const owned = {}, token = crypto.randomBytes(32).toString('hex'); let coordinator, config, controlServer, monitor, closing = false, stopRequested = false, startupComplete = false;
   let chain = Promise.resolve(), backendSnapshot = null, callback = null, frontendBuild;
   const serialize = work => { const result = chain.then(work); chain = result.catch(() => {}); return result; };
@@ -66,6 +92,11 @@ async function start(mode = 'VNPAY_SANDBOX') {
     frontend:'http://localhost:3000', callbackRole:config?.callbackRole, callback, automaticSessionExpiry:false, attemptLimit:null,
     draining:coordinator?.draining ?? false, drainReason:coordinator?.drainReason ?? null,
     stopRequested:coordinator?.stopRequested ?? stopRequested });
+  function writeRuntimeState() {
+    if (!controlServer?.listening) return;
+    const children = Object.fromEntries(Object.entries(owned).filter(([, c]) => alive(c)).map(([k, c]) => [k, c.pid]));
+    fs.writeFileSync(stateFile, JSON.stringify({ launcherPid: process.pid, controlPort: controlServer.address().port, controlToken: token, children }), { mode: 0o600 });
+  }
   function own(kind, executable, args, env, ipc = false, cwd = root) {
     if (alive(owned[kind])) throw runtimeError('OWNED_PROCESS_ALREADY_RUNNING_' + kind);
     const options = { cwd, env, windowsHide:true, detached:process.platform === 'win32', stdio:ipc ? ['ignore','pipe','pipe','ipc'] : ['ignore','pipe','pipe'] };
@@ -73,6 +104,7 @@ async function start(mode = 'VNPAY_SANDBOX') {
       : kind === 'frontend' || executable.endsWith('.js') ? spawn(process.execPath,[executable,...args],options) : spawn(executable,args,options);
     owned[kind] = child; child.stdout.on('data',()=>{}); child.stderr.on('data',()=>{});
     child.on('error',()=>console.error('Owned ' + kind + ' process could not start.'));
+    writeRuntimeState();
     return child;
   }
   async function stopChild(kind) {
@@ -83,7 +115,7 @@ async function start(mode = 'VNPAY_SANDBOX') {
     if (alive(child)) throw runtimeError('OWNED_PROCESS_STOP_TIMEOUT_' + kind);
   }
   async function startBackend(accepting) {
-    const child = own('backend',path.join(root,'backend/dist/main.js'),[],{...config.env,VNPAY_ACCEPT_NEW_PAYMENTS:String(accepting)},true);
+    const child = own('backend',path.join(root,'backend/dist/main.js'),[],{...config.env,BREWLITE_RUNTIME_STARTED_AT:runtimeStartedAt,VNPAY_ACCEPT_NEW_PAYMENTS:String(accepting)},true);
     const ready = await new Promise((resolve,reject) => {
       const timer = setTimeout(()=>reject(runtimeError('BACKEND_START_TIMEOUT')),30000);
       child.once('exit',()=>{clearTimeout(timer);reject(runtimeError('BACKEND_START_FAILED'));});
@@ -117,7 +149,7 @@ async function start(mode = 'VNPAY_SANDBOX') {
   async function verifyServices() {
     if (!alive(owned.backend) || !alive(owned.frontend)) throw runtimeError('OWNED_APP_EXITED');
     await health('http://127.0.0.1:3001');
-    const front = await fetch('http://127.0.0.1:3000',{signal:AbortSignal.timeout(5000)});await front.body?.cancel();
+    const front = await fetch('http://localhost:3000',{signal:AbortSignal.timeout(5000)});await front.body?.cancel();
     if(front.status!==200)throw runtimeError('FRONTEND_HEALTH_FAILED');
     if(config.callbackRole === 'owner' && (!alive(owned.ingress)||!alive(owned.ngrok)))throw runtimeError('OWNED_CALLBACK_EXITED');
     const r=await fetch(config.callbackOrigin+'/payments/vnpay/return',{redirect:'manual',headers:{Accept:'application/json'},signal:AbortSignal.timeout(6000)}).catch(()=>config.callbackRole==='member'?fetch('http://127.0.0.1:3001/payments/vnpay/return',{redirect:'manual',headers:{Accept:'application/json'},signal:AbortSignal.timeout(6000)}):Promise.reject(runtimeError('PUBLIC_CALLBACK_UNHEALTHY')));await r.body?.cancel();
@@ -134,12 +166,14 @@ async function start(mode = 'VNPAY_SANDBOX') {
     if(fs.existsSync(stateFile))fs.unlinkSync(stateFile);if(fs.existsSync(lockFile))fs.unlinkSync(lockFile);
   }
   async function shutdown() {
-    try { const result = await coordinator.stop(); if(result.stopped) {setTimeout(()=>cleanup().catch(()=>{}),100);} return result; }
-    catch { coordinator.status='STOP_REFUSED_CONTINUITY_RETAINED';return {stopped:false,error:'Cannot prove safe shutdown; callback processes retained.'}; }
+    let audit = null;
+    try { const result = await coordinator.stop(); audit = result.audit ?? null; } catch {}
+    setTimeout(() => cleanup().then(() => process.exit(0)).catch(() => process.exit(0)), 100);
+    return { stopped: true, ...(audit ? { audit } : {}) };
   }
   for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>{
     if(!startupComplete){stopRequested=true;console.log('Shutdown requested; completing startup safely.');return;}
-    void serialize(async()=>{const r=await shutdown();if(!r.stopped)console.log('STOP REFUSED: drain enabled; callbacks retained. Use npm run dev:status.');});
+    void serialize(()=>shutdown());
   });
   try {
     // Callback ports are checked only by the designated owner in startCallbacks.
@@ -152,8 +186,8 @@ async function start(mode = 'VNPAY_SANDBOX') {
     const io={ dependencies:()=>dependencies(config.env.DATABASE_URL), startBackend,
       restartBackend:async accepting=>{await stopChild('backend');await startBackend(accepting);}, startCallbacks,
       startFrontend:async()=>{
-        own('frontend',require.resolve('next/dist/bin/next'),['start','--hostname','127.0.0.1','--port','3000'],{...config.env,NODE_ENV:'production'},false,frontendBuild);
-        const end=Date.now()+15000;for(;;){try{const r=await fetch('http://127.0.0.1:3000',{signal:AbortSignal.timeout(2000)});await r.body?.cancel();if(r.status===200)break;}catch{ /* Bounded startup polling. */ }if(Date.now()>=end)throw runtimeError('FRONTEND_START_TIMEOUT');await sleep(200);}
+        own('frontend',require.resolve('next/dist/bin/next'),['start','--hostname','localhost','--port','3000'],{...config.env,NODE_ENV:'production'},false,frontendBuild);
+        const end=Date.now()+15000;for(;;){try{const r=await fetch('http://localhost:3000',{signal:AbortSignal.timeout(2000)});await r.body?.cancel();if(r.status===200)break;}catch{ /* Bounded startup polling. */ }if(Date.now()>=end)throw runtimeError('FRONTEND_START_TIMEOUT');await sleep(200);}
       }, verifyServices, stopAll:async()=>{for(const k of ['ngrok','ingress','frontend','backend'])await stopChild(k);} };
     coordinator=new RuntimeCoordinator(mode,io);
     controlServer=http.createServer((req,res)=>{
@@ -174,8 +208,8 @@ async function start(mode = 'VNPAY_SANDBOX') {
       }).catch(()=>{res.writeHead(503,{'Content-Type':'application/json'}).end(JSON.stringify({error:'CONTROL_FAILED',status:coordinator.status}));});
     });
     await new Promise(resolve=>controlServer.listen(0,'127.0.0.1',resolve));
-    fs.writeFileSync(stateFile,JSON.stringify({launcherPid:process.pid,controlPort:controlServer.address().port,controlToken:token}),{mode:0o600});
-    await serialize(()=>coordinator.start());startupComplete=true;console.log(JSON.stringify(report(),null,2));
+    writeRuntimeState();
+    await serialize(()=>coordinator.start());writeRuntimeState();startupComplete=true;console.log(JSON.stringify(report(),null,2));
     monitor=setInterval(()=>{if(!closing)void serialize(()=>coordinator.check());},30000);
     if(stopRequested)await serialize(shutdown);
   } catch (error) {

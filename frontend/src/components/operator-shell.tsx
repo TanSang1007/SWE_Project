@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useSyncExternalStore, type ReactNode } from 'react';
 import { useAuthStore } from '../lib/auth-store';
-import { logoutSession } from '../lib/auth-session';
+import { LogoutButton } from './logout-button';
 import { shellAccess } from '../lib/role-policy';
 import type { UserRole } from '../types/auth';
 
@@ -29,13 +29,13 @@ export function OperatorShellContent({ ready, role, authenticated, allowed, path
       <nav aria-label={admin ? 'Khu vực quản trị' : 'Khu vực pha chế'} className="operator-navigation">{links.map(([href, label]) => <Link key={href} href={href}
         aria-current={pathname === href || (href !== '/admin' && href !== '/operator/orders' && pathname.startsWith(href + '/')) ? 'page' : undefined}>{label}</Link>)}</nav>
     </aside><div className="operations-workspace"><header className="operations-topbar"><div><span className="role-badge">{admin ? 'Quản trị viên' : 'Nhân viên'}</span>
-      <span className="operations-user">{email}</span></div><button type="button" className="nav-button" onClick={logout}>Đăng xuất</button></header>
+      <span className="operations-user">{email}</span></div><LogoutButton email={email} onLoggedOut={logout} /></header>
       <div className="operations-content">{children}</div></div></section>;
 }
 export function OperatorShell({ allowed, children }: { allowed: readonly UserRole[]; children: ReactNode }) {
   const { user, accessToken } = useAuthStore(); const pathname = usePathname(); const router = useRouter();
   const ready = useSyncExternalStore(subscribe, clientSnapshot, serverSnapshot);
 
-  return <OperatorShellContent ready={ready} role={user?.role} email={user?.email} logout={() => { void logoutSession().then(() => router.replace('/login')).catch(() => window.alert('Chưa đăng xuất được. Vui lòng thử lại.')); }} authenticated={!!accessToken} allowed={allowed} pathname={pathname}>
+  return <OperatorShellContent ready={ready} role={user?.role} email={user?.email} logout={() => router.replace('/login')} authenticated={!!accessToken} allowed={allowed} pathname={pathname}>
     {children}</OperatorShellContent>;
 }

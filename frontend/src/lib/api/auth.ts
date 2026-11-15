@@ -6,7 +6,7 @@ function object(value: unknown): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new AuthError('UNAVAILABLE');
   return value as Record<string, unknown>;
 }
-function publicUser(value: unknown): PublicUser {
+export function publicUser(value: unknown): PublicUser {
   const data = object(value);
   if (typeof data.id !== 'string' || typeof data.email !== 'string' || typeof data.loyaltyPoints !== 'number' || !Number.isInteger(data.loyaltyPoints) || data.loyaltyPoints < 0
     || typeof data.role !== 'string' || !['CUSTOMER', 'STAFF', 'ADMIN'].includes(data.role)) throw new AuthError('UNAVAILABLE');

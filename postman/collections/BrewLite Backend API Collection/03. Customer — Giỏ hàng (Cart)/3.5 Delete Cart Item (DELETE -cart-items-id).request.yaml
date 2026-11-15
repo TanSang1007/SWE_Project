@@ -1,0 +1,11 @@
+$kind: http-request
+name: 3.5 Delete Cart Item (DELETE /cart/items/:id)
+url: "{{baseUrl}}/cart/items/{{cartItemId}}"
+method: DELETE
+headers:
+  Authorization: Bearer {{customerToken}}
+  Content-Type: application/json
+body:
+  type: text
+  content: "{}"
+order: 5000

@@ -1,0 +1,65 @@
+services:
+  - type: web
+    name: brewlite-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    plan: free
+    region: singapore
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: development
+      - key: HOST
+        value: 0.0.0.0
+      - key: PAYMENT_PROVIDER_MODE
+        value: VNPAY_SANDBOX
+      - key: VNPAY_SANDBOX_ENABLED
+        value: "true"
+      - key: VNPAY_DEPLOY_SANDBOX
+        value: "true"
+      - key: VNPAY_ACCEPT_NEW_PAYMENTS
+        value: "true"
+      - key: VNPAY_ENV
+        value: SANDBOX
+      - key: VNPAY_VERSION
+        value: 2.1.0
+      - key: VNPAY_PAYMENT_URL
+        value: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+      - key: JWT_EXPIRES_IN
+        value: "3600"
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: VNPAY_RESULT_URL
+        sync: false
+      - key: VNPAY_TMN_CODE
+        sync: false
+      - key: VNPAY_HASH_SECRET
+        sync: false
+      - key: VNPAY_RETURN_URL
+        sync: false
+      - key: VNPAY_IPN_URL
+        sync: false
+
+  - type: web
+    name: brewlite-frontend
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: .
+    plan: free
+    region: singapore
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOSTNAME
+        value: 0.0.0.0
+      - key: NEXT_PUBLIC_API_BASE_URL
+        sync: false
+      - key: API_INTERNAL_BASE_URL
+        sync: false
