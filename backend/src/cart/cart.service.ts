@@ -4,6 +4,7 @@ import { PrismaService } from '../database/prisma.service';
 import type { AddCartItemDto, CartOptionsDto } from './cart.dto';
 import { normalizeCatalogId } from '../catalog/dto/catalog.dto';
 import { assertNoActiveOrder, lockUser } from '../orders/order-policy';
+import { configurationIngredientStates } from '../catalog/product-ingredients';
 const invalid = () => new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Cart bounds exceeded or invalid quantity/toppings' });
 const maxMoney = new Prisma.Decimal('999999999999');
 function validMoney(value: Prisma.Decimal): Prisma.Decimal {
@@ -25,9 +26,10 @@ export class CartService {
       product: { include: { toppings: { select: { toppingId: true } } } }, productSize: true, toppings: { orderBy: { toppingId: 'asc' }, include: { topping: true } },
     } });
     const demand = new Map<string, number>();
+    const ingredientStates = await configurationIngredientStates(tx, rows.map(row => ({ name: row.product.name, size: row.size, toppings: row.toppings.map(t => t.topping.name) })));
     for (const row of rows) demand.set(row.productId, (demand.get(row.productId) ?? 0) + row.qty);
     let subtotal = new Prisma.Decimal(0); let totalQuantity = 0;
-    const items = rows.map((row) => {
+    const items = rows.map((row, index) => {
       // Validate each price before adding: invalid values must not cancel out or round.
       const basePrice = validMoney(row.product.price);
       const sizeExtraPrice = validMoney(row.productSize.extraPrice);
@@ -37,10 +39,10 @@ export class CartService {
       const unitPrice = validMoney(basePrice.plus(sizeExtraPrice).plus(toppingTotal));
       const lineTotal = unitPrice.times(row.qty); subtotal = subtotal.plus(lineTotal); totalQuantity += row.qty;
       return { id: row.id, productId: row.productId, productName: row.product.name, imageUrl: row.product.imageUrl,
-        available: row.product.isActive && row.product.stock > 0 && row.productSize.isActive && ['S', 'M', 'L'].includes(row.productSize.size)
+        available: row.product.isActive && (ingredientStates[index] ? ingredientStates[index].cups >= row.qty : row.product.stock > 0) && row.productSize.isActive && ['S', 'M', 'L'].includes(row.productSize.size)
           && row.toppings.every(t => t.topping.isActive && row.product.toppings.some(relation => relation.toppingId === t.toppingId)), size: row.size, qty: row.qty,
         toppings: row.toppings.map(({ topping }) => ({ id: topping.id, name: topping.name, price: money(topping.price) })),
-        stock: row.product.stock, requestedQuantity: demand.get(row.productId)!,
+        stock: ingredientStates[index]?.cups ?? row.product.stock, requestedQuantity: ingredientStates[index] ? row.qty : demand.get(row.productId)!,
         unitPrice: money(unitPrice), lineTotal: money(lineTotal) };
     });
     return { items, totalQuantity, subtotal: money(subtotal), currency: 'VND' as const };
@@ -53,18 +55,24 @@ export class CartService {
   private async validateOptions(tx: Prisma.TransactionClient, productId: string, size: string, toppingIds: string[]) {
     // Serialize validated Cart writes with lifecycle changes and full-product
     // deletion. Keep existing owner-lock order; never mutate stock/version.
+<<<<<<< HEAD
+    await tx.$queryRaw`SELECT id FROM products WHERE id::text = ${productId} FOR SHARE`;
+    for (const id of [...toppingIds].sort()) await tx.$queryRaw`SELECT id FROM toppings WHERE id::text = ${id} FOR SHARE`;
+=======
     await tx.$queryRaw`SELECT id FROM products WHERE id = ${productId} FOR SHARE`;
     if (toppingIds.length) {
       const ids = [...toppingIds].sort().map(id => Prisma.sql`${id}`);
       await tx.$queryRaw`SELECT id FROM toppings WHERE id IN (${Prisma.join(ids)}) ORDER BY id FOR SHARE`;
     }
+>>>>>>> origin/main
     const product = await tx.product.findUnique({ where: { id: productId }, include: { sizes: true, toppings: { include: { topping: true } } } });
     if (!product) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
     if (!product.isActive) throw new ConflictException({ code: 'PRODUCT_UNAVAILABLE', message: 'Product is no longer sold; adjust or remove the cart item' });
-    if (product.stock <= 0) throw new ConflictException({ code: 'OUT_OF_STOCK', message: 'Product unavailable' });
     if (!product.sizes.some((entry) => entry.size === size && entry.isActive) || toppingIds.some((id) => !product.toppings.some((entry) => entry.toppingId === id && entry.topping.isActive))) {
       throw new BadRequestException({ code: 'INVALID_ITEM_OPTIONS', message: 'Options do not belong to product' });
     }
+    const [state] = await configurationIngredientStates(tx, [{ name: product.name, size, toppings: product.toppings.filter(t => toppingIds.includes(t.toppingId)).map(t => t.topping.name) }]);
+    if (!(state?.available ?? product.stock > 0)) throw new ConflictException({ code: 'OUT_OF_STOCK', message: 'Không đủ nguyên liệu cho size hoặc topping đã chọn.' });
   }
   add(userId: string, input: AddCartItemDto) {
     return this.prisma.$transaction(async (tx) => {

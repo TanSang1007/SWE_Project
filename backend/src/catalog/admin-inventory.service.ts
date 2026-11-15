@@ -5,6 +5,9 @@ import { PrismaService } from '../database/prisma.service';
 import { requireIdempotencyKey, replayResult } from '../common/idempotency';
 import { lockUser } from '../orders/order-policy';
 import type { InventoryAdjustmentDto } from './admin-inventory.dto';
+<<<<<<< HEAD
+import { productIngredientStates, productRecipe } from './product-ingredients';
+=======
 
 function compareProductIds(a: string, b: string) {
   const ma = /^BR(\d+)$/i.exec(a);
@@ -13,6 +16,7 @@ function compareProductIds(a: string, b: string) {
   return a.localeCompare(b);
 }
 
+>>>>>>> origin/main
 const maxInt = 2147483647;
 const unavailable = () => new ServiceUnavailableException({ code: 'SERVICE_UNAVAILABLE', message: 'Inventory unavailable; retain the original request for recovery' });
 const conflict = () => new ConflictException({ code: 'CONCURRENT_UPDATE', message: 'Stock or product changed; reload and confirm a new adjustment' });
@@ -33,14 +37,21 @@ export class AdminInventoryService {
   }
   async list() {
     try {
+<<<<<<< HEAD
+      const items = await this.db.product.findMany({ orderBy: { id: 'asc' }, select: { id: true, name: true, stock: true, version: true } });
+      const states = await productIngredientStates(this.db, items.map(p => p.name));
+      return { items: items.map(p => ({ productId: p.id, productName: p.name, stock: p.stock, version: p.version,
+        ...(states.get(p.name) ? { inventorySource: 'INGREDIENTS' as const, ...states.get(p.name) } : {}) })) };
+=======
       const items = await this.db.product.findMany({ select: { id: true, name: true, stock: true, version: true } });
       items.sort((a, b) => compareProductIds(a.id, b.id));
       return { items: items.map(p => ({ productId: p.id, productName: p.name, stock: p.stock, version: p.version })) };
+>>>>>>> origin/main
     } catch { throw unavailable(); }
   }
   // A separate read also provides a deterministic integration-test barrier.
   private readProduct(tx: Prisma.TransactionClient, id: string) {
-    return tx.product.findUnique({ where: { id }, select: { id: true, stock: true, version: true } });
+    return tx.product.findUnique({ where: { id }, select: { id: true, name: true, stock: true, version: true } });
   }
     /**
    * Điều chỉnh số lượng tồn kho sản phẩm (Task 10 - Đoàn Hậu):
@@ -64,6 +75,7 @@ export class AdminInventoryService {
         // 1. Kiểm tra sản phẩm có tồn tại trong kho không
         const product = await this.readProduct(tx, productId);
         if (!product) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
+        if (productRecipe(product.name)) throw new ConflictException({ code: 'INVALID_STOCK_ADJUSTMENT', message: 'Món được quản lý theo nguyên liệu. Hãy nhập hàng hoặc kiểm kê nguyên liệu.' });
 
         // 2. Kiểm tra Optimistic Locking: Nếu phiên bản bị lệch do đơn hàng khác vừa mua -> ném ConflictException
         if (product.version !== input.expectedVersion) throw conflict();

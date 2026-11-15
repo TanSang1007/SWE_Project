@@ -17,6 +17,7 @@ const api = require('../src/lib/api/products.ts');
 const { formatVnd } = require('../src/lib/money.ts');
 const { ProductListView } = require('../src/components/menu.tsx');
 const { ProductDetailView } = require('../src/components/product-detail.tsx');
+const { CartOptions } = require('../src/components/cart-options.tsx');
 const { CatalogState, CatalogLoading } = require('../src/components/catalog-state.tsx');
 const item = { id: '11111111-1111-4111-8111-111111111111', name: 'Fixture', price: '45000', imageUrl: '/images/fixture.jpg', available: true };
 const detail = { ...item, sizes: [{ size: 'M', extraPrice: '5000' }], toppings: [{ id: '22222222-2222-4222-8222-222222222221', name: 'Kem', price: '7000' }] };
@@ -25,9 +26,32 @@ const originalBase = process.env.NEXT_PUBLIC_API_BASE_URL;
 afterEach(() => { globalThis.fetch = originalFetch; if (originalBase === undefined) delete process.env.NEXT_PUBLIC_API_BASE_URL; else process.env.NEXT_PUBLIC_API_BASE_URL = originalBase; });
 const render = (component, props) => renderToStaticMarkup(React.createElement(component, props));
 
+test('size recipe stock metadata survives parsing and invalid capacities fail closed', () => {
+  const current = {...detail, stockStatus:'LOW_STOCK', sizes:[{size:'S',extraPrice:'0',available:true,maxQuantity:1,stockStatus:'LOW_STOCK'},{size:'M',extraPrice:'5000',available:false,maxQuantity:0,stockStatus:'OUT_OF_STOCK'}],toppings:[{...detail.toppings[0],availableSizes:[]}]};
+  assert.deepEqual(api.parseProduct(current),current);
+  for(const maxQuantity of [-1,1.5,'1'])assert.throws(()=>api.parseProduct({...current,sizes:[{...current.sizes[0],maxQuantity}]}));
+  assert.throws(()=>api.parseProduct({...current,stockStatus:'UNKNOWN'}));
+  assert.throws(()=>api.parseProduct({...current,toppings:[{...current.toppings[0],availableSizes:['XL']}]}));
+});
+
+test('unavailable sizes and toppings are disabled while an available small serving remains selectable', () => {
+  const current={...detail,sizes:[{size:'S',extraPrice:'0',available:true,maxQuantity:1,stockStatus:'LOW_STOCK'},{size:'M',extraPrice:'5000',available:false,maxQuantity:0,stockStatus:'OUT_OF_STOCK'}],toppings:[{...detail.toppings[0],availableSizes:[]}]};
+  const markup=render(CartOptions,{product:current,busy:false,label:'Thêm vào giỏ',onConfirm:()=>{}});
+  assert.match(markup,/type="radio"[^>]*disabled=""[^>]*value="M"/);
+  assert.match(markup,/type="checkbox"[^>]*disabled=""/);
+  assert(markup.includes('Sắp hết món'));assert(markup.includes('tối đa 1 ly size S'));
+  assert(!/class="button cart-confirm"[^>]*disabled/.test(markup));
+});
+
 test('parses list/detail contract and strips fields outside UI representation', () => {
   assert.deepEqual(api.parseProducts({ items: [{ ...item, stock: 20 }], currency: 'VND' }), { items: [item], currency: 'VND' });
   assert.deepEqual(api.parseProduct(detail), detail);
+});
+test('product details preserve stored numeric topping references and their disabled recipe availability', () => {
+  const current = { ...detail, toppings: [...detail.toppings, { id: '3', name: 'Sương Sáo', price: '5000', availableSizes: [] }] };
+  assert.deepEqual(api.parseProduct(current), current);
+  assert.throws(() => api.parseProduct({ ...current, id: '3' }));
+  for (const id of ['0', '03', '-3', '3.0', '1'.repeat(21), '../3']) assert.throws(() => api.parseProduct({ ...detail, toppings: [{ ...detail.toppings[0], id }] }));
 });
 test('rejects malformed list/detail and numeric/negative/overflow money', () => {
   for (const price of [45000, '-1', '1.5', '1000000000000']) assert.throws(() => api.parseProduct({ ...detail, price }));
@@ -70,7 +94,7 @@ test('network and malformed JSON failures become unavailable', async () => {
 });
 test('list rendering includes product, money, availability and semantic detail link', () => {
   const html = render(ProductListView, { catalog: { items: [{ ...item, available: false }], currency: 'VND' } });
-  assert.match(html, /Fixture/); assert.match(html, /45\.000/); assert.match(html, /Tạm hết/);
+  assert.match(html, /Fixture/); assert.match(html, /45\.000/); assert.match(html, /Hết món/);
   assert.match(html, /href="\/products\//); assert.match(html, /alt="Đồ uống Fixture"/);
 });
 test('detail rendering shows base price and only supplied sizes/toppings', () => {
@@ -87,4 +111,10 @@ test('loading/error/not-found/invalid states have roles and accessible actions',
   assert.match(render(CatalogState, { kind: 'unavailable', retry: () => {} }), /Thử lại/);
   assert.match(render(CatalogState, { kind: 'not-found' }), /Không tìm thấy món này/);
   assert.match(render(CatalogState, { kind: 'invalid-id' }), /Đường dẫn món chưa hợp lệ/);
+});
+test('public size availability preserves an individual low-stock size when another size has stock',()=>{
+  const sizes=[{size:'S',maxQuantity:20,stockStatus:'IN_STOCK'},{size:'M',maxQuantity:5,stockStatus:'LOW_STOCK'},{size:'L',maxQuantity:0,stockStatus:'OUT_OF_STOCK'}];
+  const result=api.parseProducts({items:[{...item,sizeAvailability:sizes}],currency:'VND'});
+  assert.deepEqual(result.items[0].sizeAvailability,sizes);
+  for(const invalid of [[{...sizes[0],maxQuantity:-1}],[{...sizes[0],size:'XL'}],[sizes[0],sizes[0]],[{...sizes[0],stockStatus:'UNKNOWN'}]])assert.throws(()=>api.parseProducts({items:[{...item,sizeAvailability:invalid}],currency:'VND'}));
 });

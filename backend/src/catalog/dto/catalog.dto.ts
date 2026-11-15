@@ -23,6 +23,8 @@ export interface CatalogProductDto {
   price: string;
   imageUrl: string;
   available: boolean;
+  stockStatus?: 'OUT_OF_STOCK' | 'LOW_STOCK' | 'IN_STOCK';
+  sizeAvailability?: { size: string; maxQuantity: number; stockStatus: 'OUT_OF_STOCK' | 'LOW_STOCK' | 'IN_STOCK' }[];
 }
 
 export interface ProductListDto {
@@ -31,6 +33,6 @@ export interface ProductListDto {
 }
 
 export interface ProductDetailDto extends CatalogProductDto {
-  sizes: { size: string; extraPrice: string }[];
-  toppings: { id: string; name: string; price: string }[];
+  sizes: { size: string; extraPrice: string; available?: boolean; maxQuantity?: number; stockStatus?: 'OUT_OF_STOCK' | 'LOW_STOCK' | 'IN_STOCK' }[];
+  toppings: { id: string; name: string; price: string; availableSizes?: string[] }[];
 }

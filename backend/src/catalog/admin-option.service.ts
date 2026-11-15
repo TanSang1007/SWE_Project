@@ -87,6 +87,19 @@ export class AdminOptionService {
       await tx.productSize.delete({ where: { productId_size: { productId: id, size } } }); await this.bump(tx, id, version);
     }));
   }
+<<<<<<< HEAD
+  toppings() { return this.safely(async () => ({ items: (await this.db.topping.findMany({ select: topSelect, orderBy: { id: 'asc' } })).map(topDto) })); }
+  private async toppingRow(db: Pick<Prisma.TransactionClient, '$queryRaw'>, id: string, lock = false) {
+    const rows = await db.$queryRaw<ToppingRow[]>(Prisma.sql`SELECT id::text,name,price,is_active AS "isActive",version,created_at AS "createdAt",updated_at AS "updatedAt"
+      FROM toppings WHERE id::text=${id} ${lock ? Prisma.sql`FOR UPDATE` : Prisma.empty}`);
+    if (!rows.length) throw missing('TOPPING');
+    return rows[0];
+  }
+  topping(id: string) { return this.safely(async () => topDto(await this.toppingRow(this.db, id))); }
+  createTopping(body: ToppingCreateDto) { return this.safely(async () => topDto(await this.db.topping.create({ select: topSelect, data: { name: body.name, price: new Prisma.Decimal(body.price) } }))); }
+  private async currentTopping(tx: Prisma.TransactionClient, id: string, version: number) {
+    const row = await this.toppingRow(tx, id, true); if (row.version !== version) throw conflict(); return row;
+=======
   toppings() {
     return this.safely(async () => {
       const rows = await this.db.topping.findMany({ select: topSelect });
@@ -99,6 +112,7 @@ export class AdminOptionService {
   private async currentTopping(tx: Prisma.TransactionClient, id: string, version: number) {
     await tx.$queryRaw`SELECT id FROM toppings WHERE id = ${id} FOR UPDATE`;
     const row = await tx.topping.findUnique({ where: { id }, select: topSelect }); if (!row) throw missing('TOPPING'); if (row.version !== version) throw conflict(); return row;
+>>>>>>> origin/main
   }
   updateTopping(id: string, body: ToppingUpdateDto) {
     if (body.name === undefined && body.price === undefined && body.isActive === undefined) throw invalid();

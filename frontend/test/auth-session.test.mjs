@@ -7,11 +7,31 @@ const require = createRequire(import.meta.url), ts = require('typescript');
 for (const extension of ['.ts', '.tsx']) require.extensions[extension] = (loaded, filename) => loaded._compile(ts.transpileModule(readFileSync(filename, 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true }, fileName: filename,
 }).outputText, filename);
-const { restoreSession, logoutSession } = require('../src/lib/auth-session.ts');
+const { restoreSession, logoutSession, requiresSession } = require('../src/lib/auth-session.ts');
 const { useAuthStore } = require('../src/lib/auth-store.ts');
 const originalFetch = globalThis.fetch;
 const response = role => ({ accessToken: randomUUID(), tokenType: 'Bearer', expiresIn: 3600, user: { id: randomUUID(), email: 'isolated@example.invalid', role, loyaltyPoints: 0 } });
 afterEach(() => { globalThis.fetch = originalFetch; useAuthStore.getState().clear(); });
+test('public menu and login remain accessible while session recovery is pending or unavailable', () => {
+  const React = require('react'), { renderToStaticMarkup } = require('react-dom/server');
+  const { SessionContent } = require('../src/components/auth-session.tsx');
+  for (const path of ['/', '/login', '/register', '/products/fixture']) for (const error of ['', 'Chưa kiểm tra được phiên đăng nhập.']) {
+    const html = renderToStaticMarkup(React.createElement(SessionContent, { ready: false, protectedPage: requiresSession(path), error, retry() {} }, 'PUBLIC CONTENT'));
+    assert(html.includes('PUBLIC CONTENT'));
+    if (error) assert(html.includes('Thử lại'));
+  }
+});
+test('private pages stay blocked until the session has been checked', () => {
+  const React = require('react'), { renderToStaticMarkup } = require('react-dom/server');
+  const { SessionContent } = require('../src/components/auth-session.tsx');
+  for (const path of ['/admin', '/admin/products', '/operator/orders', '/cart', '/checkout', '/orders', '/loyalty']) {
+    assert(requiresSession(path));
+    for (const error of ['', 'Session unavailable']) {
+      const html = renderToStaticMarkup(React.createElement(SessionContent, { ready: false, protectedPage: true, error, retry() {} }, 'PRIVATE CONTENT'));
+      assert(!html.includes('PRIVATE CONTENT'));
+    }
+  }
+});
 for (const role of ['CUSTOMER', 'ADMIN', 'STAFF']) test(`${role} restores memory from same-origin session, with no token in URL/body`, async () => {
   const data = response(role); let calls = 0;
   globalThis.fetch = async (url, options) => { calls++; assert.equal(url, '/api/auth/session'); assert.equal(options.credentials, 'same-origin'); assert.equal(options.headers['X-BrewLite-CSRF'], '1'); assert.equal(options.body, undefined); return Response.json(data); };

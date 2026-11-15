@@ -1,5 +1,7 @@
 # I01 — Tồn kho nguyên liệu (user extension 2026-10-29)
 
+**Amendment I08,2026-11-13:** [Quy định hiện hành](I08_INVENTORY_CONTROL.md) bổ sung nháp, snapshot/variance theo tiêu hao, cấu hình ngưỡng và đối chiếu journal để bảo toàn giao dịch sau kiểm kê. Phần dưới là contract I01 trước amendment; không dùng guard version cũ để chặn mọi phiếu I08 có thể đối chiếu. Quyền Staff/Admin và dữ liệu cũ giữ nguyên.
+
 Amendment cùng ngày [I02](I02_INVENTORY_CATEGORIES.md) thay ngưỡng tùy chọn bằng quy tắc cố định theo đơn vị và strict `<`, phân nhóm vật dụng/nguyên liệu, đưa nhập hàng ra menu riêng. Các quy trình transaction/kiểm kê/duyệt/audit I01 giữ nguyên. Mô tả ngưỡng và đường dẫn phía dưới là baseline I01 trước amendment.
 
 Yêu cầu người dùng mở rộng riêng nhập nguyên liệu, Staff kiểm kê, Admin phê duyệt và lịch sử. Không sửa PDF hoặc thay A06 tồn sản phẩm, checkout, payment, recipe consumption, nhà cung cấp hoặc đăng nhập. Tái sử dụng Nest/Prisma/PostgreSQL, JWT/current-role guards và shell/theme hiện tại.

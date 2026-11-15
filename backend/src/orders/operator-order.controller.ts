@@ -5,7 +5,7 @@ import { OrderStatus, type UserRole } from '../generated/prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/roles.decorator';
-import { OrderEmptyDto, OrderParamsDto } from './order.dto';
+import { OrderEmptyDto, OrderParamsDto, OrderReadParamsDto } from './order.dto';
 import { OrderService } from './order.service';
 import { OrderTransitionDto } from './order-workflow.dto';
 
@@ -25,9 +25,9 @@ export class OperatorOrderController {
   @HttpCode(200)
   @Header('Cache-Control', 'private, no-store, max-age=0')
   transition(@Param() params: OrderParamsDto, @Body() body: OrderTransitionDto, @Query() query: OrderEmptyDto,
-    @Res({ passthrough: true }) res: Response) {
+    @Res({ passthrough: true }) res: Response, @Req() req: { user: { id: string } }) {
     void query; res.vary('Authorization');
-    return this.orders.transitionOrder(params.id.toLowerCase(), body.expectedVersion, body.targetStatus);
+    return this.orders.transitionOrder(params.id.toLowerCase(), body.expectedVersion, body.targetStatus, req.user.id);
   }
 
   @Get()
@@ -41,7 +41,7 @@ export class OperatorOrderController {
 
   @Get(':id')
   @Header('Cache-Control', 'private, no-store, max-age=0')
-  get(@Param() params: OrderParamsDto, @Query() query: OrderEmptyDto, @Body() body: OrderEmptyDto,
+  get(@Param() params: OrderReadParamsDto, @Query() query: OrderEmptyDto, @Body() body: OrderEmptyDto,
     @Res({ passthrough: true }) res: Response, @Req() req: { user: { role: UserRole } }) {
     void query; void body;
     res.vary('Authorization');

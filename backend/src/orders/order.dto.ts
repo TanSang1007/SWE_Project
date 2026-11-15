@@ -1,9 +1,14 @@
 import { Type, Transform } from 'class-transformer';
+<<<<<<< HEAD
+import { ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsIn, IsInt, IsObject, IsString, IsUUID, Max, MaxLength, Min, MinLength, ValidateBy, ValidateIf, ValidateNested } from 'class-validator';
+import { isStoredId } from '../common/record-id';
+=======
 import { ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsIn, IsInt, IsObject, IsString, Matches, Max, MaxLength, Min, MinLength, ValidateIf, ValidateNested } from 'class-validator';
 import { normalizeCatalogId } from '../catalog/dto/catalog.dto';
 
 const idPattern = /^[A-Za-z0-9_-]{1,64}$/;
 
+>>>>>>> origin/main
 export class OrderItemDto {
   @Transform(({ value }: { value: unknown }) => normalizeCatalogId(value))
   @IsString()
@@ -22,10 +27,16 @@ export class CreateOrderDto {
   @ValidateIf((_object, value: unknown) => value !== undefined) @Transform(({ value }: { value: unknown }) => typeof value === 'string' ? value.trim().toUpperCase() : value)
   @IsString() @MinLength(1) @MaxLength(32) promotionCode?: string;
 }
+<<<<<<< HEAD
+export class OrderParamsDto { @IsUUID() id!: string; }
+export class OrderReadParamsDto {
+  @ValidateBy({ name: 'storedOrderId', validator: { validate: isStoredId } }) id!: string;
+=======
 export class OrderParamsDto {
   @Transform(({ value }: { value: unknown }) => typeof value === 'string' ? value.trim().toLowerCase() : value)
   @IsString()
   @Matches(idPattern)
   id!: string;
+>>>>>>> origin/main
 }
 export class OrderEmptyDto {}

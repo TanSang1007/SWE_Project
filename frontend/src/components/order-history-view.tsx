@@ -11,6 +11,7 @@ import { OrderSummary } from './order-summary';
 import type { OrderDetail, OrderHistoryItem } from '../types/order';
 import { currentAttempt, type AttemptStatus } from '../lib/api/gateway-payments';
 import { paymentMessage, resultPath } from '../lib/payment-result';
+import { OrderTracking } from './order-tracking';
 export type OrderReadState = { status: 'loading' } | { status: 'error'; notFound: boolean }
   | { status: 'history'; items: OrderHistoryItem[] } | { status: 'detail'; order: OrderDetail; attempt?: AttemptStatus | null; attemptUnavailable?: boolean };
 export function OrderHistoryView({ id }: { id?: string }) {
@@ -25,15 +26,21 @@ function OrderReadSession({ id }: { id?: string }) {
   const [state, setState] = useState<OrderReadState>({ status: 'loading' }); const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
+    let pending = false;
+    const refresh = () => {
+    if (pending) return; pending = true;
     const load = id ? getOrderDetail(id, controller.signal).then(async (order): Promise<OrderReadState> => {
-      if (order.total === '0') return { status: 'detail', order };
+      if (order.total === '0' || !['PENDING','PAYMENT_FAILED'].includes(order.status)) return { status: 'detail', order };
       try { return { status: 'detail', order, attempt: await currentAttempt(order.id, controller.signal) }; }
       catch { return { status: 'detail', order, attemptUnavailable: true }; }
     })
       : getOrderHistory(controller.signal).then((items): OrderReadState => ({ status: 'history', items }));
     void load.then((result) => { if (!controller.signal.aborted) setState(result); })
-      .catch((error: unknown) => { if (!controller.signal.aborted) setState({ status: 'error', notFound: error instanceof OrderError && error.code === 'ORDER_NOT_FOUND' }); });
-    return () => controller.abort();
+      .catch((error: unknown) => { if (!controller.signal.aborted) setState({ status: 'error', notFound: error instanceof OrderError && error.code === 'ORDER_NOT_FOUND' }); })
+      .finally(() => { pending = false; });
+    };
+    refresh(); const timer = setInterval(refresh,5000); window.addEventListener('focus',refresh);
+    return () => { controller.abort(); clearInterval(timer); window.removeEventListener('focus',refresh); };
   }, [id, attempt]);
   function retry() { setState({ status: 'loading' }); setAttempt((value) => value + 1); }
   return <OrderReadContent state={state} retry={retry} />;
@@ -67,7 +74,12 @@ export function OrderDetailContent({ order, attempt, attemptUnavailable }: { ord
     {attempt && <div className="gateway-checkout"><p role="status">{paymentMessage(attempt)}</p><Link href={resultPath(attempt.attemptId)}>Kiểm tra kết quả giao dịch hiện tại</Link></div>}
     {attemptUnavailable && <p role="alert">Chưa đọc được trạng thái giao dịch hiện tại. Vui lòng tải lại trước khi thanh toán.</p>}
     {['PENDING', 'PAYMENT_FAILED'].includes(order.status) && <p>Đơn chưa hoàn tất. <Link className="button" href={`/checkout?orderId=${order.id}`}>Tiếp tục thanh toán</Link></p>}
+<<<<<<< HEAD
+    {order.status === 'CANCELLED' && <p>Đơn đã hủy. Trạng thái này không xác nhận việc hoàn tiền.</p>}
+    <OrderTracking id={order.id} role="CUSTOMER" />
+=======
     {order.status === 'CANCELLED' && <p>Đơn hàng đã hủy.</p>}
+>>>>>>> origin/main
     <div className="order-history-links"><Link href="/orders">Về lịch sử đơn hàng</Link><Link href="/">Về thực đơn</Link></div>
   </article>;
 }

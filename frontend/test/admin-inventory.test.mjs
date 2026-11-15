@@ -17,6 +17,17 @@ const id = randomUUID(), owner = randomUUID(), item = { productId: id, productNa
 const context = { userId: owner, productId: id, key: randomUUID(), body: { delta: 2, expectedVersion: 3 } };
 const result = { productId: id, delta: 2, previousStock: 10, stock: 12, version: 4 };
 const html = (component, props) => renderToStaticMarkup(React.createElement(component, props));
+test('recipe inventory shows current availability and missing ingredients without manual count controls', () => {
+  const recipe = { ...item, stock: 999, inventorySource: 'INGREDIENTS', available: false, missingIngredients: ['Đường'],
+    ingredients: [{ name: 'Cà phê', unit: 'KG', quantity: '0.001', available: true }, { name: 'Đường', unit: 'KG', quantity: '0.000', available: false }] };
+  const parsed = parseInventory({ items: [recipe] }); assert.equal(parsed[0].available, false);
+  const markup = html(InventoryList, { items: parsed, statuses: { [id]: true }, disabled: false, select: () => {} });
+  for (const text of ['Hết món', 'Đường', 'Quản lý nguyên liệu']) assert(markup.includes(text));
+  assert(!markup.includes('999')); assert(!markup.includes('Nhập / điều chỉnh tồn kho'));
+  assert.throws(() => parseInventory({ items: [{ ...recipe, ingredients: undefined }] }));
+  const available = { ...recipe, stock: 0, available: true, missingIngredients: [], ingredients: recipe.ingredients.map(i => ({ ...i, quantity: '0.001', available: true })) };
+  assert(html(InventoryList, { items: parseInventory({ items: [available] }), statuses: {}, disabled: false }).includes('Còn món'));
+});
 function storage() { const entries = new Map(); globalThis.sessionStorage = { getItem: k => entries.get(k) ?? null, setItem: (k, v) => entries.set(k, v), removeItem: k => entries.delete(k) }; }
 function session(role = 'ADMIN', userId = owner) { useAuthStore.getState().signIn({ accessToken: `${role}-${userId}`, tokenType: 'Bearer', expiresIn: 3600, user: { id: userId, email: 'test@example.invalid', role, loyaltyPoints: 0 } }); }
 afterEach(() => { globalThis.fetch = originalFetch; globalThis.sessionStorage = originalStorage; useAuthStore.getState().clear(); });

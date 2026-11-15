@@ -14,6 +14,13 @@ const { OperatorShellContent } = require('../src/components/operator-shell.tsx')
 const { useAuthStore, getAccessToken } = require('../src/lib/auth-store.ts');
 const { orderStatusLabels } = require('../src/lib/order-display.ts');
 const originalFetch = globalThis.fetch;
+test('legacy numeric orders remain readable in Admin overview, lists and snapshots', () => {
+  assert.equal(parseOperatorList({ items: [{ ...summary, id: '1' }] })[0].id, '1');
+  assert.equal(parseOperatorDetail({ ...detail, id: '1' }).id, '1');
+  for (const id of ['0', '-1', '1e2', '1 OR 1=1', '9'.repeat(21)]) {
+    assert.throws(() => parseOperatorList({ items: [{ ...summary, id }] }));
+  }
+});
 process.env.NEXT_PUBLIC_API_BASE_URL = 'http://localhost:3001';
 const id = randomUUID(); const actor = randomUUID();
 const session = (role = 'STAFF', owner = actor) => ({ accessToken: `fixture-${owner}-${role}`, tokenType: 'Bearer', expiresIn: 3600, user: { id: owner, email: 'fixture@example.invalid', loyaltyPoints: 0, role } });

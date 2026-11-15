@@ -108,6 +108,14 @@ button:disabled { opacity: .55; cursor: default; }
 .order-metadata div { display:flex; flex-wrap:wrap; justify-content:space-between; gap:12px; }
 .order-metadata dd { margin:0; }
 .order-history-links { display:flex; flex-wrap:wrap; gap:24px; margin-top:24px; }
+.order-tracking { display:grid; gap:16px; min-width:0; margin-block:24px; }
+.order-tracking fieldset { min-width:0; border:1px solid var(--line); border-radius:8px; padding:16px; }
+.order-tracking form,.order-tracking label { display:grid; gap:10px; }
+.order-tracking form+form { margin-top:20px; }
+.order-tracking input:not([type=checkbox]),.order-tracking textarea { width:100%; min-width:0; min-height:44px; padding:10px; border:1px solid var(--line); border-radius:6px; background:white; color:var(--ink); font:inherit; }
+.order-tracking textarea { min-height:80px; resize:vertical; }
+.order-tracking li { margin-block:12px; line-height:1.6; }
+.order-tracking .button { max-width:100%; white-space:normal; }
 @media(max-width:900px) { .header-inner { flex-wrap:wrap; gap:18px; } .auth-nav { flex-wrap:wrap; } }
 @media(max-width:600px) { .order-history-card,.order-confirmation { padding:18px; } }
 /* A01 entry shells; no operator business tables/forms. */

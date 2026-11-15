@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/roles.decorator';
-import { CreateOrderDto, OrderEmptyDto, OrderParamsDto } from './order.dto';
+import { CreateOrderDto, OrderEmptyDto, OrderParamsDto, OrderReadParamsDto } from './order.dto';
 import { OrderService } from './order.service';
 type AuthRequest = Request & { user: { id: string } };
 @Controller('orders')
@@ -41,7 +41,7 @@ export class OrderController {
   }
   @Get(':id')
   @Header('Cache-Control', 'private, no-store, max-age=0')
-  get(@Req() req: AuthRequest, @Param() params: OrderParamsDto, @Query() query: OrderEmptyDto, @Body() body: OrderEmptyDto,
+  get(@Req() req: AuthRequest, @Param() params: OrderReadParamsDto, @Query() query: OrderEmptyDto, @Body() body: OrderEmptyDto,
     @Res({ passthrough: true }) res: Response) {
     void query; void body; res.vary('Authorization'); return this.orders.get(req.user.id, params.id);
   }

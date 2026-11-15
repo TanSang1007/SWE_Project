@@ -1,6 +1,10 @@
 # BrewLite — Design review và giới hạn nghiệm thu
 
+O01, 2026-11-15: người dùng đã chọn đề xuất120 giây trong file hủy/theo dõi. Thay phạm vi Customer unpaid-only ở checkpoint DR01/14/15 bằng [contract O01](O01_CANCEL_TRACKING.md); giữ serialization/loyalty/inventory và Payment SUCCEEDED. Refund thủ công có approval/evidence và support riêng; không đồng nghĩa tích hợp Refund API. Checklist implementation cần bằng chứng, không suy hoàn tất từ closure.
+
 ## 1. Closure thiết kế
+
+I08,2026-11-13: người dùng đã chốt chỉ phục vụ tại chỗ, bỏ cảnh báo theo trung bình/dự phòng, không tính chênh lệch đá/vật dụng và không quản lý tồn nước (giữ công thức tham khảo/lịch sử). Kiểm kê nháp/variance/đối chiếu journal và cảnh báo từng size theo [contract I08](I08_INVENTORY_CONTROL.md);3%/5% không tự thành mặc định. Đây là amendment người dùng, không thay PDF hoặc mở lại Q01–Q19.
 
 Q01–Q19 và DR01–DR15 đã có quyết định hoặc scope trong [DECISIONS](DECISIONS.md); không biến recommended option thành owner approval. Baseline PDF/FR/NFR/BR và graph được giữ nguyên. Extension A01–A06/UI01, L00/L01 và P00/P01 có contract riêng; A07 đã hủy.
 

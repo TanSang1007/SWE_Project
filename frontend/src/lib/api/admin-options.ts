@@ -1,6 +1,6 @@
 import { getApiBaseUrl } from '../env';
 import { getAccessToken, useAuthStore } from '../auth-store';
-import { isProductId } from './products';
+import { isToppingReferenceId } from './products';
 import type { AdminSize, AdminTopping, AssociationList, SizeList } from '../../types/admin-option';
 export class OptionError extends Error { constructor(public readonly code: string) { super(code); } }
 export const validOptionMoney = (value: unknown): value is string => typeof value === 'string' && /^(0|[1-9]\d{0,11})$/.test(value);
@@ -8,7 +8,7 @@ const version = (v: unknown): v is number => typeof v === 'number' && Number.isI
 const fail = () => new OptionError('UNAVAILABLE');
 export function parseTopping(value: unknown): AdminTopping {
   const t = value as AdminTopping;
-  if (!t || typeof t.id !== 'string' || !isProductId(t.id) || typeof t.name !== 'string' || !t.name.trim() || !validOptionMoney(t.price) || typeof t.isActive !== 'boolean' || !version(t.version)
+  if (!t || typeof t.id !== 'string' || !isToppingReferenceId(t.id) || typeof t.name !== 'string' || !t.name.trim() || !validOptionMoney(t.price) || typeof t.isActive !== 'boolean' || !version(t.version)
     || typeof t.createdAt !== 'string' || !Number.isFinite(Date.parse(t.createdAt)) || typeof t.updatedAt !== 'string' || !Number.isFinite(Date.parse(t.updatedAt))) throw fail();
   return { id: t.id, name: t.name, price: t.price, isActive: t.isActive, version: t.version, createdAt: t.createdAt, updatedAt: t.updatedAt };
 }
@@ -26,8 +26,14 @@ export function parseAssociations(value: unknown): AssociationList { const v = v
 export async function optionRequest(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, body?: object, signal?: AbortSignal): Promise<unknown> {
   const token = getAccessToken(); const user = useAuthStore.getState().user;
   if (!token || !user) throw new OptionError('UNAUTHORIZED'); if (user.role !== 'ADMIN') throw new OptionError('FORBIDDEN');
+<<<<<<< HEAD
+  const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+  const toppingId = `(?:${uuid}|[1-9]\\d{0,19})`;
+  if (!new RegExp(`^/admin/(?:toppings(?:/${toppingId})?|products/${uuid}/(?:sizes(?:/[SML])?|toppings(?:/${uuid})?))$`).test(path)) throw new OptionError('VALIDATION_ERROR');
+=======
   const idToken = '[A-Za-z0-9_-]{1,64}';
   if (!new RegExp(`^/admin/(?:toppings(?:/${idToken})?|products/${idToken}/(?:sizes(?:/[SML])?|toppings(?:/${idToken})?))$`).test(path)) throw new OptionError('VALIDATION_ERROR');
+>>>>>>> origin/main
   const current = () => { const s = useAuthStore.getState(); return s.accessToken === token && s.user?.id === user.id && s.user.role === user.role; };
   try {
     const timeout = AbortSignal.timeout(5000); const r = await fetch(getApiBaseUrl() + path, { method, cache: 'no-store', credentials: 'omit', signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
@@ -45,7 +51,7 @@ export const getSizes = async (id: string, signal?: AbortSignal) => parseSizes(a
 export const getAssociations = async (id: string, signal?: AbortSignal) => parseAssociations(await optionRequest('GET', `/admin/products/${id}/toppings`, undefined, signal));
 export const getToppings = async (signal?: AbortSignal) => parseToppings(await optionRequest('GET', '/admin/toppings', undefined, signal));
 export const getTopping = async (id: string, signal?: AbortSignal) => { const t = parseTopping(await optionRequest('GET', `/admin/toppings/${id}`, undefined, signal)); if (t.id !== id) throw fail(); return t; };
-export function optionMessage(code: string) {
+export function optionMessage(code: string, operation: 'read' | 'write' = 'write') {
   if (code === 'UNAUTHORIZED') return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
   if (code === 'FORBIDDEN') return 'Không có quyền quản lý tùy chọn.';
   if (code === 'CONCURRENT_UPDATE') return 'Dữ liệu đã thay đổi. Tải lại và kiểm tra trước khi xác nhận thao tác mới.';
@@ -53,5 +59,6 @@ export function optionMessage(code: string) {
   if (code === 'RESOURCE_ALREADY_EXISTS') return 'Kích cỡ hoặc liên kết đã tồn tại.';
   if (code === 'VALIDATION_ERROR') return 'Kiểm tra tên, giá nguyên đồng và các trường bắt buộc.';
   if (['PRODUCT_NOT_FOUND', 'SIZE_NOT_FOUND', 'TOPPING_NOT_FOUND'].includes(code)) return 'Không tìm thấy cấu hình. Hãy tải lại dữ liệu.';
+  if (operation === 'read') return 'Chưa tải được dữ liệu tùy chọn. Hãy thử tải lại cấu hình.';
   return 'Chưa xác nhận được kết quả. Chỉ tải lại và kiểm tra dữ liệu; không tự gửi lại thao tác.';
 }
