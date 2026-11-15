@@ -19,4 +19,6 @@ Thumbs.db
 *.tmp
 .brewlite/
 
-/docker/local.env
+# Docker local env
+docker/*.env
+docker/local.env
