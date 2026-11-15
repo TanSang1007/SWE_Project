@@ -2,7 +2,8 @@ import { ConflictException } from '@nestjs/common';
 import type { OrderStatus } from '../generated/prisma/client';
 
 
-const transitions: Record<OrderStatus, readonly OrderStatus[]> = {
+const transitions: Record<OrderStatus, readonly OrderStatus[]> =
+{
   PENDING: ['PAID', 'PAYMENT_FAILED', 'CANCELLED'],
   PAID: ['PREPARING', 'CANCELLED'],
   PAYMENT_FAILED: ['PENDING', 'CANCELLED'],
@@ -12,10 +13,11 @@ const transitions: Record<OrderStatus, readonly OrderStatus[]> = {
   CANCELLED: [],
 };
 
-export function assertTransition(from: OrderStatus, to: OrderStatus): void {
+export function assertTransition(from: OrderStatus, to: OrderStatus):
+void {
   if ( !transitions[from]?.includes(to) ) {
     throw new ConflictException({
       code: 'INVALID_ORDER_STATE',
-      message: 'Khong the chuyen trang thai don hang nay' });
+      message: 'Khong the chuyen trang thai don hang' });
   }
 }

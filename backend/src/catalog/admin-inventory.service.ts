@@ -5,7 +5,18 @@ import { PrismaService } from '../database/prisma.service';
 import { requireIdempotencyKey, replayResult } from '../common/idempotency';
 import { lockUser } from '../orders/order-policy';
 import type { InventoryAdjustmentDto } from './admin-inventory.dto';
+<<<<<<< HEAD
 import { productIngredientStates, productRecipe } from './product-ingredients';
+=======
+
+function compareProductIds(a: string, b: string) {
+  const ma = /^BR(\d+)$/i.exec(a);
+  const mb = /^BR(\d+)$/i.exec(b);
+  if (ma && mb) return Number(ma[1]) - Number(mb[1]);
+  return a.localeCompare(b);
+}
+
+>>>>>>> origin/main
 const maxInt = 2147483647;
 const unavailable = () => new ServiceUnavailableException({ code: 'SERVICE_UNAVAILABLE', message: 'Inventory unavailable; retain the original request for recovery' });
 const conflict = () => new ConflictException({ code: 'CONCURRENT_UPDATE', message: 'Stock or product changed; reload and confirm a new adjustment' });
@@ -18,16 +29,24 @@ export class AdminInventoryService {
   constructor(private readonly db: PrismaService) {}
   private transaction<T>(work: (tx: Prisma.TransactionClient) => Promise<T>) {
     return this.db.$transaction(async tx => {
-      await tx.$executeRaw`SELECT set_config('lock_timeout', '200ms', true), set_config('statement_timeout', '300ms', true)`;
+      await (this.db.transactionOptions?.timeout === 5000
+        ? tx.$executeRaw`SELECT set_config('lock_timeout', '2000ms', true), set_config('statement_timeout', '4000ms', true)`
+        : tx.$executeRaw`SELECT set_config('lock_timeout', '200ms', true), set_config('statement_timeout', '300ms', true)`);
       return work(tx);
-    }, { maxWait: 50, timeout: 400 });
+    }, this.db.transactionOptions ?? { maxWait: 50, timeout: 400 });
   }
   async list() {
     try {
+<<<<<<< HEAD
       const items = await this.db.product.findMany({ orderBy: { id: 'asc' }, select: { id: true, name: true, stock: true, version: true } });
       const states = await productIngredientStates(this.db, items.map(p => p.name));
       return { items: items.map(p => ({ productId: p.id, productName: p.name, stock: p.stock, version: p.version,
         ...(states.get(p.name) ? { inventorySource: 'INGREDIENTS' as const, ...states.get(p.name) } : {}) })) };
+=======
+      const items = await this.db.product.findMany({ select: { id: true, name: true, stock: true, version: true } });
+      items.sort((a, b) => compareProductIds(a.id, b.id));
+      return { items: items.map(p => ({ productId: p.id, productName: p.name, stock: p.stock, version: p.version })) };
+>>>>>>> origin/main
     } catch { throw unavailable(); }
   }
   // A separate read also provides a deterministic integration-test barrier.

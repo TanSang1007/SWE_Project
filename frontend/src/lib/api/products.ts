@@ -23,7 +23,7 @@ function stockStatus(value: unknown): DrinkStockStatus | undefined {
   return value;
 }
 export function isProductId(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+  return /^[A-Za-z0-9_-]{1,64}$/.test(value);
 }
 // Stored topping identities may use older sequence IDs. This predicate is
 // separate from Product URL and purchase input validation.

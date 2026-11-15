@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import type { AddCartItemDto, CartOptionsDto } from './cart.dto';
+import { normalizeCatalogId } from '../catalog/dto/catalog.dto';
 import { assertNoActiveOrder, lockUser } from '../orders/order-policy';
 import { configurationIngredientStates } from '../catalog/product-ingredients';
 const invalid = () => new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Cart bounds exceeded or invalid quantity/toppings' });
@@ -54,8 +55,16 @@ export class CartService {
   private async validateOptions(tx: Prisma.TransactionClient, productId: string, size: string, toppingIds: string[]) {
     // Serialize validated Cart writes with lifecycle changes and full-product
     // deletion. Keep existing owner-lock order; never mutate stock/version.
+<<<<<<< HEAD
     await tx.$queryRaw`SELECT id FROM products WHERE id::text = ${productId} FOR SHARE`;
     for (const id of [...toppingIds].sort()) await tx.$queryRaw`SELECT id FROM toppings WHERE id::text = ${id} FOR SHARE`;
+=======
+    await tx.$queryRaw`SELECT id FROM products WHERE id = ${productId} FOR SHARE`;
+    if (toppingIds.length) {
+      const ids = [...toppingIds].sort().map(id => Prisma.sql`${id}`);
+      await tx.$queryRaw`SELECT id FROM toppings WHERE id IN (${Prisma.join(ids)}) ORDER BY id FOR SHARE`;
+    }
+>>>>>>> origin/main
     const product = await tx.product.findUnique({ where: { id: productId }, include: { sizes: true, toppings: { include: { topping: true } } } });
     if (!product) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
     if (!product.isActive) throw new ConflictException({ code: 'PRODUCT_UNAVAILABLE', message: 'Product is no longer sold; adjust or remove the cart item' });
@@ -70,7 +79,8 @@ export class CartService {
       validateQuantity(input.qty);
       if (input.toppingIds.length > 10) throw invalid();
       await this.lock(tx, userId);
-      const productId = input.productId.toLowerCase(); const toppingIds = input.toppingIds.map((id) => id.toLowerCase()).sort();
+      const productId = String(normalizeCatalogId(input.productId));
+      const toppingIds = input.toppingIds.map((id) => id.trim().toLowerCase()).sort();
       if (new Set(toppingIds).size !== toppingIds.length) throw invalid();
       await this.validateOptions(tx, productId, input.size, toppingIds);
       const cart = await tx.cart.upsert({ where: { userId }, create: { userId }, update: { updatedAt: new Date() } });
@@ -85,7 +95,7 @@ export class CartService {
           toppings: { create: toppingIds.map((toppingId) => ({ toppingId })) } } });
       }
       return this.read(tx, userId); // Monetary overflow rolls back the write.
-    });
+    }, this.prisma.transactionOptions);
   }
   private async owned(tx: Prisma.TransactionClient, userId: string, id: string) {
     const item = await tx.cartItem.findFirst({ where: { id, cart: { userId } }, include: { toppings: true } });
@@ -100,12 +110,12 @@ export class CartService {
       await tx.cartItem.update({ where: { id: item.id }, data: { qty } });
       await tx.cart.update({ where: { id: item.cartId }, data: { updatedAt: new Date() } });
       return this.read(tx, userId);
-    });
+    }, this.prisma.transactionOptions);
   }
   editOptions(userId: string, id: string, input: CartOptionsDto) {
     return this.prisma.$transaction(async (tx) => {
       if (input.toppingIds.length > 10) throw invalid();
-      const toppingIds = input.toppingIds.map(value => value.toLowerCase()).sort();
+      const toppingIds = input.toppingIds.map(value => value.trim().toLowerCase()).sort();
       if (new Set(toppingIds).size !== toppingIds.length) throw invalid();
       await this.lock(tx, userId);
       const item = await this.owned(tx, userId, id);
@@ -127,7 +137,7 @@ export class CartService {
       }
       await tx.cart.update({ where: { id: item.cartId }, data: { updatedAt: new Date() } });
       return this.read(tx, userId);
-    });
+    }, this.prisma.transactionOptions);
   }
   remove(userId: string, id: string) {
     return this.prisma.$transaction(async (tx) => {
@@ -135,6 +145,6 @@ export class CartService {
       await tx.cartItem.delete({ where: { id: item.id } });
       await tx.cart.update({ where: { id: item.cartId }, data: { updatedAt: new Date() } });
       return this.read(tx, userId);
-    });
+    }, this.prisma.transactionOptions);
   }
 }

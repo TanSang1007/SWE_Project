@@ -1,8 +1,21 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import type { Prisma } from '../generated/prisma/client';
+<<<<<<< HEAD
 import type { CatalogProductDto, ProductDetailDto, ProductListDto } from './dto/catalog.dto';
 import { configurationIngredientStates, productIngredientStates } from './product-ingredients';
+=======
+import { normalizeCatalogId, type CatalogProductDto, type ProductDetailDto, type ProductListDto } from './dto/catalog.dto';
+
+function compareIds(a: string, b: string) {
+  const ma = /^BR(\d+)$/i.exec(a);
+  const mb = /^BR(\d+)$/i.exec(b);
+  if (ma && mb) return Number(ma[1]) - Number(mb[1]);
+  const na = /^\d+$/.test(a) ? Number(a) : Number.POSITIVE_INFINITY;
+  const nb = /^\d+$/.test(b) ? Number(b) : Number.POSITIVE_INFINITY;
+  return na !== nb ? na - nb : a.localeCompare(b);
+}
+>>>>>>> origin/main
 
 const productSelect = {
   id: true, name: true, price: true, imageUrl: true, stock: true, isActive: true,
@@ -15,6 +28,7 @@ export class CatalogService {
   constructor(private readonly prisma: PrismaService) {}
 
   async listProducts(): Promise<ProductListDto> {
+<<<<<<< HEAD
     const products = await this.prisma.product.findMany({ where: { isActive: true }, select: productSelect, orderBy: { id: 'asc' } });
     const states = await productIngredientStates(this.prisma, products.map(p => p.name));
     return { items: products.map(p => {
@@ -23,11 +37,17 @@ export class CatalogService {
       return { ...toProductDto(p, sizes ? Math.max(0, ...sizes.map(s => s.cups)) : undefined),
         ...(sizes ? { sizeAvailability: sizes.map(s => ({ size: s.size, maxQuantity: s.cups, stockStatus: s.status })) } : {}) };
     }), currency: 'VND' };
+=======
+    const products = await this.prisma.product.findMany({ where: { isActive: true }, select: productSelect });
+    products.sort((a, b) => compareIds(a.id, b.id));
+    return { items: products.map(toProductDto), currency: 'VND' };
+>>>>>>> origin/main
   }
 
   async getProduct(id: string): Promise<ProductDetailDto> {
+    const normalizedId = String(normalizeCatalogId(id));
     const product = await this.prisma.product.findUnique({
-      where: { id },
+      where: { id: normalizedId },
       select: {
         ...productSelect,
         sizes: { where: { isActive: true }, select: { size: true, extraPrice: true } },
@@ -48,6 +68,7 @@ export class CatalogService {
     return {
       ...toProductDto(product, state ? Math.max(0, ...state.sizes.filter(s => product.sizes.some(active => active.size === s.size)).map(s => s.cups)) : undefined),
       sizes: product.sizes.sort((a, b) => sizeOrder.indexOf(a.size) - sizeOrder.indexOf(b.size))
+<<<<<<< HEAD
         .map(({ size, extraPrice }) => {
           const availability = state?.sizes.find(s => s.size === size);
           return { size, extraPrice: extraPrice.toFixed(0), ...(availability ? { available: availability.available, maxQuantity: availability.cups, stockStatus: availability.status } : {}) };
@@ -56,6 +77,14 @@ export class CatalogService {
         id: topping.id, name: topping.name, price: topping.price.toFixed(0),
         ...(state ? { availableSizes: selections.slice(index * product.sizes.length, (index + 1) * product.sizes.length).filter((_selection, offset) => toppingStates[index * product.sizes.length + offset]?.available).map(selection => selection.size) } : {}),
       })),
+=======
+        .map(({ size, extraPrice }) => ({ size, extraPrice: extraPrice.toFixed(0) })),
+      toppings: [...product.toppings]
+        .sort((a, b) => compareIds(a.topping.id, b.topping.id))
+        .map(({ topping }) => ({
+          id: topping.id, name: topping.name, price: topping.price.toFixed(0),
+        })),
+>>>>>>> origin/main
     };
   }
 }
@@ -70,4 +99,3 @@ function toProductDto(product: CatalogRow, capacity?: number): CatalogProductDto
     ...(capacity === undefined ? {} : { stockStatus: capacity === 0 ? 'OUT_OF_STOCK' : capacity <= 10 ? 'LOW_STOCK' : 'IN_STOCK' }),
   };
 }
-

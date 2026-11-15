@@ -7,7 +7,7 @@ export function validateCredentials({ email, password }: Credentials): string | 
   return null;
 }
 export function safeReturnTo(value: string | null): string {
-  if (value?.startsWith('/payments')) return /^\/payments\/vnpay\/result\?attemptId=[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value) ? value : '/';
+  if (value?.startsWith('/payments')) return /^\/payments\/vnpay\/result\?attemptId=[A-Za-z0-9_-]{1,64}$/i.test(value) ? value : '/';
   if (!value || !value.startsWith('/') || value.startsWith('//') || value.includes('\\') || /^\/(login|register)(\/|\?|$)/.test(value)) return '/';
   return value;
 }

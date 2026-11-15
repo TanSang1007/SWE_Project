@@ -20,10 +20,9 @@ export function CartRemoveConfirmation({ item, busy, onCancel, onConfirm }: {
         onCancel();
       }
     }}>
-    <h2 id={headingId}>Xóa món khỏi giỏ hàng?</h2>
-    <p>Bạn muốn xóa <strong>{item.productName}</strong> khỏi giỏ hàng?</p>
-    <p className="cart-remove-detail">Size {item.size} · {item.toppings.map(topping => topping.name).join(', ') || 'Không topping'} · Số lượng: {item.qty}</p>
-    <p>Toàn bộ số lượng của món này sẽ được xóa. Bạn có thể thêm lại từ thực đơn.</p>
+    <h2 id={headingId}>
+      Bạn muốn xóa <strong>{item.productName}</strong> khỏi giỏ hàng?
+    </h2>
     <div className="cart-actions">
       <button ref={keepButton} className="cart-secondary" disabled={busy} onClick={onCancel}>Giữ lại</button>
       <button className="button cart-confirm-remove" disabled={busy} onClick={onConfirm}>{busy ? 'Đang xóa…' : 'Xóa món'}</button>

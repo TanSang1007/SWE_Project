@@ -31,6 +31,7 @@ export function AuthSession({ children }: { children: ReactNode }) {
     return () => { clearTimeout(timer); window.removeEventListener('focus', focus); };
   }, [ready, expiresAt]);
   useEffect(() => {
+<<<<<<< HEAD
     const channel = new BroadcastChannel('brewlite-auth');
     channel.onmessage = () => { useAuthStore.getState().clear(); setReady(false); setRetry(v => v + 1); };
     return () => channel.close();
@@ -39,4 +40,10 @@ export function AuthSession({ children }: { children: ReactNode }) {
     if (ready && !user && protectedPage) router.replace('/login?returnTo=' + encodeURIComponent(pathname + window.location.search));
   }, [ready, user, pathname, protectedPage, router]);
   return <SessionContent ready={ready} protectedPage={protectedPage} error={error} retry={() => { setReady(false); setRetry(v => v + 1); }}>{children}</SessionContent>;
+=======
+    if (ready && !user && /^\/(cart|checkout|orders|loyalty|admin|operator)(\/|$)/.test(pathname)) router.replace('/login?returnTo=' + encodeURIComponent(pathname + window.location.search));
+  }, [ready, user, pathname, router]);
+  if (!ready) return <section className="state-panel" role="status"><p>{error || 'Đang khôi phục phiên đăng nhập…'}</p>{error && <button onClick={() => setRetry(v => v + 1)}>Thử lại</button>}</section>;
+  return <>{error && <p role="alert">{error} <button onClick={() => { setReady(false); setRetry(v => v + 1); }}>Thử lại</button></p>}{children}</>;
+>>>>>>> origin/main
 }

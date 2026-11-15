@@ -1,12 +1,12 @@
 import { Body, Controller, ForbiddenException, Header, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
-import { IsUUID } from 'class-validator';
+import { IsString, Matches } from 'class-validator';
 import type { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { AttemptEmptyDto } from './attempt.dto';
 import { QueryDrService } from './querydr.service';
-class ReconcileParams { @IsUUID() id!: string; }
+class ReconcileParams { @IsString() @Matches(/^[A-Za-z0-9_-]{1,64}$/) id!: string; }
 @Controller('admin/payments/vnpay/attempts')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('ADMIN')

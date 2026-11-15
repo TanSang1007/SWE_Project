@@ -1,5 +1,9 @@
+<<<<<<< HEAD
 import { BadRequestException, ConflictException, HttpException, Injectable, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+=======
+import { BadRequestException, ConflictException, HttpException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+>>>>>>> origin/main
 import { Prisma, type Ingredient, type IngredientCountStatus, type UserRole } from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { requireIdempotencyKey } from '../common/idempotency';
@@ -30,9 +34,16 @@ export class IngredientService {
   private async read<T>(work: () => Promise<T>): Promise<T> { try { return await work(); } catch (e) { if (e instanceof HttpException) throw e; throw unavailable(); } }
   private async transaction<T>(actorId: string, work: (tx: Tx) => Promise<T>): Promise<T> {
     try { return await this.db.$transaction(async tx => {
+<<<<<<< HEAD
       await tx.$executeRaw`SELECT set_config('lock_timeout','200ms',true), set_config('statement_timeout','300ms',true)`;
       // The shared development database also contains TEXT identity columns.
       await tx.$queryRaw`SELECT id FROM users WHERE id::text=${actorId} FOR UPDATE`;
+=======
+      await (this.db.transactionOptions?.timeout === 5000
+        ? tx.$executeRaw`SELECT set_config('lock_timeout','2000ms',true), set_config('statement_timeout','4000ms',true)`
+        : tx.$executeRaw`SELECT set_config('lock_timeout','200ms',true), set_config('statement_timeout','300ms',true)`);
+      await lockUser(tx, actorId);
+>>>>>>> origin/main
       return work(tx);
     }, this.db.transactionOptions ?? { maxWait: 2000, timeout: 5000 }); }
     catch (e) {
@@ -66,10 +77,17 @@ export class IngredientService {
       const inclusive = materials.length ? Prisma.sql`(normalized_name,unit::text) IN (${Prisma.join(materials.map(i => Prisma.sql`(${i.normalizedName},${i.unit})`))})` : Prisma.sql`false`;
       const rows = await this.db.$queryRaw<{ totalIngredients: number; inStock: number; lowStock: number; outOfStock: number; pendingCounts: number }[]>`
         SELECT count(*)::integer AS "totalIngredients",
+<<<<<<< HEAD
           count(*) FILTER (WHERE quantity-reserved_quantity>0 AND (quantity-reserved_quantity>low_stock_threshold OR (NOT ${inclusive} AND quantity-reserved_quantity=low_stock_threshold)))::integer AS "inStock",
           count(*) FILTER (WHERE quantity-reserved_quantity>0 AND (quantity-reserved_quantity<low_stock_threshold OR (${inclusive} AND quantity-reserved_quantity=low_stock_threshold)))::integer AS "lowStock",
           count(*) FILTER (WHERE quantity-reserved_quantity=0)::integer AS "outOfStock",
           (SELECT count(*)::integer FROM ingredient_counts WHERE status='SUBMITTED' AND (${role === 'ADMIN'} OR created_by_id::text=${actorId})) AS "pendingCounts"
+=======
+          count(*) FILTER (WHERE quantity>=low_stock_threshold AND quantity>0)::integer AS "inStock",
+          count(*) FILTER (WHERE quantity>0 AND quantity<low_stock_threshold)::integer AS "lowStock",
+          count(*) FILTER (WHERE quantity=0)::integer AS "outOfStock",
+          (SELECT count(*)::integer FROM ingredient_counts WHERE status='SUBMITTED' AND (${role === 'ADMIN'} OR created_by_id=${actorId})) AS "pendingCounts"
+>>>>>>> origin/main
         FROM ingredients`;
       return rows[0];
     });
@@ -103,8 +121,13 @@ export class IngredientService {
       }
       const missing=definitions.filter(i=>!existing.some(e=>e.normalizedName===i.normalizedName));
       const created=missing.length?(await tx.ingredient.createMany({skipDuplicates:true,data:missing.map(i=>({
+<<<<<<< HEAD
         ...i,id:randomUUID(),createdById:actorId,lowStockThreshold:ingredientThreshold(i.name,i.unit),
         requestKey:'catalog-v1:'+requestHash(i.normalizedName),requestHash:requestHash({name:i.name,unit:i.unit,threshold:ingredientThreshold(i.name,i.unit).toFixed(3)}),
+=======
+        ...i,createdById:actorId,lowStockThreshold:unitThreshold(i.unit),
+        requestKey:'catalog-v1:'+requestHash(i.normalizedName),requestHash:requestHash({name:i.name,unit:i.unit,threshold:unitThreshold(i.unit).toFixed(3)}),
+>>>>>>> origin/main
       }))})).count:0;
       if(missing.length){
         const saved=await tx.ingredient.findMany({where:{normalizedName:{in:definitions.map(i=>i.normalizedName)}}});
@@ -135,15 +158,25 @@ export class IngredientService {
   }
   private async ingredientRows(tx: Tx, ids: string[], lock: boolean) {
     const sorted = [...ids].sort();
+<<<<<<< HEAD
     if (lock) await tx.$queryRaw(Prisma.sql`SELECT id FROM ingredients WHERE id::text IN (${Prisma.join(sorted)}) ORDER BY id FOR UPDATE`);
+=======
+    if (lock) await tx.$queryRaw(Prisma.sql`SELECT id FROM ingredients WHERE id IN (${Prisma.join(sorted.map(id => Prisma.sql`${id}`))}) ORDER BY id FOR UPDATE`);
+>>>>>>> origin/main
     const rows = await tx.ingredient.findMany({ where: { id: { in: sorted } }, orderBy: { id: 'asc' } });
     if (rows.length !== ids.length) throw new NotFoundException({ code: 'INGREDIENT_NOT_FOUND', message: 'Không tìm thấy nguyên liệu.' });
     return new Map(rows.map(i => [i.id, i]));
   }
   private async documentLock(tx: Tx, kind: 'receipt' | 'count', id: string, ownerId?: string) {
+<<<<<<< HEAD
     if (kind === 'receipt') await tx.$queryRaw`SELECT id FROM ingredient_receipts WHERE id::text=${id} FOR UPDATE`;
     else if (ownerId) await tx.$queryRaw`SELECT id FROM ingredient_counts WHERE id::text=${id} AND created_by_id::text=${ownerId} FOR UPDATE`;
     else await tx.$queryRaw`SELECT id FROM ingredient_counts WHERE id::text=${id} FOR UPDATE`;
+=======
+    if (kind === 'receipt') await tx.$queryRaw`SELECT id FROM ingredient_receipts WHERE id=${id} FOR UPDATE`;
+    else if (ownerId) await tx.$queryRaw`SELECT id FROM ingredient_counts WHERE id=${id} AND created_by_id=${ownerId} FOR UPDATE`;
+    else await tx.$queryRaw`SELECT id FROM ingredient_counts WHERE id=${id} FOR UPDATE`;
+>>>>>>> origin/main
   }
   async createReceipt(actorId: string, key: string | undefined, input: ReceiptCreateDto) {
     requireIdempotencyKey(key); uniqueLines(input.lines);
@@ -159,7 +192,7 @@ export class IngredientService {
         quantity(l.quantity, ingredient.unit, true);
       }
       const doc = await tx.ingredientReceipt.create({ data: { createdById: actorId, requestKey: key, requestHash: hash, note } });
-      await tx.ingredientReceiptLine.createMany({ data: lines.map(l => ({ ...l, id: randomUUID(), receiptId: doc.id })) });
+      await tx.ingredientReceiptLine.createMany({ data: lines.map(l => ({ ...l, receiptId: doc.id })) });
       return receiptDto(await tx.ingredientReceipt.findUniqueOrThrow({ where: { id: doc.id }, include: receiptInclude }));
     });
   }
@@ -167,9 +200,13 @@ export class IngredientService {
   private async applyStock(tx: Tx, updates: { ingredient: Ingredient; after: Prisma.Decimal; source: { receiptLineId: string } | { countLineId: string } }[], actorId: string, now: Date) {
     for (const u of updates) if (u.ingredient.version >= 2147483647 || u.after.isNegative() || u.after.gt('999999999.999')) throw new ConflictException({ code: 'INVALID_QUANTITY', message: 'Tồn kho vượt giới hạn cho phép.' });
     const rows = updates.map(u => Prisma.sql`(${u.ingredient.id}::text,${u.ingredient.version}::integer,${u.after.toFixed(3)}::numeric)`);
+<<<<<<< HEAD
     const changed = await tx.$executeRaw(Prisma.sql`UPDATE ingredients AS i SET quantity=v.quantity,version=i.version+1,updated_at=${now} FROM (VALUES ${Prisma.join(rows)}) AS v(id,version,quantity) WHERE i.id::text=v.id AND i.version=v.version`);
+=======
+    const changed = await tx.$executeRaw(Prisma.sql`UPDATE ingredients AS i SET quantity=v.quantity,version=i.version+1,updated_at=${now} FROM (VALUES ${Prisma.join(rows)}) AS v(id,version,quantity) WHERE i.id=v.id AND i.version=v.version`);
+>>>>>>> origin/main
     if (changed !== updates.length) throw stockChanged();
-    await tx.ingredientMovement.createMany({ data: updates.map(u => ({ id: randomUUID(), ingredientId: u.ingredient.id, ...u.source, beforeQuantity: u.ingredient.quantity, afterQuantity: u.after, delta: u.after.minus(u.ingredient.quantity), actorId, createdAt: now })) });
+    await tx.ingredientMovement.createMany({ data: updates.map(u => ({ ingredientId: u.ingredient.id, ...u.source, beforeQuantity: u.ingredient.quantity, afterQuantity: u.after, delta: u.after.minus(u.ingredient.quantity), actorId, createdAt: now })) });
   }
   async confirmReceipt(actorId: string, id: string, expectedVersion: number) {
     return this.transaction(actorId, async tx => {
@@ -200,6 +237,7 @@ export class IngredientService {
         if (old.lines.length !== lines.length || old.lines.some(l => !lines.some(n => n.ingredientId === l.ingredientId))) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Phiếu kiểm kê lại phải gồm đúng các nguyên liệu của phiếu gốc.' });
       }
       const ingredients = await this.ingredientRows(tx, lines.map(l => l.ingredientId), true);
+<<<<<<< HEAD
       for (const l of lines) { const i = ingredients.get(l.ingredientId)!; quantity(l.actualQuantity, i.unit);
         if (!supportsInventoryCount(i)) throw new UnprocessableEntityException({code:'INVENTORY_COUNT_NOT_SUPPORTED',message:'Không kiểm kê chênh lệch đá viên, nước lọc hoặc vật dụng.'});
         if (i.version !== l.expectedVersion) throw stockChanged(); }
@@ -215,6 +253,11 @@ export class IngredientService {
         return { id: randomUUID(), countId: doc.id, ingredientId: l.ingredientId, actualQuantity: l.actualQuantity, systemQuantity: ingredient.quantity, ingredientVersion: l.expectedVersion, note: l.note,
           movementSequence: snapshot?.sequence ?? 0n, theoreticalConsumption: snapshot?.consumed ?? '0', variancePercentThreshold: ingredient.variancePercentThreshold, varianceAbsoluteThreshold: ingredient.varianceAbsoluteThreshold };
       }) });
+=======
+      for (const l of lines) { const i = ingredients.get(l.ingredientId)!; quantity(l.actualQuantity, i.unit); if (i.version !== l.expectedVersion) throw stockChanged(); }
+      const doc = await tx.ingredientCount.create({ data: { createdById: actorId, requestKey: key, requestHash: hash, note, recountOfId } });
+      await tx.ingredientCountLine.createMany({ data: lines.map(l => ({ countId: doc.id, ingredientId: l.ingredientId, actualQuantity: l.actualQuantity, systemQuantity: ingredients.get(l.ingredientId)!.quantity, ingredientVersion: l.expectedVersion, note: l.note })) });
+>>>>>>> origin/main
       return countDto(await tx.ingredientCount.findUniqueOrThrow({ where: { id: doc.id }, include: countInclude }));
     });
   }

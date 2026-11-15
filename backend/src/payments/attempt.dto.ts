@@ -1,18 +1,25 @@
 import { Transform } from 'class-transformer';
-import { IsString, IsUUID, Matches, MaxLength, MinLength, ValidateIf } from 'class-validator';
+import { IsString, Matches, MaxLength, MinLength, ValidateIf } from 'class-validator';
+
+const idPattern = /^[A-Za-z0-9_-]{1,64}$/;
+const trimLower = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim().toLowerCase() : value;
+
 export class InitiateAttemptDto {
-    @Transform(({ value }: {
-        value: unknown;
-    }) => typeof value === 'string' ? value.trim().toLowerCase() : value)
-    @IsUUID()
+    @Transform(trimLower)
+    @IsString()
+    @Matches(idPattern)
     orderId!: string;
 }
 export class AttemptParamsDto {
-    @IsUUID()
+    @Transform(trimLower)
+    @IsString()
+    @Matches(idPattern)
     attemptId!: string;
 }
 export class AttemptOrderParamsDto {
-    @IsUUID()
+    @Transform(trimLower)
+    @IsString()
+    @Matches(idPattern)
     id!: string;
 }
 export class AttemptEmptyDto {

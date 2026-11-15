@@ -15,7 +15,13 @@ function publicUser(value: unknown): PublicUser {
 export function parseLogin(value: unknown): LoginResponse {
   const data = object(value);
   if (typeof data.accessToken !== 'string' || !data.accessToken || data.tokenType !== 'Bearer' || data.expiresIn !== 3600) throw new AuthError('UNAVAILABLE');
-  return { accessToken: data.accessToken, tokenType: 'Bearer', expiresIn: 3600, user: publicUser(data.user) };
+  return {
+    accessToken: data.accessToken,
+    tokenType: 'Bearer',
+    expiresIn: 3600,
+    user: publicUser(data.user),
+    ...(typeof data.sessionToken === 'string' && data.sessionToken ? { sessionToken: data.sessionToken } : {}),
+  };
 }
 async function post(path: string, credentials: Credentials, signal?: AbortSignal): Promise<unknown> {
   try {

@@ -103,7 +103,7 @@ export function parseLoyaltyHistory(v: unknown): LoyaltyHistory {
     const items = o.items.map(e => {
         if (!e || !['OPENING', 'EARN', 'RESERVE', 'SETTLE', 'RELEASE', 'REFUND', 'REVERSE'].includes(e.kind) || !integer(e.points) || !signed(e.availableChange) || !signed(e.reservedChange)
             || typeof e.outstandingReversalChange !== 'string' || !/^(0|-?[1-9]\d{0,18})$/.test(e.outstandingReversalChange) || !debt(e.debtOffsetPoints) || !debt(e.debtCreatedPoints)
-            || typeof e.createdAt !== 'string' || !Number.isFinite(Date.parse(e.createdAt)) || !(e.kind === 'OPENING' ? e.orderId === null && e.orderCode === null : typeof e.orderId === 'string' && /^[0-9a-f-]{36}$/i.test(e.orderId) && typeof e.orderCode === 'string'))
+            || typeof e.createdAt !== 'string' || !Number.isFinite(Date.parse(e.createdAt)) || !(e.kind === 'OPENING' ? e.orderId === null && e.orderCode === null : typeof e.orderId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(e.orderId) && typeof e.orderCode === 'string'))
             throw bad();
         const delta = BigInt(e.outstandingReversalChange);
         if (BigInt(e.debtOffsetPoints) !== (delta < 0n ? -delta : 0n) || BigInt(e.debtCreatedPoints) !== (delta > 0n ? delta : 0n))

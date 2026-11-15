@@ -42,8 +42,8 @@ async function provisionOperator(client, input, env) {
   const passwordHash = await hash(input.password, 10);
   await client.query('BEGIN');
   try {
-    const result = await client.query('INSERT INTO users(id,email,password_hash,role) VALUES($1,$2,$3,$4) RETURNING id,role',
-      [randomUUID(), email, passwordHash, input.role]);
+    const result = await client.query('INSERT INTO users(email,password_hash,role) VALUES($1,$2,$3) RETURNING id,role',
+      [email, passwordHash, input.role]);
     await client.query('COMMIT');
     return result.rows[0];
   } catch (error) {

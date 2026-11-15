@@ -1,11 +1,11 @@
 import type { InventoryContext } from '../types/admin-inventory';
 const storageKey = 'brewlite-inventory-request';
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const validId = /^[A-Za-z0-9_-]{1,64}$/;
 export function readInventoryContext(userId: string): InventoryContext | null {
   try {
     const text = sessionStorage.getItem(storageKey); if (!text) return null;
     const c = JSON.parse(text) as InventoryContext;
-    if (!c || c.userId !== userId || !uuid.test(c.productId) || !uuid.test(c.key)
+    if (!c || c.userId !== userId || !validId.test(c.productId) || !validId.test(c.key)
       || !c.body || !Number.isInteger(c.body.delta) || !c.body.delta || Math.abs(c.body.delta) > 2147483647
       || !Number.isInteger(c.body.expectedVersion) || c.body.expectedVersion < 0 || c.body.expectedVersion > 2147483647) {
       clearInventoryContext(); return null;

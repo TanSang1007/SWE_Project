@@ -55,9 +55,15 @@ export class IpnService {
         await lockUser(tx, lookup.order.userId);
         await lockOrder(tx, lookup.order.id);
         await lockAttempts(tx, lookup.order.id);
+<<<<<<< HEAD
         await tx.$queryRaw `SELECT v.id FROM payment_verifications v JOIN payment_attempts a ON a.id=v.attempt_id WHERE a.order_id::text=${lookup.order.id} ORDER BY v.id FOR UPDATE OF v`;
         const a = await tx.paymentAttempt.findUniqueOrThrow({ where: { id }, include });
         await tx.$queryRaw `SELECT id FROM idempotency_requests WHERE id::text=${a.idempotencyRequestId} FOR UPDATE`;
+=======
+        await tx.$queryRaw `SELECT v.id FROM payment_verifications v JOIN payment_attempts a ON a.id=v.attempt_id WHERE a.order_id=${lookup.order.id} ORDER BY v.id FOR UPDATE OF v`;
+        const a = await tx.paymentAttempt.findUniqueOrThrow({ where: { id }, include });
+        await tx.$queryRaw `SELECT id FROM idempotency_requests WHERE id=${a.idempotencyRequestId} FOR UPDATE`;
+>>>>>>> origin/main
         return a;
     }
     binding(a: Bound, settings: VnpayConfig) {

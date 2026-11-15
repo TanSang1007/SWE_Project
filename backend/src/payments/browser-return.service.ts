@@ -1,7 +1,6 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
-import { isUUID } from 'class-validator';
 import type { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { authenticateIpn } from './vnpay/ipn-verification';
@@ -18,7 +17,7 @@ function contextMatches(a: Context, config: VnpayConfig, fields: Readonly<Record
   const c = a.idempotencyRequest, body = c.responseBody;
   const p = a.requestParameters;
   if (!p || typeof p !== 'object' || Array.isArray(p) || Object.values(p).some(v => typeof v !== 'string')) return false;
-  return isUUID(a.id) && a.provider === 'VNPAY_SANDBOX' && a.merchantCode === config.merchantCode && a.currency.trim() === 'VND'
+  return /^[A-Za-z0-9_-]{1,64}$/.test(a.id) && a.provider === 'VNPAY_SANDBOX' && a.merchantCode === config.merchantCode && a.currency.trim() === 'VND'
     && a.order.id === a.orderId && a.amount.equals(a.order.total) && c.userId === a.order.userId && c.orderId === a.orderId
     && c.operation === 'PAY_ORDER' && c.state === 'COMPLETED' && c.responseStatus === 201
     && c.requestHash === createHash('sha256').update(JSON.stringify({ action: 'VNPAY_INITIATE_V1', orderId: a.orderId })).digest('hex')
