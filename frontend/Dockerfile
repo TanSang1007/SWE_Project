@@ -10,7 +10,7 @@ COPY package.json package-lock.json ./
 COPY backend/package.json ./backend/
 COPY frontend/package.json ./frontend/
 
-RUN npm ci
+RUN npm ci && npm install --no-save lightningcss-linux-x64-gnu@1.32.0 @tailwindcss/oxide-linux-x64-gnu@4.3.3
 
 COPY frontend ./frontend
 RUN npm run build --workspace frontend
