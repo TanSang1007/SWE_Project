@@ -11,6 +11,7 @@ import { OrderSummary } from './order-summary';
 import { OperatorWorkflow } from './operator-workflow';
 import type { Order } from '../types/order';
 import type { OperatorOrderDetail, OperatorOrderSummary } from '../types/operator-order';
+import { OrderTracking } from './order-tracking';
 
 export type OperatorReadState = { status: 'loading' } | { status: 'error'; code: string }
   | { status: 'list'; items: OperatorOrderSummary[] } | { status: 'detail'; order: OperatorOrderDetail };
@@ -33,13 +34,20 @@ function OperatorReadSession({ id, completed, admin }: { id?: string; completed:
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<OperatorReadState>({ status: 'loading' });
   useEffect(() => {
+    if (locked) return;
     const controller = new AbortController();
+    let pending = false;
+    const refresh = () => {
+    if (pending) return; pending = true;
     const load = id ? getOperatorOrder(id, controller.signal).then((order): OperatorReadState => ({ status: 'detail', order }))
       : getOperatorOrders(filter || undefined, controller.signal).then((items): OperatorReadState => ({ status: 'list', items }));
     void load.then((result) => { if (!controller.signal.aborted) setState(result); })
-      .catch((error: unknown) => { if (!controller.signal.aborted) setState({ status: 'error', code: error instanceof OrderError ? error.code : 'UNAVAILABLE' }); });
-    return () => controller.abort();
-  }, [id, filter, attempt]);
+      .catch((error: unknown) => { if (!controller.signal.aborted) setState({ status: 'error', code: error instanceof OrderError ? error.code : 'UNAVAILABLE' }); })
+      .finally(() => { pending = false; });
+    };
+    refresh(); const timer = setInterval(refresh,5000); window.addEventListener('focus',refresh);
+    return () => { controller.abort(); clearInterval(timer); window.removeEventListener('focus',refresh); };
+  }, [id, filter, attempt, locked]);
   function retry() { setState({ status: 'loading' }); setAttempt((value) => value + 1); }
   const basePath = admin ? '/admin/orders' : '/operator/orders';
   return <section className="operator-orders"><div className="operations-page-header"><p className="eyebrow">{admin ? 'Quản lý đơn' : 'Pha chế & giao tại quầy'}</p>
@@ -53,6 +61,7 @@ function OperatorReadSession({ id, completed, admin }: { id?: string; completed:
         else setState({ status: 'detail', order });
       }}
         onDenied={(code) => { setLocked(false); setState({ status: 'error', code }); }} /> : undefined} />
+    {id&&role&&state.status==='detail'&&<OrderTracking id={id} role={role} onChanged={()=>setAttempt(v=>v+1)}/>}
   </section>;
 }
 export function OperatorReadContent({ state, retry, locked = false, workflow, basePath = '/operator/orders' }: { state: OperatorReadState; retry: () => void; locked?: boolean; workflow?: ReactNode; basePath?: string }) {

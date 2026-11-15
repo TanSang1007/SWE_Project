@@ -1,0 +1,51 @@
+import {test,afterEach} from 'node:test';
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {readFileSync} from 'node:fs';
+import {randomUUID} from 'node:crypto';
+const require=createRequire(import.meta.url),ts=require('typescript');
+for(const ext of ['.ts','.tsx'])require.extensions[ext]=(module,filename)=>module._compile(ts.transpileModule(readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true},fileName:filename}).outputText,filename);
+const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
+const {parseTracking,remainingPaidWindow,trackingRequest,getTracking}=require('../src/lib/api/order-tracking.ts');
+const {PreparationGate,TrackingPhase}=require('../src/components/order-tracking.tsx');
+const {useAuthStore}=require('../src/lib/auth-store.ts');
+const id=randomUUID(),originalFetch=globalThis.fetch;
+const base={orderId:id,status:'PAID',serverNow:'2026-11-15T00:00:30Z',cancelUntil:'2026-11-15T00:02:00Z',canCancelPaid:true,canStartPreparing:false,refund:null,supportRequests:[],events:[]};
+const html=(Component,props)=>renderToStaticMarkup(React.createElement(Component,props));
+const session=()=>useAuthStore.getState().signIn({accessToken:'synthetic-tracking-token',expiresIn:3600,user:{id:randomUUID(),email:'tracking@example.invalid',role:'CUSTOMER',loyaltyPoints:0}});
+afterEach(()=>{globalThis.fetch=originalFetch;useAuthStore.getState().clear();});
+test('tracking parser whitelists fields and refuses missing or malformed status, deadline and refund data',()=>{
+ assert.deepEqual(parseTracking({...base,secret:'hidden'}),base);
+ for(const change of [{status:'UNKNOWN'},{serverNow:'invalid'},{cancelUntil:42},{refund:{}},{canCancelPaid:'true'},{events:null},{supportRequests:[{}]}])assert.throws(()=>parseTracking({...base,...change}));
+});
+test('unapproved or unprocessed refunds cannot render as successful',()=>{
+ const r={id:randomUUID(),status:'SUCCEEDED',amount:'10000',approved:false,version:1,createdAt:base.serverNow,processedAt:base.serverNow,failureReason:null};
+ assert.throws(()=>parseTracking({...base,refund:r}));assert.throws(()=>parseTracking({...base,refund:{...r,approved:true,processedAt:null}}));
+ assert.equal(parseTracking({...base,refund:{...r,status:'FAILED',approved:true,failureReason:'Rejected transfer'}}).refund.status,'FAILED');
+});
+test('server time governs the 119/120/121 second boundary regardless of browser wall clock',()=>{
+ const paid='2026-11-15T00:00:00Z';
+ assert.equal(remainingPaidWindow(paid,'2026-11-15T00:01:59Z'),1);assert.equal(remainingPaidWindow(paid,'2026-11-15T00:02:00Z'),0);
+ assert.equal(remainingPaidWindow(paid,'2026-11-15T00:02:01Z'),0);assert.equal(remainingPaidWindow(paid,base.serverNow,90000),0);assert.equal(remainingPaidWindow(null,base.serverNow),null);
+});
+test('customer can confirm cancellation during the window, then sees waiting Staff rather than preparing',()=>{
+ const props={data:base,customer:true,disabled:false,confirm:false,setConfirm:()=>{},cancel:()=>{}};
+ assert(html(TrackingPhase,props).includes('Hủy đơn hàng'));assert(html(TrackingPhase,{...props,confirm:true}).includes('Xác nhận hủy đơn hàng'));
+ const expired=html(TrackingPhase,{...props,data:{...base,serverNow:'2026-11-15T00:02:01Z',canCancelPaid:false,canStartPreparing:true}});
+ assert(expired.includes('Chờ nhân viên bắt đầu'));assert(!expired.includes('Đang pha chế'));assert(!expired.includes('Hủy đơn hàng'));
+ assert(!html(TrackingPhase,{...props,customer:false}).includes('Hủy đơn hàng'));
+});
+test('Staff preparation remains disabled before the deadline and enabled after it',()=>{
+ const props={paidAt:'2026-11-15T00:00:00Z',serverNow:base.serverNow,disabled:false,act:()=>{}};
+ assert(html(PreparationGate,props).includes('disabled'));assert(!html(PreparationGate,{...props,serverNow:'2026-11-15T00:02:00Z'}).includes('disabled'));
+ assert(html(PreparationGate,{...props,paidAt:null}).includes('disabled'));
+});
+test('tracking transport uses current auth/no-store; a lost response never retries a mutation automatically',async()=>{
+ process.env.NEXT_PUBLIC_API_BASE_URL='http://localhost:3001';session();let count=0;
+ globalThis.fetch=async(_url,options)=>{count++;assert.equal(options.method,'POST');assert.equal(options.cache,'no-store');assert.equal(options.credentials,'omit');assert.equal(options.headers.Authorization,'Bearer synthetic-tracking-token');throw Error('lost response');};
+ await assert.rejects(trackingRequest('/orders/'+id+'/cancel',{}));assert.equal(count,1);
+});
+test('late responses cannot cross sessions and another order response cannot masquerade as this order',async()=>{
+ session();globalThis.fetch=async()=>Response.json({...base,orderId:randomUUID()});await assert.rejects(getTracking(id));
+ globalThis.fetch=async()=>{useAuthStore.getState().clear();return Response.json(base);};await assert.rejects(getTracking(id));
+});

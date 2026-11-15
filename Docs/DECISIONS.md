@@ -1,5 +1,61 @@
 # BrewLite — Quyết định thiết kế
 
+## O01 — Hủy 120 giây và theo dõi đơn (ACCEPTED USER, 2026-11-15)
+
+Người dùng giao làm theo file hủy/theo dõi vừa đọc và ghi chú thêm chức năng. Mốc 120 giây đã được chọn, thay Q03 unpaid-only cho Customer trong cửa sổ từ paidAt backend. Staff bắt đầu sau hạn; hết hạn vẫn PAID chờ nhân viên. Hoàn tiền thủ công có Admin phê duyệt và mã giao dịch/bằng chứng, không tích hợp gọi Refund API. Một full refund mỗi Payment/Order, không sửa Payment thành công; nguyên liệu dùng rồi không hoàn. Support ngoại lệ sau pha giữ Order/điểm theo baseline và theo dõi refund riêng. Trigger lưu lịch sử từ migration, không dựng lịch sử cũ. Các giới hạn refund ngoài scope trong checkpoint cũ được O01 mở đúng phạm vi này. [Contract/acceptance](O01_CANCEL_TRACKING.md).
+
+## I08 — Hai quy định tồn kho/trạng thái món (ACCEPTED USER / TECHNICAL,2026-11-13)
+
+**USER CLARIFICATION, 2026-11-15:** người dùng xác nhận cacao chuẩn 20 g/ly có thể dùng thực tế 22–23 g. x% là ngưỡng sai lệch/hao hụt của riêng từng nguyên liệu để đối chiếu kiểm kê, không tự cộng vào công thức/giữ/trừ theo đơn. Giữ mức chuẩn; chênh lệch thực tế 10–15% tính theo tổng tiêu hao lý thuyết trong kỳ, ghi nhận đầy đủ và Admin duyệt điều chỉnh. Không chọn 15% làm mặc định; tỷ lệ mỗi nguyên liệu vẫn do Admin cấu hình. Cơ chế I08 hiện có phù hợp, không thêm schema/API. [Ví dụ và quy tắc](I08_INVENTORY_CONTROL.md).
+
+Người dùng giao chỉnh theo hai file. Giữ I07 recipe/reserve/consume/release; bổ sung nháp, snapshot tiêu hao từ đầu ngày Việt Nam, phân loại chênh lệch và cấu hình từng mặt hàng. Thay chặn mọi thay đổi version bằng đối chiếu journal và áp discrepancy trên tồn hiện tại; chặn journal thiếu/COUNT khác/vi phạm reserved. Sequence tránh bỏ sót giao dịch trùng timestamp. Không sửa financial guards hoặc đơn cũ. REQUEST_RECOUNT mới dùng REJECTED+cờ; trạng thái cũ đọc được.
+
+**USER CLOSURE I08:** chỉ nguyên liệu tính chênh lệch, loại đá/vật dụng; bỏ qua cảnh báo theo mức trung bình/ngày dự phòng; chỉ bán tại chỗ, bỏ mang đi. Người dùng chọn nước lọc giữ công thức tham khảo nhưng không quản lý tồn/giữ/trừ/khóa món. Danh mục đang nhập còn12 nguyên liệu/6 vật dụng; giữ nước/lịch sử/snapshot cũ, không reset dữ liệu.3%/5% vẫn là đề xuất, Admin cấu hình từng nguyên liệu thay vì tự gán. [Contract](I08_INVENTORY_CONTROL.md).
+
+## A05 — Tương thích identity Topping đã lưu (TECHNICAL,2026-11-13)
+
+Theo yêu cầu sửa danh sách Topping, dùng predicate stored-id hiện có cho global Topping params, hỗ trợ UUID/chuỗi số nguyên dương1–20 chữ số; parser AdminTopping nhận cùng dạng. Đọc/khóa theo `id::text` để không đổi ID dùng chung hoặc schema, giữ FOR UPDATE/CAS/version/reference guard và rollback. Chỉ mở rộng params của resource Topping toàn cục; Product/input mua hàng/input association vẫn UUID. Không tự nhân bản, xóa hoặc đổi tên/giá/cờ kinh doanh dữ liệu hiện có. [Contract và kiểm chứng](A05_SIZE_TOPPING_MANAGEMENT_CONTRACT.md).
+
+## A04 — Đọc reference topping ID số trên development (TECHNICAL,2026-11-13)
+
+Khi sửa lỗi trang sản phẩm theo yêu cầu người dùng, tái hiện GET200 đủ7 món nhưng parser từ chối topping ID string `3`. Chấp nhận reference topping đã lưu dạng UUID hoặc số nguyên dương1–20 chữ số trong response AdminProduct/public ProductDetail; giữ nghiêm Product ID/path/input mutation UUID. Không chuẩn hóa lại hoặc xóa dữ liệu dùng chung chỉ để tải danh sách. Thông báo lỗi đọc khác write chưa xác nhận, giữ guard không tự gửi lại write. [Phạm vi và giới hạn](A04_ADMIN_PRODUCT_MANAGEMENT_CONTRACT.md).
+
+## I07 — Định lượng theo size, kho mới và Cold Brew có syrup (ACCEPTED USER / TECHNICAL,2026-11-12–13)
+
+**USER UI AMENDMENT, 2026-11-15:** bỏ cột “Đã giữ” khỏi bảng tồn kho dùng chung Admin/Staff. Bảng hiển thị “Tồn thực tế” và “Có thể bán”; giữ dữ liệu reservedQuantity, API/schema và cơ chế reserve/release/consume để lượng có thể bán vẫn trừ phần đã giữ. [Contract](I07_SIZE_RECIPE_CONSUMPTION.md).
+
+Người dùng giao áp dụng3 file S/M/L và chọn danh mục trong NGUYÊN LIỆU PHA CHẾ.txt, giữ riêng tồn/lịch sử cũ, phần mới0; Cold Brew luôn dùng syrup theo size. Storage identity mới có suffix, UI giữ tên chuẩn; không gộp/quy đổi tồn cũ. Snapshot lượng mỗi Order×Ingredient trong order_recipe_ingredients; quantity vật lý/reserved/khả dụng tách rõ, giữ đủ ở PENDING, tiêu hao ở PREPARING, release chỉ phần chưa dùng. Retry/replay theo snapshot; đơn cũ vẫn policy cũ, gateway/UNKNOWN/600s không đổi. Trạng thái theo size là0/1–10/>10 ly, không còn quantity>0 đơn thuần của I05. Không triển khai mọi đề xuất trong file kịch bản hoặc flow mang đi. [Contract, schema/API và kiểm chứng](I07_SIZE_RECIPE_CONSUMPTION.md).
+
+## I01/I03 — Tương thích ID kho trên database development (TECHNICAL, 2026-11-12)
+
+Theo yêu cầu sửa lỗi kho/nhập hàng, chuẩn hóa phép so sánh ID nội bộ IngredientService qua `::text`, hỗ trợ UUID chuẩn và TEXT development mà không đổi schema hoặc UUID DTO. Giữ khóa/CAS/replay/audit/quyền/ngưỡng; SQL lỗi kỹ thuật trả503 thay vì mặc định P2010 là409 concurrency. Bổ sung danh mục bằng initializer Admin hiện có, tồn mới0, không tự nhập hàng hoặc chạy seed/reset. [Phạm vi, kiểm chứng và giới hạn](LOCAL_INVENTORY_REPAIR.md).
+
+## Khôi phục auth/catalog localhost — ACCEPTED USER / TECHNICAL, 2026-11-12
+
+Người dùng giao sửa phiên, cấu hình hai operator và thực đơn7 món; cho phép ba giá thiếu trong60000–80000 VND. Giữ tài khoản/lịch sử; sửa session TEXT/UUID và chỉ chặn private pages khi kiểm tra phiên chưa xong. Auth/GET Order đọc thêm ID số cũ; mutations giữ UUID. Chuẩn hóa catalog UUID qua FK cascade trước khi bổ sung món; không đổi schema, lượng nguyên liệu hoặc financial state. Seed CLI chỉ local development/test, không remote/startup/account seed. [Contract, kiểm chứng và giới hạn](LOCAL_AUTH_CATALOG_REPAIR.md).
+
+## I06 — Chỉ chỉnh ngưỡng nguyên liệu (ACCEPTED USER / TECHNICAL,2026-11-07)
+
+Người dùng yêu cầu bám file nguong_canh_bao_ton_kho_brewlite.txt, giữ tên và chỉ đổi ngưỡng. File dùng <=;9 nguyên liệu theo ngưỡng riêng, vật dụng giữ chính sách cũ. Người dùng chọn quy đổi và cung cấp chai caramel khoảng1L, bao đá khoảng10kg; ngưỡng1L/10kg tương ứng1 chai/1 bao, không đổi đơn vị hoặc lượng tồn. Dùng cấu hình catalog + CHECK theo tên/đơn vị; GET thêm lowStockInclusive để UI/list/summary thống nhất. Giữ replay lịch sử, I05 qty>0 và mọi dữ liệu ngoài threshold. Không tự triển khai lưu ý expiry trong file. [Contract, bảng và kiểm chứng](I06_INGREDIENT_WARNING_THRESHOLDS.md).
+
+## I05 — Còn/hết theo nguyên liệu (ACCEPTED USER / TECHNICAL,2026-11-07)
+
+Người dùng cung cấp7 công thức và chọn áp dụng cả Admin/menu/đặt hàng, bỏ giới hạn tồn món nhập tay; chỉ kiểm tra quantity>0, chưa trừ nguyên liệu. Dùng cấu hình tên/alias trong product-ingredients.ts và đọc kho thật; không suy thêm định lượng/Đá/topping. Snapshot OrderItem thêm ingredientKeysSnapshot mặc định[] để các đơn cũ vẫn reserve/restore Product.stock, đơn mới lưu keys và không trừ/hoàn stock giả. SHARE locks giữ balance tới commit create/initiation/zero, CAS Product.version giữ lifecycle; verified callback vẫn settle khi nguyên liệu về0. Không thay protocol tài chính, giá, quyền hoặc idempotency. [Contract, rollout và acceptance](I05_PRODUCT_INGREDIENT_AVAILABILITY.md).
+
+## I04 — Bột quế KG và Đá BAG (ACCEPTED USER / TECHNICAL,2026-11-07)
+
+Người dùng bổ sung Bột quế (kg), Đá (bao), chọn cảnh báo dưới5 bao. BAG là đơn vị đếm nguyên thuộc nguyên liệu; thêm enum/CHECK và hỗ trợ frontend/backend như BOTTLE. Danh mục14 mục (5 vật dụng/9 nguyên liệu), initializer giữ tồn/lịch sử. Không thay yêu cầu PDF, bảng/quan hệ hoặc nghiệp vụ bán món. [Acceptance và rollout](I04_INVENTORY_CATALOG_REFRESH.md).
+
+## I04 — Thay danh mục kho và thêm chai (ACCEPTED USER / TECHNICAL, 2026-11-07)
+
+Bổ sung cùng ngày: người dùng yêu cầu thêm Đường (KG), danh mục hiện hành12 mục (5 vật dụng/7 nguyên liệu); giữ cơ chế reuse tồn I03, không migration mới.
+
+Người dùng chỉ định11 mục ban đầu thay danh sách cũ và xác nhận sốt caramel cảnh báo dưới10 chai. Thêm BOTTLE thuộc nguyên liệu, số nguyên, không dùng PIECE vì PIECE phân vào vật dụng. Migration chỉ mở rộng enum/CHECK, không đổi quan hệ hoặc dòng nghiệp vụ; initializer và isListed giữ nguyên cơ chế I03, không chuyển tồn giữa các mặt hàng khác tên. [Danh mục, rollout và acceptance](I04_INVENTORY_CATALOG_REFRESH.md).
+
+## B03 — Quyền chạy dependency install scripts (TECHNICAL, 2026-11-03)
+
+Xử lý cảnh báo npm bằng `allowScripts` tại workspace root, pin các phiên bản đã đối chiếu với lockfile: `@parcel/watcher@2.6.0`, `@prisma/engines@7.10.1`, `bcrypt@6.0.0`, `prisma@7.10.1`, `unrs-resolver@1.12.2`. Script phục vụ native modules, tải Prisma engine và kiểm tra Node.js; chỉ approve các package được review, khi nâng phiên bản phải review lại. Không đổi dependency versions/lockfile, schema, API hoặc baseline PDF. Audit tại thời điểm kiểm tra trả 0 vulnerabilities, khác log 41 vulnerabilities người dùng cung cấp; chưa xác định nguyên nhân chênh lệch, không coi đây là bằng chứng đã sửa 41 lỗi. Xem kiểm chứng và giới hạn tại [plan](DEVELOPMENT_PLAN.md).
+
 **Cart preservation fix 2026-11-02 — FR08:** Người dùng yêu cầu sửa lỗi mất giỏ khi thanh toán thất bại. `POST /orders` giữ nguyên Cart thay vì xóa khi tạo PENDING; settlement tiếp tục không sửa Cart, bao gồm failure/retry/success và callback lặp. Không thay schema, API/DTO, quyền, idempotency hoặc tồn kho. Thay đổi này supersede quy tắc consume-Cart-at-create của amendment 2026-10-22; các mô tả clear/consume cũ bên dưới là lịch sử. Tests: `cart-payment-preservation.spec.ts`, cập nhật database orders/checkout-lifecycle; xem [chi tiết](CART_FAILURE_FIX.md).
 
 ## I03 — Quản lý vật tư trong một file (ACCEPTED USER / TECHNICAL,2026-10-31)

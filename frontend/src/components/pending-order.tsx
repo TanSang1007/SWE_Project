@@ -12,7 +12,9 @@ import { currentAttempt, type AttemptStatus } from '../lib/api/gateway-payments'
 
 export async function activeOrder(signal?: AbortSignal): Promise<Order | null> {
   const token = getAccessToken(); if (!token) throw Error('Authentication required');
-  const response = await fetch(getApiBaseUrl() + '/orders/active', { headers: { Authorization: 'Bearer ' + token }, cache: 'no-store', credentials: 'omit', signal });
+  const timeout = AbortSignal.timeout(10000);
+  const response = await fetch(getApiBaseUrl() + '/orders/active', { headers: { Authorization: 'Bearer ' + token }, cache: 'no-store', credentials: 'omit',
+    signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
   if (!response.ok) throw Error('Active order unavailable');
   const data = await response.json();
   if (useAuthStore.getState().accessToken !== token) throw Error('Session changed');
@@ -40,26 +42,29 @@ export function PendingOrder({ order, modal = false }: { order: Order; modal?: b
 export function useCartLock() {
   const hadActive = useRef(false);
   const token = useAuthStore(s => s.accessToken);
+  const [retry, setRetry] = useState(0);
   const [state, setState] = useState<{ token: string | null; order: Order | null; error: boolean }>({ token: null, order: null, error: false });
   useEffect(() => {
     const abort = new AbortController();
-    let revision = 0;
+    let inFlight = false;
     const load = () => {
-      const request = ++revision;
-      if (token) void activeOrder(abort.signal).then(async order => {
-        if (abort.signal.aborted || request !== revision) return;
+      if (!token || inFlight) return;
+      inFlight = true;
+      void activeOrder(abort.signal).then(async order => {
+        if (abort.signal.aborted) return;
         // Refresh the retained/cleared Cart before unlocking after payment/cancel.
         if (hadActive.current && !order) await useCartStore.getState().load();
-        if (!abort.signal.aborted && request === revision) { hadActive.current = !!order; setState({ token, order, error: false }); }
-      }).catch(() => { if (!abort.signal.aborted && request === revision) setState({ token, order: null, error: true }); });
+        if (!abort.signal.aborted) { hadActive.current = !!order; setState({ token, order, error: false }); }
+      }).catch(() => { if (!abort.signal.aborted) setState({ token, order: null, error: true }); })
+        .finally(() => { inFlight = false; });
     };
     load(); const timer = setInterval(load, 5000);
     window.addEventListener('focus', load);
     window.addEventListener('brewlite-unpaid-order', load);
     return () => { abort.abort(); clearInterval(timer); window.removeEventListener('focus', load); window.removeEventListener('brewlite-unpaid-order', load); };
-  }, [token]);
+  }, [token, retry]);
   const ready = state.token === token;
-  return { order: ready ? state.order : null, error: ready && state.error,
+  return { order: ready ? state.order : null, error: ready && state.error, checking: !!token && !ready, retry: () => setRetry(value => value + 1),
     locked: !!token && (!ready || state.error || !!state.order) };
 }
 export function PendingOrderBanner({ order, error }: { order: Order | null; error: boolean }) {

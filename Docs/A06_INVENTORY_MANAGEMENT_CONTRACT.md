@@ -1,5 +1,7 @@
 # A06 — Admin Inventory Management
 
+**Superseded for7 configured drinks by user-approved I05 (2026-11-07):** Admin/menu/order availability comes from ingredient balances; new recipe items do not reserve Product.stock, legacy snapshots retain exact restoration/retry behavior. Manual adjustments for configured drinks are rejected after historical replay. [Current contract](I05_PRODUCT_INGREDIENT_AVAILABILITY.md).
+
 2026-10-13. **INVENTORY MANAGEMENT READY (technical user scope).**
 
 ## 1. Approved scope

@@ -1,5 +1,6 @@
 import { Type, Transform } from 'class-transformer';
-import { ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsIn, IsInt, IsObject, IsString, IsUUID, Max, MaxLength, Min, MinLength, ValidateIf, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsIn, IsInt, IsObject, IsString, IsUUID, Max, MaxLength, Min, MinLength, ValidateBy, ValidateIf, ValidateNested } from 'class-validator';
+import { isStoredId } from '../common/record-id';
 export class OrderItemDto {
   @Transform(({ value }: { value: unknown }) => typeof value === 'string' ? value.trim().toLowerCase() : value)
   @IsUUID() productId!: string;
@@ -17,4 +18,7 @@ export class CreateOrderDto {
   @IsString() @MinLength(1) @MaxLength(32) promotionCode?: string;
 }
 export class OrderParamsDto { @IsUUID() id!: string; }
+export class OrderReadParamsDto {
+  @ValidateBy({ name: 'storedOrderId', validator: { validate: isStoredId } }) id!: string;
+}
 export class OrderEmptyDto {}

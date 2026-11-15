@@ -6,6 +6,11 @@ require('dotenv').config({ path: resolve(__dirname, '../../.env'), quiet: true }
 const products = [
   ['11111111-1111-4111-8111-111111111111', 'Cappuccino', '45000', '/images/cappuccino.jpg', 20],
   ['11111111-1111-4111-8111-111111111112', 'Latte', '40000', '/images/latte.jpg', 20],
+  ['11111111-1111-4111-8111-111111111113', 'Cold brew', '50000', '/images/cold-brew.jpg', 0],
+  ['11111111-1111-4111-8111-111111111114', 'Đen đá', '100', '/images/den-da.jpg', 0],
+  ['11111111-1111-4111-8111-111111111115', 'Asian Dolce Latte', '75000', '/images/asian-dolce-latte.jpg', 0],
+  ['11111111-1111-4111-8111-111111111116', 'Matcha Coldwisk', '70000', '/images/coldwisk.jpg', 0],
+  ['11111111-1111-4111-8111-111111111117', 'Cacao đá', '65000', '/images/cacao-da.jpg', 0],
 ];
 const toppings = [
   ['22222222-2222-4222-8222-222222222221', 'Kem', '5000'],
@@ -46,6 +51,10 @@ async function seed(client) {
 async function main() {
   if (process.env.NODE_ENV !== 'development') throw new Error('Seed requires NODE_ENV=development');
   const client = new Client({ connectionString: process.env.DATABASE_URL });
+  // Shared data is repaired explicitly, never by replaying development fixtures.
+  if (!['localhost', '127.0.0.1', '::1', '[::1]'].includes(client.host) || !/^[a-zA-Z0-9_]+_(dev|test)$/.test(client.database)) {
+    throw new Error('Seed only accepts a local development/test database');
+  }
   await client.connect();
   try {
     if (process.argv.includes('--promotion-only')) {
@@ -56,5 +65,5 @@ async function main() {
   }
   finally { await client.end(); }
 }
-module.exports = { seed, seedPromotion };
+module.exports = { seed, seedPromotion, products };
 if (require.main === module) main().catch(() => { console.error('Seed failed; credentials suppressed'); process.exitCode = 1; });

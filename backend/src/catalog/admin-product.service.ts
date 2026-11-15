@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, HttpException, Injectable, NotF
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import type { ProductCreateDto, ProductUpdateDto } from './admin-product.dto';
+import { productIngredientStates } from './product-ingredients';
 
 const select = { id: true, name: true, price: true, imageUrl: true, stock: true, isActive: true, version: true, createdAt: true, updatedAt: true,
   sizes: { select: { size: true, extraPrice: true, isActive: true } },
@@ -39,7 +40,12 @@ export class AdminProductService {
       return work(tx);
     }, { maxWait: 50, timeout: 400 });
   }
-  list() { return this.safely(async () => ({ items: (await this.db.product.findMany({ select, orderBy: { id: 'asc' } })).map(response) })); }
+  list() { return this.safely(async () => {
+    const rows = await this.db.product.findMany({ select, orderBy: { id: 'asc' } });
+    const states = await productIngredientStates(this.db, rows.map(p => p.name));
+    return { items: rows.map(p => ({ ...response(p), ...(states.get(p.name) ? { inventorySource: 'INGREDIENTS' as const,
+      available: states.get(p.name)!.available } : {}) })) };
+  }); }
   get(id: string) { return this.safely(async () => { const row = await this.db.product.findUnique({ where: { id }, select }); if (!row) throw missing(); return response(row); }); }
   create(input: ProductCreateDto) {
     return this.safely(() => this.transaction(async tx => {

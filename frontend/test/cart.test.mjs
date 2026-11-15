@@ -120,3 +120,96 @@ test('active-order lock disables every Cart item mutation control', () => {
   const html = renderToStaticMarkup(React.createElement(CartItems, {cart, locked:true, onQuantity(){},onEdit(){},onRemove(){}}));
   for(const label of ['Giảm Latte','Tăng Latte','Chỉnh sửa Latte','Xóa Latte']) assert(html.includes(`aria-label="${label}" disabled`));
 });
+
+for (const state of ['checking', 'error', 'order', 'ready']) test(`product add button explains ${state} without showing an in-progress cart write`, () => {
+  signIn();
+  const pending = require('../src/components/pending-order.tsx');
+  const original = pending.useCartLock;
+  const auth = require('../src/lib/auth-store.ts'), originalStore = auth.useAuthStore;
+  auth.useAuthStore = Object.assign(selector => selector(originalStore.getState()), originalStore);
+  const order = { id: 'pending-id', orderCode: 'BL-pending' };
+  pending.useCartLock = () => ({ checking: state === 'checking', error: state === 'error',
+    order: state === 'order' ? order : null, locked: state !== 'ready', retry() {} });
+  try {
+    const { AddToCart } = require('../src/components/add-to-cart.tsx');
+    const html = renderToStaticMarkup(React.createElement(AddToCart, { product: {
+      id: 'product', name: 'Drink', price: '100', available: true, sizes: [{ size: 'S', extraPrice: '0' }], toppings: [],
+    } }));
+    assert(!html.includes('Đang xử lý'));
+    if (state === 'checking') { assert(html.includes('Đang kiểm tra đơn')); assert(html.includes('10 giây')); }
+    if (state === 'error') { assert(html.includes('role="alert"')); assert(html.includes('Thử lại')); }
+    if (state === 'order') { assert(html.includes('BL-pending')); assert(html.includes('/checkout?orderId=pending-id')); }
+    if (state === 'ready') { assert(!html.includes('disabled')); assert(html.includes('Thêm vào giỏ')); }
+    else assert.match(html, /class="button cart-confirm" disabled/);
+  } finally { pending.useCartLock = original; auth.useAuthStore = originalStore; }
+});
+
+test('a genuine add request still displays progress and disables the options', () => {
+  const { CartOptions } = require('../src/components/cart-options.tsx');
+  const html = renderToStaticMarkup(React.createElement(CartOptions, { product: {
+    id: 'product', price: '100', available: true, sizes: [{ size: 'S', extraPrice: '0' }], toppings: [],
+  }, busy: true, label: 'Thêm vào giỏ', onConfirm() {} }));
+  assert(html.includes('Đang xử lý')); assert.match(html, /class="button cart-confirm" disabled/);
+});
+
+test('active-order check has a ten-second deadline and preserves caller cancellation', async t => {
+  signIn();
+  const { activeOrder } = require('../src/components/pending-order.tsx');
+  const deadline = new AbortController();
+  t.mock.method(AbortSignal, 'timeout', milliseconds => { assert.equal(milliseconds, 10000); return deadline.signal; });
+  globalThis.fetch = async (_url, { signal }) => new Promise((_, reject) => {
+    signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+  });
+  const request = activeOrder();
+  deadline.abort(new DOMException('Deadline exceeded', 'TimeoutError'));
+  await assert.rejects(request, { name: 'TimeoutError' });
+  assert.equal(useAuthStore.getState().accessToken, 'fixture');
+  const unmount = new AbortController();
+  t.mock.restoreAll();
+  const next = activeOrder(unmount.signal);
+  unmount.abort(); await assert.rejects(next, { name: 'AbortError' });
+});
+
+test('slow active-order read survives polling ticks; failed read can recover without overlapping requests', async t => {
+  signIn();
+  // Exercise the real hook effect with controlled lifecycle and clock callbacks.
+  // Keep requests pending across multiple polling ticks, without wall-clock sleeps.
+  const slots = [], effects = [], events = new Map(); let cursor = 0, poll;
+  const hooks = {
+    useRef(initial) { const index = cursor++; return slots[index] ??= { current: initial }; },
+    useState(initial) { const index = cursor++; if (!(index in slots)) slots[index] = initial;
+      return [slots[index], value => { slots[index] = typeof value === 'function' ? value(slots[index]) : value; }]; },
+    useEffect(effect) { effects.push(effect); },
+  };
+  const originalWindow = globalThis.window;
+  globalThis.window = { addEventListener: (name, fn) => events.set(name, fn), removeEventListener: name => events.delete(name) };
+  t.mock.method(globalThis, 'setInterval', fn => { poll = fn; return 1; });
+  t.mock.method(globalThis, 'clearInterval', () => {});
+  const fromPending = createRequire(new URL('../src/components/pending-order.tsx', import.meta.url));
+  const compiled = ts.transpileModule(readFileSync(new URL('../src/components/pending-order.tsx', import.meta.url), 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
+  }).outputText;
+  const loaded = { exports: {} };
+  new Function('module', 'exports', 'require', compiled)(loaded, loaded.exports, name => name === 'react' ? hooks
+    : name === '../lib/auth-store' ? { getAccessToken: () => useAuthStore.getState().accessToken,
+      useAuthStore: Object.assign(selector => selector(useAuthStore.getState()), { getState: useAuthStore.getState }) }
+    : fromPending(name));
+  const requests = [];
+  globalThis.fetch = () => new Promise((resolve, reject) => requests.push({ resolve, reject }));
+  const render = () => { cursor = 0; return loaded.exports.useCartLock(); };
+  const flush = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
+  let cleanup;
+  try {
+    assert.equal(render().locked, true); cleanup = effects[0]();
+    poll(); poll(); events.get('focus')();
+    assert.equal(requests.length, 1, 'poll/focus must not supersede the slow request');
+    requests[0].resolve(Response.json({ order: null })); await flush();
+    assert.equal(render().locked, false, 'a result slower than the polling interval must still unlock');
+    poll(); assert.equal(requests.length, 2);
+    requests[1].reject(new DOMException('Deadline exceeded', 'TimeoutError')); await flush();
+    assert.equal(render().error, true); assert.equal(render().locked, true);
+    poll(); assert.equal(requests.length, 3);
+    requests[2].resolve(Response.json({ order: null })); await flush();
+    assert.equal(render().error, false); assert.equal(render().locked, false);
+  } finally { cleanup?.(); globalThis.window = originalWindow; }
+});

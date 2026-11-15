@@ -5,6 +5,7 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 import type { Request, Response } from 'express';
 import { PrismaService } from '../database/prisma.service';
 import { UsersService } from '../users/users.service';
+import { isStoredId } from '../common/record-id';
 
 const cookieName = 'brewlite_session';
 const duration = 7 * 24 * 60 * 60 * 1000;
@@ -12,8 +13,9 @@ const digest = (value: string) => createHash('sha256').update(value).digest('hex
 const equal = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 export function sessionCookie(req: Request) {
   const value = req.headers.cookie?.split(';').map(v => v.trim()).find(v => v.startsWith(cookieName + '='))?.slice(cookieName.length + 1);
-  if (!value || !/^[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}$/.test(value)) throw new UnauthorizedException();
-  const [id, token] = value.split('.');
+  const parts = value?.split('.');
+  if (!parts || parts.length !== 2 || !isStoredId(parts[0]) || !/^[A-Za-z0-9_-]{43}$/.test(parts[1])) throw new UnauthorizedException();
+  const [id, token] = parts;
   return { id, hash: digest(token) };
 }
 @Injectable()
@@ -44,7 +46,7 @@ export class SessionService {
     this.assertOrigin(req);
     const input = sessionCookie(req), token = randomBytes(32).toString('base64url');
     const result = await this.db.$transaction(async tx => {
-      await tx.$queryRaw`SELECT id FROM auth_sessions WHERE id=${input.id}::uuid FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM auth_sessions WHERE id::text=${input.id} FOR UPDATE`;
       const session = await tx.authSession.findUnique({ where: { id: input.id } });
       if (!session || session.revokedAt || session.expiresAt <= new Date()) return null;
       if (!equal(session.tokenHash, input.hash)) {

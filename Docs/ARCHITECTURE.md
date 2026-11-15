@@ -1,5 +1,21 @@
 # BrewLite — Kiến trúc hệ thống
 
+O01: cửa sổ hủy từ paidAt và clock máy chủ, dùng chung owner/Order locks với chuyển pha và hủy. OrderService mở rộng aftercare trong transaction hiện có; trigger PostgreSQL ghi event khi Order đổi status, các bảng refund/support cùng database. Frontend dùng polling/focus và thời gian đơn điệu. Refund là quy trình Admin ghi nhận xác nhận bên ngoài, không có queue/WebSocket mới hoặc sửa gateway settlement. [Contract](O01_CANCEL_TRACKING.md).
+
+I08,2026-11-13: IngredientService giữ kiểm kê/receipt; inventory-control.ts tính ngày Việt Nam, variance và đối chiếu journal. Duyệt giữ Ingredient locks, kiểm tra movements sau sequence snapshot rồi áp chênh lệch trên tồn hiện tại. UI thêm nháp/tỷ lệ/kiểm soát nguyên liệu và cảnh báo size cho Admin/Staff. Loại đá/vật dụng khỏi kiểm kê; inventoryRecipeForDrink bỏ nước trong quản lý tồn, recipeForDrink vẫn giữ tham khảo. Chỉ tại chỗ, không trung bình/dự phòng/mang đi hoặc hạ tầng mới; đọc lại20s/focus như I07. [Contract](I08_INVENTORY_CONTROL.md).
+
+I07: drink-recipes.ts là định lượng7 món×3 size/topping, product-ingredients.ts chia sẻ tính khả dụng/số ly cho Catalog/Admin/Cart/Pricing. order-ingredients.ts giữ/release/consume snapshot trong transaction hiện có với owner/product CAS và ingredient locks ORDER BY id; table order_recipe_ingredients, Ingredient.reservedQuantity và journal nguồn Order. Giá/status/loyalty/gateway giữ module hiện có, không thêm queue/cache/service phân tán. Menu/chi tiết và tab kho tự đọc lại20s/focus, không dùng websocket. [Lifecycle, compatibility và contract](I07_SIZE_RECIPE_CONSUMPTION.md).
+
+Auth/catalog repair2026-11-12: public menu/login không chờ session restoration thành công; private routes vẫn fail closed và có Retry. Common record-id hỗ trợ auth/GET Order số cũ bên cạnh UUID; session row lock tương thích TEXT/UUID. Không thêm service/schema. [Contract và evidence](LOCAL_AUTH_CATALOG_REPAIR.md).
+
+I06: threshold9 nguyên liệu nằm trong catalog backend; policy/create/initializer và DB CHECK theo tên/đơn vị. Read DTO lowStockInclusive và summary SQL dùng cùng cấu hình; frontend lấy số/ngữ nghĩa từ server, không sao chép bảng ngưỡng. Không thay lượng tồn hoặc I05 availability. [Chi tiết](I06_INGREDIENT_WARNING_THRESHOLDS.md).
+
+I05 amendment2026-11-07: helper product-ingredients.ts batch-read balances dùng chung Catalog/Admin/Cart/Pricing; create/initiation/zero kiểm tra snapshot keys trong transaction bằng SHARE locks, giữ CAS product lifecycle. Snapshot rỗng giữ Product.stock cho đơn cũ/unconfigured; item nguyên liệu không tiêu hao hoặc hoàn stock. Không thêm service/bảng/queue/cache. [Contract](I05_PRODUCT_INGREDIENT_AVAILABILITY.md).
+
+I04 BAG2026-11-07: BAG (bao) thuộc nguyên liệu, ngưỡng5 và lượng nguyên đồng bộ frontend/backend/DB; dùng IngredientModule và initializer hiện có. [Chi tiết](I04_INVENTORY_CATALOG_REFRESH.md).
+
+I04 amendment 2026-11-07: danh mục hiện hành5 vật dụng/9 nguyên liệu; BOTTLE thuộc nguyên liệu, nhãn chai và ngưỡng10 đồng bộ backend/frontend/DB. Tận dụng IngredientModule và initializer I03; không thêm module/bảng. [Chi tiết](I04_INVENTORY_CATALOG_REFRESH.md).
+
 I03 amendment2026-10-31: backend giữ nguồn danh mục tại `ingredient-catalog.ts`, chuẩn hóa/kiểm tra cấu hình trước khi khởi tạo hoặc đọc metadata. GET ingredients trả `isListed`/`displayName`; frontend không import code backend và không có danh sách ẩn riêng theo tên. UI dùng metadata cho kho/phiếu mới và tính tổng từ các bản ghi đang liệt kê; chứng từ/recount dùng bản ghi cũ. Không schema/migration hoặc nhân bản dữ liệu tồn vào file. [Hướng dẫn](I03_RECEIVING_CATALOG.md).
 
 I03 thêm cấu hình danh mục trong IngredientModule, endpoint Admin bảo đảm12 mặt hàng tồn tại và enum EGG. UI Admin khởi tạo có xác thực trước khi đọc lại dữ liệu; Staff chỉ đọc/gửi kiểm kê như cũ. Lỗi khởi tạo không chặn đọc các phần đã có. Không thêm dịch vụ/bảng hoặc nguồn dữ liệu giả. [Contract](I03_RECEIVING_CATALOG.md).

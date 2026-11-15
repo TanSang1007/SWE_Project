@@ -137,6 +137,16 @@ test('paid cancellation separates payment success from cancelled Order and no re
   const html = renderToStaticMarkup(React.createElement(PaymentResultContent, { status: { ...pending, effectiveState: 'SUCCEEDED', orderStatus: 'CANCELLED' } }));
   assert(html.includes('Thanh toán thành công.')); assert(html.includes('BrewLite chưa tự hoàn tiền'));
 });
+test('only backend-confirmed paid results open order tracking immediately', () => {
+  for(const orderStatus of ['PAID','PREPARING','READY','COMPLETED','CANCELLED']){
+    const html=renderToStaticMarkup(React.createElement(PaymentResultContent,{status:{...pending,effectiveState:'SUCCEEDED',applicationState:'APPLIED',paymentId:id,orderStatus}}));
+    assert(html.includes('Theo dõi đơn hàng'));
+  }
+  for(const effectiveState of ['AWAITING','UNKNOWN','REVIEW','FAILED']){
+    const html=renderToStaticMarkup(React.createElement(PaymentResultContent,{status:{...pending,effectiveState}}));
+    assert(!html.includes('Theo dõi đơn hàng'));
+  }
+});
 test('success parser rejects Return-style or unapplied/unpaid contradictory evidence', () => {
   assert.throws(() => api.parseAttempt({ vnp_ResponseCode: '00' }));
   assert.throws(() => api.parseAttempt({ ...pending, effectiveState: 'SUCCEEDED' }));

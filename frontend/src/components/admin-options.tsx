@@ -15,8 +15,8 @@ function useManagement<T>(load: (signal?: AbortSignal) => Promise<T>) {
   const gate = useRef(false); const alive = useRef(true); const abort = useRef(new AbortController());
   const token = useAuthStore.getState().accessToken;
   const current = () => alive.current && useAuthStore.getState().accessToken === token;
-  const failed = (e: unknown) => {
-    const code = e instanceof OptionError || e instanceof ProductManagementError ? e.code : 'UNAVAILABLE'; setError(optionMessage(code));
+  const failed = (e: unknown, operation: 'read' | 'write' = 'read') => {
+    const code = e instanceof OptionError || e instanceof ProductManagementError ? e.code : 'UNAVAILABLE'; setError(optionMessage(code, operation));
     if (['UNAUTHORIZED', 'FORBIDDEN'].includes(code)) setData(null);
     return code;
   };
@@ -42,7 +42,7 @@ function useManagement<T>(load: (signal?: AbortSignal) => Promise<T>) {
       try { const value = await load(abort.current.signal); if (!current()) return false; setData(value); setSuccess('Máy chủ đã xác nhận và tải lại cấu hình hiện tại.'); return true; }
       catch { if (current()) { setData(null); setReview(true); setError('Máy chủ đã xác nhận nhưng chưa tải lại được dữ liệu. Chỉ tải lại, không gửi lại thao tác.'); } }
     } catch (e) {
-      if (!current()) return false; const code = failed(e);
+      if (!current()) return false; const code = failed(e, 'write');
       if (!['UNAUTHORIZED', 'FORBIDDEN'].includes(code)) {
         setReview(true); try { const value = await load(abort.current.signal); if (current()) setData(value); } catch { if (current()) setData(null); }
       }

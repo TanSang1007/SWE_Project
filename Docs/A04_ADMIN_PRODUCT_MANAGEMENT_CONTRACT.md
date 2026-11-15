@@ -1,5 +1,7 @@
 # A04 — Admin Product Management
 
+**Sửa lỗi đọc danh sách2026-11-13:** GET Admin trả đủ7 món nhưng topping liên kết Sương Sáo có ID string `3`; parser UUID-only làm hỏng toàn bộ danh sách. `isToppingReferenceId` chấp nhận UUID hoặc chuỗi số nguyên dương1–20 chữ số, không leading zero, chỉ cho reference topping trong response AdminProduct/public ProductDetail. Giữ Product ID/path và mọi input mutation UUID như cũ; không sửa ID/dữ liệu database hoặc bỏ topping khỏi danh sách. Lỗi GET dùng “Chưa tải được dữ liệu sản phẩm. Hãy thử tải lại.”; lỗi write chưa xác nhận vẫn yêu cầu kiểm tra danh sách và không tự gửi lại. [API hiện hành](API_DESIGN.md), [kết quả kiểm chứng](DEVELOPMENT_PLAN.md). Phần dưới là checkpoint A04 lịch sử; không dùng sửa parser để suy ra nghiệm thu CRUD với ID topping số hoặc toàn bộ A05.
+
 Ngày 2026-10-13 (Asia/Saigon). **ADMIN PRODUCT MANAGEMENT READY (technical user scope).** USER-APPROVED EXT-AS04/D35–D37/D39, không requirement PDF mới. A04-C01/A04-C02 APPROVED USER trước coding. Kết quả implementation tại §7–9; pre-flight bên dưới giữ checkpoint lịch sử. A05–A07/B17 ngoài scope.
 
 ## 1. Pre-flight và căn cứ

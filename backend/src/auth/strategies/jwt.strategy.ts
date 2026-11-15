@@ -2,7 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { isUUID } from 'class-validator';
+import { isStoredId } from '../../common/record-id';
 import { UsersService } from '../../users/users.service';
 import { PrismaService } from '../../database/prisma.service';
 
@@ -14,11 +14,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
   async validate(payload: unknown) {
     if (typeof payload !== 'object' || payload === null || !('sub' in payload) || typeof payload.sub !== 'string'
-      || !isUUID(payload.sub) || !('exp' in payload) || typeof payload.exp !== 'number' || !Number.isInteger(payload.exp)) {
+      || !isStoredId(payload.sub) || !('exp' in payload) || typeof payload.exp !== 'number' || !Number.isInteger(payload.exp)) {
       throw new UnauthorizedException();
     }
     if ('sid' in payload) {
-      if (typeof payload.sid !== 'string' || !isUUID(payload.sid)) throw new UnauthorizedException();
+      if (!isStoredId(payload.sid)) throw new UnauthorizedException();
       const session = await this.db.authSession.findFirst({ where: { id: payload.sid, userId: payload.sub, revokedAt: null, expiresAt: { gt: new Date() } } });
       if (!session) throw new UnauthorizedException();
     }

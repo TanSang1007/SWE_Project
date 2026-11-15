@@ -44,8 +44,8 @@ export function ProductList({ items, busy, onEdit, onToggle, onDelete }: {
   return <table className="product-management-table"><caption>Danh mục sản phẩm — tồn kho chỉ đọc</caption><thead><tr><th scope="col">Sản phẩm</th><th scope="col">Giá cơ bản</th><th scope="col">Tồn kho</th><th scope="col">Kinh doanh / Đặt hàng</th><th scope="col">Thao tác</th></tr></thead>
     <tbody className="admin-product-list">{items.map(p => <tr className="admin-product-card" key={p.id} data-product-id={p.id}>
       <td data-label="Sản phẩm"><h3>{p.name}</h3><p>Kích cỡ: {p.sizes.map(s => `${s.size} (+${formatVnd(s.extraPrice)})`).join(', ') || 'Chưa cấu hình'}</p><p>Topping: {p.toppings.map(t => t.name).join(', ') || 'Không topping'}</p></td>
-      <td data-label="Giá cơ bản">{formatVnd(p.price)}</td><td data-label="Tồn kho">Tồn kho: {p.stock} · {p.stock > 0 ? 'Có tồn' : 'Hết tồn'}</td>
-      <td data-label="Trạng thái"><span className="role-badge">{p.isActive ? 'Đang kinh doanh' : 'Ngừng kinh doanh'}</span><p>{p.isActive && p.stock > 0 && p.sizes.length > 0 ? 'Kiểm tra tùy chọn đang cung cấp' : 'Chưa thể đặt hàng'}</p>
+      <td data-label="Giá cơ bản">{formatVnd(p.price)}</td><td data-label="Tồn kho">{p.inventorySource === 'INGREDIENTS' ? <>{p.available ? 'Còn món' : 'Hết món'} · Theo nguyên liệu</> : <>Tồn kho: {p.stock} · {p.stock > 0 ? 'Có tồn' : 'Hết tồn'}</>}</td>
+      <td data-label="Trạng thái"><span className="role-badge">{p.isActive ? 'Đang kinh doanh' : 'Ngừng kinh doanh'}</span><p>{p.isActive && p.sizes.length > 0 && (p.available ?? p.stock > 0) ? 'Kiểm tra tùy chọn đang cung cấp' : 'Chưa thể đặt hàng'}</p>
         {!p.sizes.length && <p role="status">Chưa có kích cỡ hợp lệ; hiện chưa thể đặt hàng.</p>}</td>
       <td data-label="Thao tác"><div className="product-actions"><Link className="button" data-product-options href={`/admin/products/${p.id}/options`}>Size & Topping</Link><button disabled={busy} onClick={() => onEdit(p)}>Xem / chỉnh sửa</button><button disabled={busy} onClick={() => onToggle(p)}>{p.isActive ? 'Ngừng bán' : 'Bật bán lại'}</button><button className="product-danger" disabled={busy} onClick={() => onDelete(p)}>Xóa sản phẩm</button></div></td>
     </tr>)}</tbody></table>;
@@ -66,19 +66,19 @@ function ProductSession() {
   useEffect(() => {
     alive.current = true; const abort = new AbortController(); gate.current = true;
     void adminProductRequest('GET', undefined, undefined, abort.signal).then(rows => { if (!abort.signal.aborted && useAuthStore.getState().accessToken === token) setItems(rows as AdminProduct[]); })
-      .catch(e => { if (!abort.signal.aborted) { setItems(null); setForm(null); setDeleting(null); setError(productManagementMessage(e instanceof ProductManagementError ? e.code : 'UNAVAILABLE')); } })
+      .catch(e => { if (!abort.signal.aborted) { setItems(null); setForm(null); setDeleting(null); setError(productManagementMessage(e instanceof ProductManagementError ? e.code : 'UNAVAILABLE', 'read')); } })
       .finally(() => { if (!abort.signal.aborted) { gate.current = false; setBusy(false); } });
     return () => { alive.current = false; abort.abort(); };
   }, [token]);
   async function refresh() {
     if (gate.current) return; gate.current = true; setBusy(true); setError('');
-    try { await read(); } catch (e) { if (current()) { setItems(null); setForm(null); setDeleting(null); setError(productManagementMessage(e instanceof ProductManagementError ? e.code : 'UNAVAILABLE')); } }
+    try { await read(); } catch (e) { if (current()) { setItems(null); setForm(null); setDeleting(null); setError(productManagementMessage(e instanceof ProductManagementError ? e.code : 'UNAVAILABLE', 'read')); } }
     finally { if (current()) { gate.current = false; setBusy(false); } }
   }
   async function edit(p: AdminProduct) {
     if (gate.current || review) return; gate.current = true; setBusy(true); setSuccess(''); setError(''); setDeleting(null);
     try { const row = await adminProductRequest('GET', p.id) as AdminProduct; if (current()) { setForm(row); setTimeout(() => document.getElementById('product-name')?.focus(), 0); } }
-    catch (e) { if (current()) { if (e instanceof ProductManagementError && ['FORBIDDEN', 'UNAUTHORIZED'].includes(e.code)) { setItems(null); setForm(null); setDeleting(null); } setError(productManagementMessage(e instanceof ProductManagementError ? e.code : 'UNAVAILABLE')); } }
+    catch (e) { if (current()) { if (e instanceof ProductManagementError && ['FORBIDDEN', 'UNAUTHORIZED'].includes(e.code)) { setItems(null); setForm(null); setDeleting(null); } setError(productManagementMessage(e instanceof ProductManagementError ? e.code : 'UNAVAILABLE', 'read')); } }
     finally { if (current()) { gate.current = false; setBusy(false); } }
   }
   async function mutate(method: 'POST' | 'PATCH' | 'DELETE', id: string | undefined, body: ProductCreate | ProductUpdate | { expectedVersion: number }) {

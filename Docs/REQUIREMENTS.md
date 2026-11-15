@@ -1,5 +1,19 @@
 # BrewLite — Yêu cầu và phạm vi
 
+**O01 user amendment 2026-11-15:** đã chọn hủy PAID trong120 giây theo giờ backend và chặn Staff pha trước hạn. Thêm theo dõi/countdown/lịch sử, hỗ trợ ngoại lệ và Admin phê duyệt/ghi nhận hoàn tiền có bằng chứng. Dùng lại FR09/10/11/12/13/14/16 và NFR02/05; không thay PDF hoặc tự gọi cổng hoàn tiền. [Contract](O01_CANCEL_TRACKING.md).
+
+**I08 user amendment2026-11-13:** theo hai file quy định và câu trả lời bổ sung: nháp→chờ duyệt→duyệt/từ chối, kiểm kê nguyên liệu theo ngày, tỷ lệ theo tiêu hao/ngưỡng từng nguyên liệu; duyệt bảo toàn giao dịch phát sinh. Không tính chênh lệch đá/vật dụng; nước chỉ giữ định lượng tham khảo, không nhập/giữ/trừ/khóa món. Bỏ qua cảnh báo trung bình/ngày dự phòng và chỉ phục vụ tại chỗ, không mang đi. Giữ trạng thái số ly từng size/topping/kinh doanh và cảnh báo tồn hiện hành. Không thêm requirement PDF. [Contract](I08_INVENTORY_CONTROL.md).
+
+**I07 user amendment2026-11-12–13:** áp dụng định lượng trong3 file S/M/L; người dùng chọn danh mục nguyên liệu mới riêng (tồn0, giữ tồn/lịch sử cũ) và Cold Brew luôn có syrup. Tính đủ số ly theo size/topping và tổng nhu cầu; giữ chỗ khi tạo đơn, tiêu hao lúc bắt đầu pha, chỉ giải phóng phần chưa dùng khi được phép. Thay quy tắc I05 chỉ quantity>0/chưa tiêu hao, giữ baseline PDF, gateway/600s và scope hủy đã có. [Contract và giới hạn](I07_SIZE_RECIPE_CONSUMPTION.md).
+
+**I06 user amendment2026-11-07:** chỉ đổi9 ngưỡng cảnh báo nguyên liệu theo file người dùng, giữ tên/đơn vị/lượng tồn; boundary0<qty<=threshold. Caramel1 chai và Đá1 bao theo quy đổi người dùng cung cấp; vật dụng giữ nguyên. [Bảng chuẩn và acceptance](I06_INGREDIENT_WARNING_THRESHOLDS.md). Không sửa PDF hoặc thêm chức năng hạn sử dụng từ lưu ý của file.
+
+**I05 user extension2026-11-07:**7 món theo công thức nguyên liệu người dùng cung cấp, áp dụng Admin/menu/Cart/đặt hàng; còn khi mọi nguyên liệu đúng đơn vị có quantity>0, thiếu/hết thì hết món. Bỏ giới hạn Product.stock cho đơn mới của7 món, chưa tiêu hao nguyên liệu do chưa có định lượng. Đơn cũ giữ semantics stock qua snapshot. [Contract và acceptance](I05_PRODUCT_INGREDIENT_AVAILABILITY.md). Không sửa yêu cầu PDF.
+
+I04 BAG bổ sung2026-11-07: Bột quế KG, Đá BAG; người dùng xác nhận cảnh báo dưới5 bao. DTO/policy/migration BAG và frontend unit labels/forms, backend unit/database và frontend ingredients tests truy về [contract](I04_INVENTORY_CATALOG_REFRESH.md); không thêm FR PDF.
+
+**I04 user amendment 2026-11-07:** Thay toàn bộ danh mục kho/phiếu mới bằng9 nguyên liệu và5 vật dụng được chỉ định; sốt caramel dùng chai, cảnh báo dưới10 chai theo xác nhận người dùng. Giữ tồn và lịch sử cũ. [Danh sách, acceptance và kiểm chứng](I04_INVENTORY_CATALOG_REFRESH.md). Không sửa PDF.
+
 **I03 user amendment2026-10-31:** Người dùng yêu cầu quản lý vật tư trong một file, thêm/bỏ/sửa trong file ảnh hưởng frontend. [ingredient-catalog.ts](../backend/src/ingredients/ingredient-catalog.ts) là danh mục hiện hành; thêm dòng tạo phần thiếu tồn0 khi Admin tải lại, bỏ dòng ngừng liệt kê nhưng giữ dữ liệu, `label` đổi tên hiển thị và giữ kho cũ. Áp dụng cho danh sách kho, nhập hàng, kiểm kê mới và thống kê hiển thị; recount/history cũ vẫn hoạt động. Không sửa PDF, schema hoặc chính sách tài chính. [Cách quản lý và acceptance](I03_RECEIVING_CATALOG.md).
 
 **I03 user amendment2026-10-29:** [Danh mục nhập hàng](I03_RECEIVING_CATALOG.md) gồm3 vật dụng đơn vị cái và9 nguyên liệu theo tên/đơn vị người dùng chỉ định; bổ sung trứng đơn vị quả, cảnh báo dưới10 quả theo câu trả lời người dùng. Lưu danh mục vào DB thật, dùng lại mặt hàng đã có, không đoán tồn ban đầu hoặc xóa lịch sử.

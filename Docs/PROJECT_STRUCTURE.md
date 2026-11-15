@@ -1,5 +1,21 @@
 # BrewLite — Cấu trúc repository
 
+O01: orders/cancellation-window.ts, order-aftercare.dto.ts, order-aftercare.controller.ts và mở rộng OrderService/OrderModule; migration20261115100000_order_aftercare và runner apply-order-aftercare.cjs. Frontend order tracking bổ sung vào chi tiết Customer/operator. [Contract](O01_CANCEL_TRACKING.md).
+
+I08: thêm `ingredients/inventory-control.ts`, migration `20261113140000_inventory_control`, runner `apply-inventory-control.cjs`, unit/HTTP `inventory-control*.spec.ts` và database `inventory-control.spec.ts`. Frontend thêm `inventory-control-form.tsx`, `drink-stock-alerts.tsx`; mở rộng CountForm/ReviewCount/IngredientInventory và public sizeAvailability. Không thêm dependency/module hạ tầng. [Contract](I08_INVENTORY_CONTROL.md).
+
+I07: thêm catalog/drink-recipes.ts, ingredients/order-ingredients.ts, migration20261112150000_size_recipe_reservations, runner apply-size-recipes.cjs, unit drink-recipes và database size-recipes, frontend/test/size-recipes-browser.mjs. Sửa recipe helper/Catalog/Cart/Pricing/Order/payment hooks và giao diện size/topping/kho hiện có; không thêm package. [Contract và cách chạy](I07_SIZE_RECIPE_CONSUMPTION.md).
+
+Auth/catalog repair2026-11-12 thêm `backend/src/common/record-id.ts`, `backend/test/session-id.spec.ts` và [contract/evidence](LOCAL_AUTH_CATALOG_REPAIR.md); cập nhật auth/session, GET Order DTO/controllers, frontend session/Order parsers và seed7 món local-only. Không thêm package/migration.
+
+I06: thêm migration 20261107120000_ingredient_warning_thresholds và database ingredient-warning-migration.spec.ts; sửa catalog/policy/service, table/form/type nguyên liệu và tests hiện có. Fallback inventory runner thêm --warning-thresholds. [Contract](I06_INGREDIENT_WARNING_THRESHOLDS.md).
+
+I05: thêm backend/src/catalog/product-ingredients.ts, migration 20261107110000_product_ingredient_availability, script apply-product-ingredients.cjs, unit/database product-ingredients tests; cập nhật catalog/Cart/Pricing/Order/payment stock branches, Admin UI/parser và browser harness hiện có. [Contract](I05_PRODUCT_INGREDIENT_AVAILABILITY.md).
+
+I04 BAG2026-11-07: thêm migration `20261107100000_inventory_bag_unit`, catalog Bột quế/Đá, unit BAG trong policy/DTO/frontend và tests; fallback hỗ trợ `--bag-unit`. [Chi tiết](I04_INVENTORY_CATALOG_REFRESH.md).
+
+I04 amendment 2026-11-07: thêm migration `20261107090000_inventory_bottle_unit`; sửa catalog, unit policy/DTO, frontend unit labels/forms và tests hiện có. Fallback migration hỗ trợ `--bottle-unit`. [Danh sách và rollout](I04_INVENTORY_CATALOG_REFRESH.md).
+
 I03 amendment2026-10-31: `backend/src/ingredients/ingredient-catalog.ts` là file chỉnh danh mục duy nhất, có label hiển thị và kiểm tra cấu hình; IngredientService cung cấp metadata cho frontend, không có import code backend sang frontend. Kiểm thử mới `backend/test/ingredient-catalog.spec.ts`, mở rộng database/frontend tests và browser harness cho luồng danh mục tập trung. [Hướng dẫn](I03_RECEIVING_CATALOG.md).
 
 I03 thêm `backend/src/ingredients/ingredient-catalog.ts`, migration `20261029170000_inventory_egg_unit`; sửa policy/DTO/service/controller I01, frontend unit labels/forms/load và tests tương ứng. Script fallback nhận `--egg-unit`, package scripts `db:check:inventory-catalog`/`db:migrate:inventory-catalog`. [Contract](I03_RECEIVING_CATALOG.md).

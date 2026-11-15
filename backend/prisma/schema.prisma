@@ -174,6 +174,12 @@ model User {
   ingredientCounts            IngredientCount[]    @relation("CountCreator")
   ingredientCountsReviewed    IngredientCount[]    @relation("CountReviewer")
   ingredientMovements         IngredientMovement[]
+  trackingEvents              OrderTrackingEvent[]
+  supportRequests             OrderSupportRequest[] @relation("SupportRequester")
+  supportReviews              OrderSupportRequest[] @relation("SupportReviewer")
+  refundRequests              OrderRefund[] @relation("RefundRequester")
+  refundApprovals             OrderRefund[] @relation("RefundApprover")
+  refundProcessing            OrderRefund[] @relation("RefundProcessor")
 
   @@map("users")
 }
@@ -185,6 +191,8 @@ enum IngredientUnit {
   ML
   PIECE
   EGG
+  BOTTLE
+  BAG
 }
 
 enum IngredientReceiptStatus {
@@ -193,6 +201,7 @@ enum IngredientReceiptStatus {
 }
 
 enum IngredientCountStatus {
+  DRAFT
   SUBMITTED
   APPROVED
   REJECTED
@@ -205,7 +214,10 @@ model Ingredient {
   normalizedName    String                  @unique @map("normalized_name") @db.VarChar(120)
   unit              IngredientUnit
   quantity          Decimal                 @default(0) @db.Decimal(12, 3)
+  reservedQuantity  Decimal                 @default(0) @map("reserved_quantity") @db.Decimal(12, 3)
   lowStockThreshold Decimal                 @default(0) @map("low_stock_threshold") @db.Decimal(12, 3)
+  variancePercentThreshold Decimal?         @map("variance_percent_threshold") @db.Decimal(7, 3)
+  varianceAbsoluteThreshold Decimal?        @map("variance_absolute_threshold") @db.Decimal(12, 3)
   version           Int                     @default(0)
   createdById       String                  @map("created_by_id") @db.Uuid
   requestKey        String                  @map("request_key") @db.VarChar(128)
@@ -216,6 +228,7 @@ model Ingredient {
   receiptLines      IngredientReceiptLine[]
   countLines        IngredientCountLine[]
   movements         IngredientMovement[]
+  reservations      IngredientReservation[]
 
   @@unique([createdById, requestKey])
   @@map("ingredients")
@@ -268,6 +281,9 @@ model IngredientCount {
   requestHash  String                @map("request_hash") @db.Char(64)
   createdAt    DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   reviewedAt   DateTime?             @map("reviewed_at") @db.Timestamptz(6)
+  submittedAt  DateTime?             @map("submitted_at") @db.Timestamptz(6)
+  periodStart  DateTime?             @map("period_start") @db.Timestamptz(6)
+  recountRequested Boolean          @default(false) @map("recount_requested")
   createdBy    User                  @relation("CountCreator", fields: [createdById], references: [id], onDelete: Restrict)
   reviewedBy   User?                 @relation("CountReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
   recountOf    IngredientCount?      @relation("Recount", fields: [recountOfId], references: [id], onDelete: Restrict)
@@ -287,6 +303,10 @@ model IngredientCountLine {
   systemQuantity    Decimal             @map("system_quantity") @db.Decimal(12, 3)
   actualQuantity    Decimal             @map("actual_quantity") @db.Decimal(12, 3)
   ingredientVersion Int                 @map("ingredient_version")
+  movementSequence BigInt?              @map("movement_sequence")
+  theoreticalConsumption Decimal?       @map("theoretical_consumption") @db.Decimal(20, 3)
+  variancePercentThreshold Decimal?     @map("variance_percent_threshold") @db.Decimal(7, 3)
+  varianceAbsoluteThreshold Decimal?    @map("variance_absolute_threshold") @db.Decimal(12, 3)
   note              String              @default("") @db.VarChar(500)
   count             IngredientCount     @relation(fields: [countId], references: [id], onDelete: Restrict)
   ingredient        Ingredient          @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
@@ -299,9 +319,13 @@ model IngredientCountLine {
 
 model IngredientMovement {
   id             String                 @id @default(uuid()) @db.Uuid
+  sequence       BigInt                 @unique @default(autoincrement())
   ingredientId   String                 @map("ingredient_id") @db.Uuid
   receiptLineId  String?                @unique @map("receipt_line_id") @db.Uuid
   countLineId    String?                @unique @map("count_line_id") @db.Uuid
+  reservationId String?                @map("reservation_id") @db.Uuid
+  reservationAction String?            @map("reservation_action") @db.VarChar(12)
+  reservationCycle Int?                @map("reservation_cycle")
   beforeQuantity Decimal                @map("before_quantity") @db.Decimal(12, 3)
   afterQuantity  Decimal                @map("after_quantity") @db.Decimal(12, 3)
   delta          Decimal                @db.Decimal(13, 3)
@@ -311,10 +335,39 @@ model IngredientMovement {
   receiptLine    IngredientReceiptLine? @relation(fields: [receiptLineId], references: [id], onDelete: Restrict)
   countLine      IngredientCountLine?   @relation(fields: [countLineId], references: [id], onDelete: Restrict)
   actor          User                   @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  reservation    IngredientReservation? @relation(fields: [reservationId], references: [id], onDelete: Restrict)
 
+  @@unique([reservationId, reservationAction, reservationCycle], map: "ingredient_movements_reservation_id_reservation_action_reserv_k")
   @@index([createdAt(sort: Desc), id(sort: Desc)])
   @@index([ingredientId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([ingredientId, sequence], map: "ingredient_movements_ingredient_sequence_idx")
   @@map("ingredient_movements")
+}
+
+enum RecipeIngredientState {
+  RESERVED
+  RELEASED
+  CONSUMED
+}
+
+model IngredientReservation {
+  id           String                     @id @default(uuid()) @db.Uuid
+  orderId      String                     @map("order_id") @db.Uuid
+  ingredientId String                     @map("ingredient_id") @db.Uuid
+  nameSnapshot String                     @map("name_snapshot") @db.VarChar(120)
+  unitSnapshot IngredientUnit             @map("unit_snapshot")
+  quantity     Decimal                    @db.Decimal(12, 3)
+  state        RecipeIngredientState @default(RESERVED)
+  cycle        Int                        @default(1)
+  createdAt    DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime                   @default(now()) @map("updated_at") @db.Timestamptz(6)
+  order        Order                      @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  ingredient   Ingredient                 @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+  movements    IngredientMovement[]
+
+  @@unique([orderId, ingredientId])
+  @@index([ingredientId, state])
+  @@map("order_recipe_ingredients")
 }
 
 model Product {
@@ -391,6 +444,7 @@ model Promotion {
 }
 
 model Order {
+  ingredientReservations IngredientReservation[]
   paymentStartedAt      DateTime?              @map("payment_started_at") @db.Timestamptz(6)
   paymentExpiresAt      DateTime?              @map("payment_expires_at") @db.Timestamptz(6)
   paymentExpiredAt      DateTime?              @map("payment_expired_at") @db.Timestamptz(6)
@@ -423,6 +477,9 @@ model Order {
   loyaltyEntries      LoyaltyEntry[]
 
   @@index([userId, createdAt(sort: Desc), id(sort: Desc)])
+  trackingEvents OrderTrackingEvent[]
+  supportRequests OrderSupportRequest[]
+  refund OrderRefund?
   @@map("orders")
 }
 
@@ -445,6 +502,7 @@ model OrderItem {
   orderId             String             @map("order_id") @db.Uuid
   productId           String             @map("product_id") @db.Uuid
   productNameSnapshot String             @map("product_name_snapshot") @db.Text
+  ingredientKeysSnapshot String[]        @default([]) @map("ingredient_keys_snapshot")
   size                String             @db.Text
   basePrice           Decimal            @map("base_price") @db.Decimal(12, 0)
   sizeExtraPrice      Decimal            @map("size_extra_price") @db.Decimal(12, 0)
@@ -515,9 +573,72 @@ model Payment {
   loyaltyEntries LoyaltyEntry[]
 
   // SQL-only: UNIQUE(order_id) WHERE status = 'SUCCEEDED' in init migration.
+  refund OrderRefund?
   @@unique([userId, idempotencyKey])
   @@index([orderId, createdAt])
   @@map("payments")
+}
+
+model OrderTrackingEvent {
+  id String @id @default(uuid()) @db.Uuid
+  sequence BigInt @unique @default(autoincrement())
+  orderId String @map("order_id") @db.Uuid
+  kind String @db.VarChar(24)
+  fromStatus String? @map("from_status") @db.VarChar(32)
+  status String @db.VarChar(32)
+  actorId String? @map("actor_id") @db.Uuid
+  actorRole String @default("SYSTEM") @map("actor_role") @db.VarChar(16)
+  note String? @db.VarChar(500)
+  occurredAt DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  order Order @relation(fields:[orderId],references:[id],onDelete:Restrict)
+  actor User? @relation(fields:[actorId],references:[id],onDelete:Restrict)
+  @@index([orderId,sequence], map:"order_tracking_events_order_sequence_idx")
+  @@map("order_tracking_events")
+}
+
+model OrderSupportRequest {
+  id String @id @default(uuid()) @db.Uuid
+  orderId String @map("order_id") @db.Uuid
+  requestedById String @map("requested_by_id") @db.Uuid
+  requestKey String @map("request_key") @db.Uuid
+  reason String @db.VarChar(500)
+  status String @default("OPEN") @db.VarChar(16)
+  version Int @default(0)
+  reviewedById String? @map("reviewed_by_id") @db.Uuid
+  reviewNote String? @map("review_note") @db.VarChar(500)
+  reviewedAt DateTime? @map("reviewed_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  order Order @relation(fields:[orderId],references:[id],onDelete:Restrict)
+  requester User @relation("SupportRequester",fields:[requestedById],references:[id],onDelete:Restrict)
+  reviewer User? @relation("SupportReviewer",fields:[reviewedById],references:[id],onDelete:Restrict)
+  @@unique([orderId,requestedById,requestKey],map:"order_support_request_idempotency_key")
+  @@map("order_support_requests")
+}
+
+model OrderRefund {
+  id String @id @default(uuid()) @db.Uuid
+  orderId String @unique @map("order_id") @db.Uuid
+  paymentId String @unique @map("payment_id") @db.Uuid
+  amount Decimal @db.Decimal(12,0)
+  status String @default("PENDING") @db.VarChar(16)
+  reason String @db.VarChar(500)
+  requestedById String @map("requested_by_id") @db.Uuid
+  approvedById String? @map("approved_by_id") @db.Uuid
+  approvedAt DateTime? @map("approved_at") @db.Timestamptz(6)
+  processedById String? @map("processed_by_id") @db.Uuid
+  processedAt DateTime? @map("processed_at") @db.Timestamptz(6)
+  transactionReference String? @unique @map("transaction_reference") @db.VarChar(128)
+  evidenceReference String? @map("evidence_reference") @db.VarChar(500)
+  failureReason String? @map("failure_reason") @db.VarChar(500)
+  version Int @default(0)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  order Order @relation(fields:[orderId],references:[id],onDelete:Restrict)
+  payment Payment @relation(fields:[paymentId],references:[id],onDelete:Restrict)
+  requester User @relation("RefundRequester",fields:[requestedById],references:[id],onDelete:Restrict)
+  approver User? @relation("RefundApprover",fields:[approvedById],references:[id],onDelete:Restrict)
+  processor User? @relation("RefundProcessor",fields:[processedById],references:[id],onDelete:Restrict)
+  @@map("order_refunds")
 }
 
 model LoyaltyAward {

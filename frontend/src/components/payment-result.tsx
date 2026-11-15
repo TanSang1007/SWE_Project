@@ -8,6 +8,7 @@ import { attemptStatus, type AttemptStatus } from '../lib/api/gateway-payments';
 import { OrderError } from '../lib/api/orders';
 import { paymentMessage, pollPayment, resultPath } from '../lib/payment-result';
 import { verifiedCustomerCancellation } from '../lib/payment-result';
+import { OrderTracking } from './order-tracking';
 
 function CancellationNavigation({ status, token }: { status: AttemptStatus; token: string }) {
   const router = useRouter();
@@ -21,6 +22,7 @@ export function PaymentResultContent({ status }: { status: AttemptStatus }) {
   return <><p role="status">{paymentMessage(status)}</p>
     {status.orderStatus === 'CANCELLED' && status.effectiveState === 'SUCCEEDED' && <p>Đơn đã hủy. Thanh toán đã ghi nhận, BrewLite chưa tự hoàn tiền.</p>}
     <Link href={`/orders/${status.orderId}/confirmation`}>Xem đơn hàng</Link>
+    {status.effectiveState === 'SUCCEEDED' && ['PAID','PREPARING','READY','COMPLETED','CANCELLED'].includes(status.orderStatus) && <OrderTracking key={status.orderId} id={status.orderId} role="CUSTOMER" />}
     {status.effectiveState === 'FAILED' && status.canRetry && !status.requiresReview && <Link href={`/cart?orderId=${status.orderId}`}>Mở đơn để thanh toán lại</Link>}
   </>;
 }

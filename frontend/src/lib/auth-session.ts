@@ -4,6 +4,9 @@ import { useAuthStore } from './auth-store';
 
 let pending: Promise<void> | null = null;
 let generation = 0;
+export function requiresSession(pathname: string): boolean {
+  return /^\/(cart|checkout|orders|loyalty|admin|operator)(\/|$)/.test(pathname);
+}
 async function serialized<T>(work: () => Promise<T>): Promise<T> {
   if (typeof navigator !== 'undefined' && navigator.locks) return navigator.locks.request('brewlite-session', work);
   return work();

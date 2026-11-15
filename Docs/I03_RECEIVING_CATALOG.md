@@ -1,5 +1,9 @@
 # I03 — Danh mục nhập hàng và đơn vị quả
 
+**Danh mục hiện hành I08,2026-11-13:** [người dùng chọn bỏ quản lý tồn nước lọc](I08_INVENTORY_CONTROL.md); file ingredient-catalog.ts còn12 nguyên liệu/6 vật dụng của I07, không nước. Giữ nước/lịch sử cũ và không gộp/chuyển tồn. Các số lượng/danh sách cũ bên dưới là checkpoint lịch sử.
+
+**Danh mục hiện hành từ 2026-11-07:** [I04](I04_INVENTORY_CATALOG_REFRESH.md) thay danh sách dưới đây bằng5 vật dụng/9 nguyên liệu, thêm chai cảnh báo dưới10. Danh sách và số lượng12 của I03 dưới đây là lịch sử; cơ chế danh mục tập trung, giữ tồn/audit vẫn áp dụng.
+
 Yêu cầu người dùng2026-10-29 bổ sung cho [I02](I02_INVENTORY_CATEGORIES.md). Chỉ cập nhật danh mục kho/nhập hàng và đơn vị; không sửa PDF, nghiệp vụ sản phẩm, đơn hàng hoặc thanh toán. Người dùng xác nhận riêng cảnh báo trứng khi còn dưới10 quả.
 
 ## Quản lý danh mục trong một file (yêu cầu2026-10-31)

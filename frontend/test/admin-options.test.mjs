@@ -16,6 +16,22 @@ const size={productId:id,size:'M',extraPrice:'7000',isActive:true};
 const session=(role='ADMIN',owner=actor)=>useAuthStore.getState().signIn({accessToken:`fixture-${owner}-${role}`,tokenType:'Bearer',expiresIn:3600,user:{id:owner,email:'fixture@example.invalid',role,loyaltyPoints:0}});
 const html=(Component,props)=>renderToStaticMarkup(React.createElement(Component,props));
 afterEach(()=>{globalThis.fetch=originalFetch;useAuthStore.getState().clear();});
+test('mixed UUID and numeric topping identities remain visible and open their exact resource',async()=>{
+  const stored={...top,id:'3',name:'Sương Sáo'};const rows=[top,stored];
+  assert.deepEqual(parseToppings({items:rows}),rows);assert.deepEqual(parseAssociations({items:rows,productVersion:4}),{items:rows,productVersion:4});
+  session();const calls=[];globalThis.fetch=async(url,init)=>{calls.push({url,init});return Response.json(stored);};
+  assert.deepEqual(await getTopping('3'),stored);
+  await optionRequest('PATCH','/admin/toppings/3',{expectedVersion:7,price:'9000'});
+  assert(calls.every(c=>c.url.endsWith('/admin/toppings/3')));assert.equal(calls.length,2);
+  assert.deepEqual(JSON.parse(calls[1].init.body),{expectedVersion:7,price:'9000'});
+  globalThis.fetch=()=>assert.fail('Invalid IDs must fail before transport');
+  for(const value of ['0','03','-3','3.0','1'.repeat(21),'../3']){assert.throws(()=>parseTopping({...top,id:value}));await assert.rejects(getTopping(value),{code:'VALIDATION_ERROR'});}
+  await assert.rejects(getSizes('3'),{code:'VALIDATION_ERROR'});
+});
+test('option loading errors differ from uncertain writes without losing write recovery guidance',()=>{
+  assert.equal(optionMessage('UNAVAILABLE','read'),'Chưa tải được dữ liệu tùy chọn. Hãy thử tải lại cấu hình.');
+  assert.match(optionMessage('UNAVAILABLE'),/không tự gửi lại thao tác/);
+});
 test('A05 exact AdminTopping/Size/association projections retain current OCC and strip secrets',()=>{
   assert.deepEqual(parseTopping({...top,passwordHash:'discard',stock:7}),top);
   assert.deepEqual(parseToppings({items:[top]}),[top]);assert.deepEqual(parseToppings({items:[]}),[]);

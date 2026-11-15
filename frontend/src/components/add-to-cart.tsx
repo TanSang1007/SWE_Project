@@ -27,5 +27,10 @@ export function AddToCart({ product }: { product: ProductDetail }) {
     }
     finally { inFlight.current = false; setBusy(false); }
   }
-  return <section aria-label="Thêm món vào giỏ"><CartOptions product={product} busy={busy || cartLock.locked} onConfirm={(input) => void add(input)} label="Thêm vào giỏ" /><p role="status">{message}</p>{cartLock.locked && <p role="status">Giỏ tạm khóa khi kiểm tra hoặc đang có đơn chưa hoàn tất. <Link href="/checkout">Mở đơn để thanh toán hoặc hủy</Link></p>}<Link href="/cart">Xem giỏ</Link></section>;
+  const label = cartLock.checking ? 'Đang kiểm tra đơn…' : cartLock.error ? 'Chưa kiểm tra được đơn' : cartLock.order ? 'Đang có đơn chưa hoàn tất' : 'Thêm vào giỏ';
+  return <section aria-label="Thêm món vào giỏ"><CartOptions product={product} busy={busy} disabled={cartLock.locked} onConfirm={(input) => void add(input)} label={label} /><p role="status">{message}</p>
+    {cartLock.checking && <p role="status">Đang kiểm tra đơn chưa hoàn tất. Vui lòng chờ tối đa 10 giây.</p>}
+    {cartLock.error && <p role="alert">Chưa kiểm tra được đơn đang chờ. Kiểm tra kết nối rồi <button type="button" onClick={cartLock.retry}>Thử lại</button>.</p>}
+    {cartLock.order && <p role="status">Giỏ đang khóa vì bạn có đơn chưa hoàn tất ({cartLock.order.orderCode}). <Link href={`/checkout?orderId=${cartLock.order.id}`}>Xem trạng thái đơn / thanh toán hoặc hủy khi được phép</Link></p>}
+    <Link href="/cart">Xem giỏ</Link></section>;
 }

@@ -3,20 +3,23 @@ import { getAccessToken, useAuthStore } from '../auth-store';
 import type { Ingredient, IngredientCount, IngredientReceipt, InventoryPage, MovementRow, IngredientUnit, IngredientCommand, IngredientSummary, InventoryCategory } from '../../types/ingredient';
 export class IngredientError extends Error { constructor(readonly code: string) { super(code); } }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-export const unitLabels: Record<IngredientUnit,string> = { KG: 'kg', G: 'g', L: 'lít', ML: 'ml', PIECE: 'cái', EGG:'quả' };
+export const unitLabels: Record<IngredientUnit,string> = { KG: 'kg', G: 'g', L: 'lít', ML: 'ml', PIECE: 'cái', EGG:'quả', BOTTLE:'chai', BAG:'bao' };
 export const inventoryCategory=(unit:IngredientUnit):InventoryCategory=>unit==='PIECE'?'supplies':'materials';
 export const listedIngredients=(items:Ingredient[])=>items.filter(i=>i.isListed!==false);
 export const ingredientName=(item:Pick<Ingredient,'name'|'displayName'>)=>item.displayName??item.name;
+const materialName=(name:string)=>name.trim().replace(/\s+/g,' ').normalize('NFC').toLocaleLowerCase('vi').replace(/ \(công thức\)$/,'');
+export const supportsInventoryCount=(item:Pick<Ingredient,'name'|'unit'>)=>item.unit!=='PIECE'&&!['đá','đá viên','nước lọc'].includes(materialName(item.name));
+export const receivableIngredients=(items:Ingredient[])=>listedIngredients(items).filter(item=>materialName(item.name)!=='nước lọc');
 export function listedIngredientSummary(items:Ingredient[],summary:IngredientSummary):IngredientSummary {
   const listed=listedIngredients(items);
   return {...summary,totalIngredients:listed.length,inStock:listed.filter(i=>i.status==='IN_STOCK').length,lowStock:listed.filter(i=>i.status==='LOW_STOCK').length,outOfStock:listed.filter(i=>i.status==='OUT_OF_STOCK').length};
 }
-export const inventoryThresholds:Record<IngredientUnit,string>={PIECE:'10',L:'5',KG:'10',G:'10000',ML:'5000',EGG:'10'};
+export const inventoryThresholds:Record<IngredientUnit,string>={PIECE:'10',L:'5',KG:'10',G:'10000',ML:'5000',EGG:'10',BOTTLE:'10',BAG:'5'};
 export function normalizeQuantity(value: string, unit: IngredientUnit, positive = false): string | null {
   const raw = value.trim().replace(',','.');
   if (!/^(0|[1-9]\d{0,8})(\.\d{1,3})?$/.test(raw)) return null;
   const scaled = BigInt(raw.split('.')[0])*1000n+BigInt((raw.split('.')[1]??'').padEnd(3,'0'));
-  if ((positive && scaled===0n) || (['PIECE','EGG'].includes(unit) && scaled%1000n!==0n)) return null;
+  if ((positive && scaled===0n) || (['PIECE','EGG','BOTTLE','BAG'].includes(unit) && scaled%1000n!==0n)) return null;
   return `${scaled/1000n}.${(scaled%1000n).toString().padStart(3,'0')}`;
 }
 export function quantityDifference(actual: string, system: string): string {
@@ -27,11 +30,13 @@ export function quantityDifference(actual: string, system: string): string {
 export function displayQuantity(v: string) { return Number(v).toLocaleString('vi-VN',{maximumFractionDigits:3}); }
 export const ingredientMessages: Record<string,string> = {
   UNAUTHORIZED:'Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.', FORBIDDEN:'Bạn không có quyền thực hiện thao tác này.',
-  INVENTORY_CHANGED:'Tồn kho đã thay đổi sau lần kiểm kê. Hãy tải lại và kiểm kê lại; số lượng mới chưa bị ghi đè.',
+  INVENTORY_CHANGED:'Chưa đối chiếu được tồn kho hoặc đã có phiếu điều chỉnh khác. Hãy tải lại và yêu cầu kiểm kê lại; giao dịch phát sinh được giữ nguyên.',
   INVALID_DOCUMENT_STATE:'Phiếu đã được xử lý hoặc không còn cho phép thao tác này. Hãy tải lại danh sách.',
   INGREDIENT_EXISTS:'Tên nguyên liệu đã tồn tại.', INGREDIENT_NOT_FOUND:'Nguyên liệu không còn tồn tại.',
-  INVALID_QUANTITY:'Số lượng không hợp lệ hoặc vượt giới hạn; đơn vị cái và quả phải là số nguyên.', VALIDATION_ERROR:'Kiểm tra tên, số lượng, ghi chú và các dòng của phiếu.',
+  INVALID_QUANTITY:'Số lượng không hợp lệ hoặc vượt giới hạn; đơn vị cái, quả, chai và bao phải là số nguyên.', VALIDATION_ERROR:'Kiểm tra tên, số lượng, ghi chú và các dòng của phiếu.',
   INGREDIENT_UNIT_MISMATCH:'Có mặt hàng trong danh mục đang dùng đơn vị khác. Tồn và lịch sử được giữ nguyên; hãy đối chiếu đơn vị trước khi nhập hàng.',
+  INVENTORY_COUNT_NOT_SUPPORTED:'Chỉ kiểm kê chênh lệch nguyên liệu; đá viên, nước lọc và vật dụng được loại trừ.',
+  INGREDIENT_NOT_RECEIVABLE:'Nước lọc không thuộc danh mục nhập hàng.',
   IDEMPOTENCY_KEY_REUSED:'Mã yêu cầu đã dùng cho nội dung khác. Giữ phiếu và kiểm tra lại kết quả.',
   CONCURRENT_UPDATE:'Có cập nhật đồng thời. Giữ nguyên yêu cầu và thử xác nhận lại kết quả.',
 };
@@ -73,7 +78,7 @@ export function clearIngredientCommand(){try{sessionStorage.removeItem(storageKe
 export function readIngredientCommand(userId:string,role:string):IngredientCommand|null {
   try{const raw=sessionStorage.getItem(storageKey);if(!raw)return null;const c=JSON.parse(raw) as IngredientCommand;
     if(c.userId!==userId||c.role!==role){clearIngredientCommand();return null;}
-    const allowed=role==='ADMIN'?/^(ingredients|receipts|receipts\/[0-9a-f-]+\/confirm|counts\/[0-9a-f-]+\/review)$/:/^counts$/;
+    const allowed=role==='ADMIN'?/^(ingredients|ingredients\/[0-9a-f-]+\/control|receipts|receipts\/[0-9a-f-]+\/confirm|counts\/[0-9a-f-]+\/review)$/:/^(counts|counts\/[0-9a-f-]+\/submit)$/;
     if(!uuid.test(c.userId)||!uuid.test(c.key)||!allowed.test(c.path)||!c.body||typeof c.body!=='object'||Array.isArray(c.body))throw Error();
     return c;
   }catch{clearIngredientCommand();return null;}

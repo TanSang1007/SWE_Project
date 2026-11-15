@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { useAuthStore } from '../lib/auth-store';
 import { adminProductRequest } from '../lib/api/admin-products';
 import { adjustInventory, getInventory, InventoryError, inventoryMessage, inventoryPreview } from '../lib/api/admin-inventory';
@@ -28,10 +29,10 @@ export function InventoryForm({ item, busy, submit, cancel }: { item: InventoryI
 }
 export function InventoryList({ items, statuses, disabled, select }: { items: InventoryItem[]; statuses: Record<string, boolean>; disabled: boolean; select: (item: InventoryItem) => void }) {
   if (!items.length) return <p>Chưa có sản phẩm trong tồn kho.</p>;
-  return <table className="product-management-table"><caption>Tồn kho khả dụng theo sản phẩm</caption><thead><tr><th scope="col">Sản phẩm</th><th scope="col">Tồn kho</th><th scope="col">Kinh doanh</th><th scope="col">Thao tác</th></tr></thead><tbody className="admin-product-list">{items.map(item => <tr className="admin-product-card" key={item.productId} data-inventory-id={item.productId}>
-    <td data-label="Sản phẩm">{item.productName}<small className="inventory-identity">{item.productId}</small></td><td data-label="Tồn kho">{item.stock} · Phiên bản {item.version}</td>
+  return <table className="product-management-table"><caption>Tồn kho khả dụng theo sản phẩm</caption><thead><tr><th scope="col">Sản phẩm</th><th scope="col">Còn / hết món</th><th scope="col">Kinh doanh</th><th scope="col">Thao tác</th></tr></thead><tbody className="admin-product-list">{items.map(item => <tr className="admin-product-card" key={item.productId} data-inventory-id={item.productId}>
+    <td data-label="Sản phẩm">{item.productName}<small className="inventory-identity">{item.productId}</small></td><td data-label="Tồn kho">{item.inventorySource === 'INGREDIENTS' ? <><strong>{item.available ? 'Còn món' : 'Hết món'}</strong><p>Nguyên liệu: {item.ingredients?.map(i => i.name).join(', ')}</p>{item.sizes&&<ul>{item.sizes.map(size=><li key={size.size}>Size {size.size}: {size.status==='OUT_OF_STOCK'?'Hết món':size.status==='LOW_STOCK'?'Sắp hết món':'Còn món'} · {size.cups} ly</li>)}</ul>}{!!item.missingIngredients?.length && <p>Hết hoặc chưa có: {item.missingIngredients.join(', ')}</p>}</> : <>{item.stock} · Phiên bản {item.version}</>}</td>
     <td data-label="Kinh doanh">{statuses[item.productId] === undefined ? 'Chưa tải được trạng thái kinh doanh' : statuses[item.productId] ? 'Đang kinh doanh' : 'Ngừng kinh doanh'}</td>
-    <td data-label="Thao tác"><button disabled={disabled} onClick={() => select(item)}>Nhập / điều chỉnh tồn kho</button></td>
+    <td data-label="Thao tác">{item.inventorySource === 'INGREDIENTS' ? <Link href="/admin/inventory?category=materials">Quản lý nguyên liệu</Link> : <button disabled={disabled} onClick={() => select(item)}>Nhập / điều chỉnh tồn kho</button>}</td>
   </tr>)}</tbody></table>;
 }
 export function AdminInventory() {
@@ -92,12 +93,12 @@ function InventorySession() {
     void send(request);
   }
   return <section className="admin-inventory" aria-busy={busy}><h2 ref={heading} tabIndex={-1}>Quản lý tồn kho</h2>
-    <p>Tồn kho là số lượng khả dụng. Trạng thái kinh doanh được đọc riêng khi tải danh sách; sản phẩm cần kích cỡ đang cung cấp để được đặt hàng.</p>
+    <p>Món có danh sách nguyên liệu sẽ hết khi một nguyên liệu hết hoặc chưa có trong kho. Nhập hàng hoặc duyệt kiểm kê nguyên liệu để cập nhật trạng thái món.</p>
     <button data-inventory-reload disabled={busy} onClick={() => void refresh()}>Tải lại tồn kho</button>
     {busy && <p role="status">Đang tải / xử lý tồn kho…</p>}{error && <p role="alert">{error}</p>}{success && <p role="status">{success}</p>}
     {context && <aside role="alert"><p>Còn một yêu cầu cần xác nhận kết quả. Không tạo điều chỉnh khác.</p><button data-inventory-recover disabled={busy} onClick={() => void send(context)}>Khôi phục yêu cầu</button></aside>}
     {review && <aside><p>Tải lại tồn kho và kiểm tra trước khi xác nhận thao tác mới. Không tự gửi lại điều chỉnh.</p><button data-inventory-review disabled={busy || !items} onClick={() => { setReview(false); setError(''); }}>Đã kiểm tra, bắt đầu thao tác mới</button></aside>}
-    {selected && !context && !review && <InventoryForm key={`${selected.productId}:${selected.version}`} item={selected} busy={busy} submit={submit} cancel={() => { setSelected(null); heading.current?.focus(); }} />}
+    {selected && selected.inventorySource !== 'INGREDIENTS' && !context && !review && <InventoryForm key={`${selected.productId}:${selected.version}`} item={selected} busy={busy} submit={submit} cancel={() => { setSelected(null); heading.current?.focus(); }} />}
     {items && <InventoryList items={items} statuses={statuses} disabled={busy || !!context || review} select={item => { if (!gate.current) { setSelected(item); setError(''); setSuccess(''); setTimeout(() => document.getElementById('inventory-quantity')?.focus(), 0); } }} />}
   </section>;
 }

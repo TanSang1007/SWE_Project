@@ -1,9 +1,13 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsIn, IsString, IsUUID, Length, Matches, ValidateIf } from 'class-validator';
+import { IsBoolean, IsIn, IsString, IsUUID, Length, Matches, ValidateBy, ValidateIf } from 'class-validator';
+import { isStoredId } from '../common/record-id';
 import { ProductVersionDto } from './admin-product.dto';
 import { ProductParamsDto } from './dto/catalog.dto';
 const money = /^(0|[1-9]\d{0,11})$/;
 const trim = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim() : value;
+export class ToppingParamsDto {
+  @ValidateBy({ name: 'storedToppingId', validator: { validate: isStoredId } }) id!: string;
+}
 export class SizeParamsDto extends ProductParamsDto { @IsIn(['S', 'M', 'L']) size!: string; }
 export class AssociationParamsDto extends ProductParamsDto { @IsUUID() toppingId!: string; }
 export class AdminSizeCreateDto extends ProductVersionDto {

@@ -1,3 +1,5 @@
+import { assertIngredientStock } from '../catalog/product-ingredients';
+import { assertHeldOrderIngredients } from '../ingredients/order-ingredients';
 import { clearPurchasedCart } from './cart-cleanup';
 import { assertPaymentWindow } from './payment-deadline';
 import { ConflictException, HttpException, Injectable, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
@@ -60,7 +62,7 @@ export class ZeroConfirmationService {
         const previous = await tx.idempotencyRequest.findUnique({ where });
         if (previous) return replayResult(previous, hash);
         await lockAttempts(tx, orderId);
-        await tx.$queryRaw`SELECT v.id FROM payment_verifications v JOIN payment_attempts a ON a.id=v.attempt_id WHERE a.order_id=${orderId}::uuid ORDER BY v.id FOR UPDATE OF v`;
+        await tx.$queryRaw`SELECT v.id FROM payment_verifications v JOIN payment_attempts a ON a.id=v.attempt_id WHERE a.order_id::text=${orderId} ORDER BY v.id FOR UPDATE OF v`;
         assertGatewayClear(await gatewayBlocks(tx, orderId));
         // A zero order cannot legitimately have any gateway history: do not bridge
         // historical terminal gateway attempts into an internal confirmation.
@@ -71,6 +73,7 @@ export class ZeroConfirmationService {
         assertPaymentWindow(o);
         validateZeroSnapshot(o);
         if (o.version >= 2147483647) throw unavailable();
+        if (!await assertHeldOrderIngredients(tx, orderId)) await assertIngredientStock(tx, o.items.flatMap(i => i.ingredientKeysSnapshot ?? []));
         const before = await reconcileAccount(tx, userId), account = { ...before };
         reservationGate(account, o.redeemedPoints);
         const claim = await tx.idempotencyRequest.create({ data: { userId, operation: 'PAY_ORDER', idempotencyKey: key, requestHash: hash, state: 'PROCESSING' } });

@@ -1,3 +1,5 @@
+import { productStockDemand } from '../catalog/product-ingredients';
+import { changeOrderIngredients } from '../ingredients/order-ingredients';
 import { clearPurchasedCart } from './cart-cleanup';
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -53,9 +55,9 @@ export class IpnService {
         await lockUser(tx, lookup.order.userId);
         await lockOrder(tx, lookup.order.id);
         await lockAttempts(tx, lookup.order.id);
-        await tx.$queryRaw `SELECT v.id FROM payment_verifications v JOIN payment_attempts a ON a.id=v.attempt_id WHERE a.order_id=${lookup.order.id}::uuid ORDER BY v.id FOR UPDATE OF v`;
+        await tx.$queryRaw `SELECT v.id FROM payment_verifications v JOIN payment_attempts a ON a.id=v.attempt_id WHERE a.order_id::text=${lookup.order.id} ORDER BY v.id FOR UPDATE OF v`;
         const a = await tx.paymentAttempt.findUniqueOrThrow({ where: { id }, include });
-        await tx.$queryRaw `SELECT id FROM idempotency_requests WHERE id=${a.idempotencyRequestId}::uuid FOR UPDATE`;
+        await tx.$queryRaw `SELECT id FROM idempotency_requests WHERE id::text=${a.idempotencyRequestId} FOR UPDATE`;
         return a;
     }
     binding(a: Bound, settings: VnpayConfig) {
@@ -238,10 +240,7 @@ export class IpnService {
                     throw new Review('LOYALTY_DEBT');
                 const now = new Date(), success = result === 'SUCCEEDED';
                 if (!success) {
-                    const demand = new Map<string, number>();
-                    for (const i of o.items)
-                        demand.set(i.productId, (demand.get(i.productId) ?? 0) + i.qty);
-                    for (const [productId, qty] of [...demand].sort(([x], [y]) => x.localeCompare(y))) {
+                    for (const [productId, qty] of productStockDemand(o.items)) {
                         const p = await tx.product.findUnique({ where: { id: productId } });
                         if (!p || p.stock > maxInt - qty || p.version >= maxInt)
                             throw new Review('STOCK_INVARIANT');
@@ -249,6 +248,7 @@ export class IpnService {
                         if (updated.count !== 1)
                             throw Error('Concurrent stock update');
                     }
+                    await changeOrderIngredients(tx, o.id, 'RELEASE', o.userId);
                 }
                 const changed = await tx.order.updateMany({ where: { id: o.id, userId: o.userId, status: 'PENDING', version: o.version }, data: { status: success ? 'PAID' : 'PAYMENT_FAILED',
                         redemptionState: o.redeemedPoints ? success ? 'SETTLED' : 'RELEASED' : 'NONE', ...(success ? { paidAt: now } : {}), version: { increment: 1 }, updatedAt: now } });

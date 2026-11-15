@@ -9,7 +9,15 @@ export function parseInventory(value: unknown): InventoryItem[] {
   const list = value as { items?: InventoryItem[] }; if (!list || !Array.isArray(list.items)) throw fail();
   const rows = list.items.map(p => {
     if (!p || !isProductId(p.productId) || typeof p.productName !== 'string' || !p.productName.trim() || !integer(p.stock) || !integer(p.version)) throw fail();
-    return { productId: p.productId, productName: p.productName, stock: p.stock, version: p.version };
+    if (p.inventorySource !== undefined && (p.inventorySource !== 'INGREDIENTS' || typeof p.available !== 'boolean'
+      || !Array.isArray(p.missingIngredients) || p.missingIngredients.some(name => typeof name !== 'string')
+      || !Array.isArray(p.ingredients) || !p.ingredients.length || p.ingredients.some(i => !i || typeof i.name !== 'string'
+        || !['KG','G','L','ML','PIECE','EGG','BOTTLE','BAG'].includes(i.unit) || typeof i.available !== 'boolean'
+        || (i.quantity !== null && (typeof i.quantity !== 'string' || !/^\d+\.\d{3}$/.test(i.quantity)))))) throw fail();
+    if (p.sizes !== undefined && (!Array.isArray(p.sizes) || p.sizes.some(size => !['S','M','L'].includes(size.size) || !Number.isSafeInteger(size.cups) || size.cups < 0 || typeof size.available !== 'boolean' || !['OUT_OF_STOCK','LOW_STOCK','IN_STOCK'].includes(size.status)))) throw fail();
+    return { productId: p.productId, productName: p.productName, stock: p.stock, version: p.version,
+      ...(p.sizes ? { sizes: p.sizes } : {}),
+      ...(p.inventorySource ? { inventorySource: p.inventorySource, available: p.available, ingredients: p.ingredients, missingIngredients: p.missingIngredients } : {}) };
   });
   if (new Set(rows.map(p => p.productId)).size !== rows.length) throw fail(); return rows;
 }

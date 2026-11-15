@@ -154,7 +154,7 @@ describe('Catalog HTTP with PostgreSQL', () => {
     await request(app.getHttpServer()).get(`/products/${first}`).expect(200);
     expect(await snapshot()).toEqual(before);
   });
-  it('serves B04 seed shape and exact money values without seed changes', async () => {
+  it('serves B04 seed money and options while recipe drinks without ingredients are unavailable', async () => {
     await client.query('DELETE FROM product_toppings; DELETE FROM product_sizes; DELETE FROM products; DELETE FROM toppings');
     const seedUrl = new URL(connectionString);
     seedUrl.searchParams.set('options', `-c search_path=${schema}`);
@@ -162,13 +162,18 @@ describe('Catalog HTTP with PostgreSQL', () => {
       env: { ...process.env, NODE_ENV: 'development', DATABASE_URL: seedUrl.toString() }, stdio: 'pipe',
     });
     await request(app.getHttpServer()).get('/products').expect(200, { items: [
-      { id: first, name: 'Cappuccino', price: '45000', imageUrl: '/images/cappuccino.jpg', available: true },
-      { id: second, name: 'Latte', price: '40000', imageUrl: '/images/latte.jpg', available: true },
-    ], currency: 'VND' });
+      { id: first, name: 'Cappuccino', price: '45000', imageUrl: '/images/cappuccino.jpg', available: false },
+      { id: second, name: 'Latte', price: '40000', imageUrl: '/images/latte.jpg', available: false },
+      { id: '11111111-1111-4111-8111-111111111113', name: 'Cold brew', price: '50000', imageUrl: '/images/cold-brew.jpg', available: false },
+      { id: '11111111-1111-4111-8111-111111111114', name: 'Đen đá', price: '100', imageUrl: '/images/den-da.jpg', available: false },
+      { id: '11111111-1111-4111-8111-111111111115', name: 'Asian Dolce Latte', price: '75000', imageUrl: '/images/asian-dolce-latte.jpg', available: false },
+      { id: '11111111-1111-4111-8111-111111111116', name: 'Matcha Coldwisk', price: '70000', imageUrl: '/images/coldwisk.jpg', available: false },
+      { id: '11111111-1111-4111-8111-111111111117', name: 'Cacao đá', price: '65000', imageUrl: '/images/cacao-da.jpg', available: false },
+    ].map(product => ({ ...product, stockStatus: 'OUT_OF_STOCK', sizeAvailability: ['S','M','L'].map(size=>({size,maxQuantity:0,stockStatus:'OUT_OF_STOCK'})) })), currency: 'VND' });
     await request(app.getHttpServer()).get(`/products/${first}`).expect(200, {
-      id: first, name: 'Cappuccino', price: '45000', imageUrl: '/images/cappuccino.jpg', available: true,
-      sizes: [{ size: 'S', extraPrice: '0' }, { size: 'M', extraPrice: '5000' }, { size: 'L', extraPrice: '10000' }],
-      toppings: [{ id: topping, name: 'Kem', price: '5000' }, { id: '22222222-2222-4222-8222-222222222222', name: 'Caramel', price: '7000' }],
+      id: first, name: 'Cappuccino', price: '45000', imageUrl: '/images/cappuccino.jpg', available: false, stockStatus:'OUT_OF_STOCK',
+      sizes: [{ size: 'S', extraPrice: '0' }, { size: 'M', extraPrice: '5000' }, { size: 'L', extraPrice: '10000' }].map(size=>({...size,available:false,maxQuantity:0,stockStatus:'OUT_OF_STOCK'})),
+      toppings: [{ id: topping, name: 'Kem', price: '5000',availableSizes:[] }, { id: '22222222-2222-4222-8222-222222222222', name: 'Caramel', price: '7000',availableSizes:[] }],
     });
   });
 });
