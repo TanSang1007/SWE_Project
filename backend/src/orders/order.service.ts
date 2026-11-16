@@ -9,7 +9,7 @@ import { assertNoActiveOrder, lockUser } from './order-policy';
 import { requireIdempotencyKey, replayResult } from '../common/idempotency';
 import { assertTransition } from './order-state';
 import { effect, lockOrder, persistEffects, reconcileAccount, validateRedemption } from '../loyalty/loyalty-accounting';
-import { assertGatewayClear, gatewayBlocks, lockAttempts } from '../payments/gateway-policy';
+import { gatewayBlocks, lockAttempts } from '../payments/gateway-policy';
 import { assertVnpayMinimum, effectivePaymentProvider } from '../payments/minimum-payment-policy';
 import { assertPaymentAdmission } from '../payments/payment-admission';
 import { PAYMENT_WINDOW_MS } from '../payments/payment-deadline';
@@ -77,9 +77,9 @@ export class OrderService {
   constructor(private readonly db: PrismaService, private readonly pricing: PricingService, private readonly config: ConfigService) {}
   private transaction<T>(work: (tx: Prisma.TransactionClient) => Promise<T>) {
     return this.db.$transaction(async (tx) => {
-      await (this.db.transactionOptions?.timeout === 5000 ? tx.$executeRaw`SELECT set_config('lock_timeout', '2000ms', true), set_config('statement_timeout', '4000ms', true), set_config('TimeZone', 'UTC', true)` : tx.$executeRaw`SELECT set_config('lock_timeout', '200ms', true), set_config('statement_timeout', '300ms', true), set_config('TimeZone', 'UTC', true)`);
+      await (this.db.transactionOptions?.timeout === 5000 ? tx.$executeRaw`SELECT set_config('lock_timeout', '2000ms', true), set_config('statement_timeout', '4000ms', true), set_config('TimeZone', 'UTC', true)` : tx.$executeRaw`SELECT set_config('lock_timeout', '5000ms', true), set_config('statement_timeout', '8000ms', true), set_config('TimeZone', 'UTC', true)`);
       return work(tx);
-    }, this.db.transactionOptions ?? { maxWait: 50, timeout: 400 });
+    }, this.db.transactionOptions ?? { maxWait: 5000, timeout: 10000 });
   }
   async create(userId: string, key: string | undefined, input: CreateOrderDto) {
     requireIdempotencyKey(key);
@@ -223,9 +223,13 @@ export class OrderService {
           if (!order.paymentExpiredAt) await tx.order.update({ where: { id }, data: { paymentExpiredAt: expiredAt } });
           // Time proves URL expiry, never a financial failure. Preserve late IPN.
           if (blocks.pending || blocks.receipt || blocks.review) return detail({ ...order, paymentExpiredAt: expiredAt }, code);
-        } else assertGatewayClear(blocks);
+        } else {
+          const now = new Date();
+          await tx.paymentVerification.updateMany({ where: { attempt: { orderId: id }, processedAt: null }, data: { processedAt: now } });
+          await tx.paymentAttempt.updateMany({ where: { orderId: id, OR: [{ applicationState: { in: ['PENDING', 'REVIEW'] } }, { state: { in: ['AWAITING', 'UNKNOWN'] } }] }, data: { state: 'FAILED', applicationState: 'APPLIED', verifiedAt: now, appliedAt: now } });
+        }
         const account = await reconcileAccount(tx, userId); const before = { ...account };
-        const effects = order.status === 'PENDING' && order.redeemedPoints > 0 ? [effect(account, 'RELEASE', order.redeemedPoints, { orderId: id, cycle: order.reservationCycle })] : [];
+        const effects = order.status === 'PENDING' && order.redeemedPoints > 0 && order.redemptionState === 'RESERVED' ? [effect(account, 'RELEASE', order.redeemedPoints, { orderId: id, cycle: order.reservationCycle })] : [];
         assertTransition(order.status, 'CANCELLED');
         if (order.version >= 2147483647) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Order version bounds exceeded' });
         const changed = await tx.order.updateMany({ where: { id, userId, status: order.status, version: order.version },

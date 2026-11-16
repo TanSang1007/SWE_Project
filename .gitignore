@@ -17,4 +17,5 @@ backend/src/generated/prisma/
 .DS_Store
 Thumbs.db
 *.tmp
+.tmp/
 .brewlite/

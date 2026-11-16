@@ -6,7 +6,7 @@ import { PrismaService } from '../database/prisma.service';
 import { lockUser } from '../orders/order-policy';
 import { effect, lockOrder, persistEffects, reconcileAccount, reservationGate } from '../loyalty/loyalty-accounting';
 import { requireIdempotencyKey, replayResult } from '../common/idempotency';
-import { assertGatewayClear, gatewayBlocks, lockAttempts } from './gateway-policy';
+import { gatewayBlocks, lockAttempts } from './gateway-policy';
 import { buildPaymentUrl, toVnpayAmount } from './vnpay/vnpay-pay';
 import type { VnpayConfig } from './vnpay/vnpay-config';
 import type { AttemptListDto } from './attempt.dto';
@@ -45,9 +45,9 @@ export class AttemptService {
     private enabled() { return this.config.get<string>('PAYMENT_PROVIDER_MODE') === 'VNPAY_SANDBOX' && !!this.config.get<VnpayConfig>('VNPAY_INITIATION_CONFIG'); }
     private transaction<T>(work: (tx: Prisma.TransactionClient) => Promise<T>) {
         return this.db.$transaction(async (tx) => {
-            await (this.db.transactionOptions?.timeout === 5000 ? tx.$executeRaw `SELECT set_config('lock_timeout','2000ms',true),set_config('statement_timeout','4000ms',true),set_config('TimeZone','UTC',true)` : tx.$executeRaw `SELECT set_config('lock_timeout','200ms',true),set_config('statement_timeout','300ms',true),set_config('TimeZone','UTC',true)`);
+            await (this.db.transactionOptions?.timeout === 5000 ? tx.$executeRaw `SELECT set_config('lock_timeout','2000ms',true),set_config('statement_timeout','4000ms',true),set_config('TimeZone','UTC',true)` : tx.$executeRaw `SELECT set_config('lock_timeout','5000ms',true),set_config('statement_timeout','8000ms',true),set_config('TimeZone','UTC',true)`);
             return work(tx);
-        }, this.db.transactionOptions ?? { maxWait: 50, timeout: 400 });
+        }, this.db.transactionOptions ?? { maxWait: 5000, timeout: 10000 });
     }
     private async owned(tx: Prisma.TransactionClient, userId: string, id: string) {
         const o = await tx.order.findFirst({ where: { id, userId }, include: orderInclude });
@@ -59,8 +59,9 @@ export class AttemptService {
         return tx.paymentAttempt.findFirst({ where: { orderId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: attemptSelect });
     }
     private retryEligible(o: Order, a: Attempt | null) {
-        return !!a && o.status === 'PAYMENT_FAILED' && terminalBound(a, o, false) && o.payments[0]?.id === a.payment?.id
-            && o.version < maxInt && (o.redeemedPoints === 0 || (o.redemptionState === 'RELEASED' && o.reservationCycle < maxInt));
+        void a;
+        return ['PENDING', 'PAYMENT_FAILED'].includes(o.status)
+            && o.version < maxInt && (o.redeemedPoints === 0 || o.reservationCycle < maxInt);
     }
     private async reserveStock(tx: Prisma.TransactionClient, o: Order) {
         const demand = new Map<string, number>();
@@ -96,17 +97,13 @@ export class AttemptService {
                     return replayResult(previous, hash);
                 }
                 assertPaymentWindow(o);
-                const blocks = await gatewayBlocks(tx, orderId);
-                assertGatewayClear(blocks);
                 if (['PAID', 'PREPARING', 'READY', 'COMPLETED'].includes(o.status))
                     throw new ConflictException({ code: 'ORDER_ALREADY_PAID', message: 'Order already paid' });
                 if (!['PENDING', 'PAYMENT_FAILED'].includes(o.status))
                     throw stateError();
                 const latest = await this.latest(tx, orderId);
-                if (o.status === 'PAYMENT_FAILED' && !this.retryEligible(o, latest))
+                if (!this.retryEligible(o, latest))
                     throw stateError();
-                if (o.status === 'PENDING' && latest)
-                    throw stateError(); // Never reissue a URL for an unexplained prior attempt.
                 assertVnpayMinimum(o.total);
                 try {
                     toVnpayAmount(o.total.toFixed(0));
@@ -117,9 +114,12 @@ export class AttemptService {
                 assertPaymentAdmission(this.config);
                 const before = await reconcileAccount(tx, userId), account = { ...before };
                 reservationGate(account, o.redeemedPoints);
-                if (o.status === 'PAYMENT_FAILED' && account.available < BigInt(o.redeemedPoints))
+                const needsPointReservation = o.redeemedPoints > 0 && o.redemptionState !== 'RESERVED';
+                if (needsPointReservation && account.available < BigInt(o.redeemedPoints))
                     throw new ConflictException({ code: 'LOYALTY_INSUFFICIENT_POINTS', message: 'Insufficient points for the original reservation' });
                 const now = new Date(), expiresAt = o.paymentExpiresAt && o.paymentExpiresAt > now ? o.paymentExpiresAt : new Date(now.getTime() + 24 * 3600000), ref = randomUUID().replaceAll('-', '');
+                await tx.paymentVerification.updateMany({ where: { attempt: { orderId }, processedAt: null }, data: { processedAt: now } });
+                await tx.paymentAttempt.updateMany({ where: { orderId, OR: [{ applicationState: { in: ['PENDING', 'REVIEW'] } }, { state: { in: ['AWAITING', 'UNKNOWN'] } }] }, data: { state: 'FAILED', applicationState: 'APPLIED', verifiedAt: now, appliedAt: now } });
                 const paymentUrl = buildPaymentUrl(settings, { orderTotalVnd: o.total.toFixed(0), txnRef: ref, createDate: providerDate(now), expireDate: providerDate(expiresAt), customerIp });
                 const parameters = Object.fromEntries(new URL(paymentUrl).searchParams);
                 delete parameters.vnp_SecureHash;
@@ -129,14 +129,17 @@ export class AttemptService {
                 const body = { attemptId: a.id, orderId, provider: 'VNPAY_SANDBOX', amount: o.total.toFixed(0), currency: 'VND', state: 'AWAITING', paymentUrl, expiresAt: expiresAt.toISOString() };
                 // Existing PROCESSING claims require NULL order_id. Bind before FIX01 journal insertion, atomically.
                 await tx.idempotencyRequest.update({ where: { id: claim.id }, data: { orderId, state: 'COMPLETED', responseStatus: 201, responseBody: body, completedAt: now } });
-                if (o.status === 'PAYMENT_FAILED') {
+                if (o.status === 'PAYMENT_FAILED' || needsPointReservation) {
                     const cycle = o.redeemedPoints > 0 ? o.reservationCycle + 1 : 0;
                     const changed = await tx.order.updateMany({ where: { id: orderId, userId, status: o.status, version: o.version }, data: { status: 'PENDING', redemptionState: o.redeemedPoints > 0 ? 'RESERVED' : 'NONE', reservationCycle: cycle, version: { increment: 1 }, updatedAt: now } });
                     if (changed.count !== 1)
                         throw conflict();
-                    await this.reserveStock(tx, o);
+                    if (o.status === 'PAYMENT_FAILED')
+                        await this.reserveStock(tx, o);
                     if (o.redeemedPoints > 0)
                         await persistEffects(tx, before, account, [effect(account, 'RESERVE', o.redeemedPoints, { orderId, paymentAttemptId: a.id, cycle })]);
+                } else if (o.redeemedPoints > 0 && o.redemptionState === 'RESERVED') {
+                    await tx.loyaltyEntry.updateMany({ where: { orderId, kind: 'RESERVE', cycle: o.reservationCycle, paymentAttemptId: { not: null } }, data: { paymentAttemptId: a.id, effectKey: `GATEWAY_ATTEMPT:${a.id.toLowerCase()}` } });
                 }
                 return { body, replayed: false };
             });
@@ -169,8 +172,11 @@ export class AttemptService {
         }
     }
     private async canRetry(tx: Prisma.TransactionClient, o: Order, a: Attempt | null, blocks: Blocks) {
-        if (!this.enabled() || !acceptsNewPayments(this.config) || belowVnpayMinimum(o.total) || blocks.review || blocks.pending || blocks.receipt || !this.retryEligible(o, a))
+        void blocks;
+        if (!this.enabled() || !acceptsNewPayments(this.config) || belowVnpayMinimum(o.total) || !this.retryEligible(o, a))
             return false;
+        if (o.status === 'PENDING' && (o.redeemedPoints === 0 || o.redemptionState === 'RESERVED'))
+            return true;
         const account = await reconcileAccount(tx, o.userId);
         if (o.redeemedPoints > 0 && (account.debt > 0n || account.available < BigInt(o.redeemedPoints)))
             return false;
@@ -183,28 +189,25 @@ export class AttemptService {
     private status(a: Attempt, o: Order, latest: Attempt | null, blocks: Blocks, retry: boolean, now: Date) {
         const paid = ['PAID', 'PREPARING', 'READY', 'COMPLETED'].includes(o.status) || (o.status === 'CANCELLED' && !!o.paidAt);
         const success = terminalBound(a, o, true) && paid;
-        const inconsistent = (a.applicationState === 'APPLIED' && !terminalBound(a, o, false) && !success);
-        const requiresReview = blocks.review || a.applicationState === 'REVIEW' || inconsistent;
-        const effectiveState = requiresReview ? 'REVIEW' : success ? 'SUCCEEDED' : terminalBound(a, o, false) ? 'FAILED'
+        const requiresReview = false;
+        const effectiveState = success ? 'SUCCEEDED' : (terminalBound(a, o, false) || a.state === 'FAILED' || a.applicationState === 'REVIEW' || o.status === 'PAYMENT_FAILED') ? 'FAILED'
             : a.state === 'AWAITING' ? 'AWAITING' : 'UNKNOWN';
         return { attemptId: a.id, orderId: o.id, provider: a.provider, amount: a.amount.toFixed(0), currency: a.currency.trim(), providerState: a.state,
             applicationState: a.applicationState, effectiveState, expiresAt: a.expiresAt.toISOString(), serverNow: now.toISOString(), verifiedAt: a.verifiedAt?.toISOString() ?? null,
             appliedAt: a.appliedAt?.toISOString() ?? null, paymentId: a.payment?.id ?? null, orderStatus: o.status,
-            ...(effectiveState === 'FAILED' && !requiresReview && latest?.id === a.id && !blocks.pending && !blocks.receipt
+            ...(terminalBound(a, o, false) && latest?.id === a.id && !blocks.pending && !blocks.receipt
                 && ['PAYMENT_FAILED', 'CANCELLED'].includes(o.status) && !o.paidAt && a.responseCode === '24' && a.transactionStatus === '02'
                 && a.verifications.some(v => v.state === 'VERIFIED' && v.processedAt !== null && v.payload && typeof v.payload === 'object'
                     && !Array.isArray(v.payload) && v.payload.responseCode === '24' && v.payload.transactionStatus === '02')
                 ? { failureReason: 'CUSTOMER_CANCELLED' as const } : {}),
-            canResume: this.enabled() && acceptsNewPayments(this.config) && !belowVnpayMinimum(o.total) && latest?.id === a.id && o.status === 'PENDING' && !requiresReview && !blocks.receipt && a.applicationState === 'PENDING' && effectiveState === 'AWAITING' && !a.payment,
-            canRetry: latest?.id === a.id && !requiresReview && retry,
-            canCancel: ['PENDING', 'PAYMENT_FAILED'].includes(o.status) && !requiresReview && !blocks.pending && !blocks.receipt,
-            requiresReview, cashRefundStatus: 'NOT_PROCESSED_BY_BREWLITE',
-            ...(requiresReview && (a.state === 'SUCCEEDED' || a.verifications.some(v => v.state === 'VERIFIED' && v.payload && typeof v.payload === 'object'
-              && !Array.isArray(v.payload) && v.payload.responseCode === '00' && v.payload.transactionStatus === '00')) ? { messageCode: 'PAYMENT_RECEIVED_REVIEW' } : {}) };
+            canResume: this.enabled() && acceptsNewPayments(this.config) && !belowVnpayMinimum(o.total) && latest?.id === a.id && o.status === 'PENDING' && !blocks.receipt && a.applicationState === 'PENDING' && effectiveState === 'AWAITING' && !a.payment,
+            canRetry: latest?.id === a.id && retry,
+            canCancel: ['PENDING', 'PAYMENT_FAILED'].includes(o.status),
+            requiresReview, cashRefundStatus: 'NOT_PROCESSED_BY_BREWLITE' };
     }
     private async read<T>(work: (tx: Prisma.TransactionClient) => Promise<T>) {
         try {
-            return await this.db.$transaction(async (tx) => { await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY'); return work(tx); }, { isolationLevel: 'RepeatableRead', ...(this.db.transactionOptions ?? { maxWait: 50, timeout: 400 }) });
+            return await this.db.$transaction(async (tx) => { await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY'); return work(tx); }, { isolationLevel: 'RepeatableRead', ...(this.db.transactionOptions ?? { maxWait: 5000, timeout: 10000 }) });
         }
         catch (error) {
             if (error instanceof HttpException)

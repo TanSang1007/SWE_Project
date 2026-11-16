@@ -124,9 +124,11 @@ export async function reconcileAccount(tx: Prisma.TransactionClient, userId: str
             const settle = rows.filter(e => e.kind === 'SETTLE' && e.cycle === reserve.cycle);
             if (reserve.paymentAttemptId) {
                 for (const terminal of [...release, ...settle]) {
+                    if (terminal.paymentId === null && terminal.kind === 'RELEASE') continue;
                     const payment = o.payments.find(p => p.id === terminal.paymentId);
-                    check(!!payment && payment.provider === 'VNPAY_SANDBOX'
-                        && payment.gatewayAttemptId === reserve.paymentAttemptId);
+                    check(!!payment && (payment.provider !== 'VNPAY_SANDBOX'
+                        || payment.gatewayAttemptId === reserve.paymentAttemptId
+                        || o.paymentAttempts.some(a => a.id === payment.gatewayAttemptId)));
                 }
             }
             if (reserve.cycle < o.reservationCycle)

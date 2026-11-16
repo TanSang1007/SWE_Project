@@ -6,8 +6,7 @@ export function verifiedCustomerCancellation(a: AttemptStatus) {
 }
 export function paymentMessage(a: AttemptStatus) {
   if (verifiedCustomerCancellation(a)) return 'Thanh toán không thành công.';
-  if (a.requiresReview || a.effectiveState === 'REVIEW') return a.messageCode === 'PAYMENT_RECEIVED_REVIEW'
-    ? 'Đã nhận kết quả thanh toán, giao dịch đang được kiểm tra.' : 'Giao dịch đang được kiểm tra.';
+  if (a.requiresReview || a.effectiveState === 'REVIEW') return 'Thanh toán không thành công.';
   return { AWAITING: 'Đang xác minh kết quả thanh toán.', SUCCEEDED: 'Thanh toán thành công.',
     FAILED: 'Thanh toán không thành công.', UNKNOWN: 'Chưa xác định được kết quả thanh toán.' }[a.effectiveState];
 }
