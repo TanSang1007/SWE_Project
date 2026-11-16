@@ -52,8 +52,8 @@ test('deleted identity401', async () => { lookup.mockResolvedValue(null); await 
 test('strict query/body; no provider override', async () => {
   await get().query({ providerMode: 'MOCK' }).expect(400); await get().send({ providerMode: 'MOCK' }).expect(400);
 });
-test('route does not capture existing paths and legacy /payments route is removed', async () => {
-  await request(app.getHttpServer()).post('/payments').expect(404);
+test('payment routes require authentication', async () => {
+  await request(app.getHttpServer()).post('/payments').expect(401);
   await request(app.getHttpServer()).get('/payments/attempts/' + randomUUID()).expect(401);
   await request(app.getHttpServer()).post('/payments/vnpay/attempts').expect(401);
 });

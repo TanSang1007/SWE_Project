@@ -52,7 +52,7 @@ test('API client uses configured base URL and only GET catalog paths', async () 
 });
 test('invalid identifier never calls fetch', async () => {
   globalThis.fetch = () => { throw new Error('must not fetch'); };
-  await assert.rejects(api.getProductById('invalid'), { kind: 'invalid-id' });
+  await assert.rejects(api.getProductById('invalid!'), { kind: 'invalid-id' });
 });
 for (const [status, kind] of [[400, 'invalid-id'], [404, 'not-found'], [503, 'unavailable']]) {
   test(`HTTP ${status} is normalized without exposing server internals`, async () => {

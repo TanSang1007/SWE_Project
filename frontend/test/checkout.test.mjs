@@ -45,7 +45,9 @@ test('zero discount/final amount and maximum VND snapshot remain exact', () => {
 });
 test('initial recovery/empty Cart announces loading and prevents creation before cache is read', () => {
   const html = renderToStaticMarkup(React.createElement(OrderCheckout, { cart: { items: [], subtotal: '0', totalQuantity: 0, currency: 'VND' }, disabled: false, onLock() {} }));
-  assert(html.includes('aria-busy="true"')); assert(html.includes('role="status"')); assert(html.includes('Thêm ít nhất một món')); assert.match(html, /disabled="">Đặt hàng/);
+  assert(html.includes('aria-busy="true"')); assert(html.includes('role="status"')); 
+  assert(html.includes('Giỏ hàng đang trống'));
+  assert.match(html, /disabled="">Thanh toán/);
   assert(html.includes('for="checkout-promotion"')); assert(!html.includes('Thanh toán thành công'));
 });
 test('only PENDING and PAYMENT_FAILED lock the unpaid flow; terminal/current server statuses have correct messages', () => {

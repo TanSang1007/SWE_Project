@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { AuthNav } from './auth-nav';
 import { NotificationHost } from './notification-host';
+import Image from 'next/image';
 
 export function SiteFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -12,10 +13,15 @@ export function SiteFrame({ children }: { children: ReactNode }) {
 export function SiteFrameContent({ children, pathname }: { children: ReactNode; pathname: string }) {
   const operations = /^\/(operator|admin)(?:\/|$)/.test(pathname);
   if (operations) return <main id="main-content" className="operations-root">{children}<NotificationHost /></main>;
-  return <><header className="site-header"><div className="header-inner"><Link href="/" className="brand" aria-label="BrewLite — về thực đơn"><img
-  src="/images/logo.png"
-  alt="BrewLite"
-  className="brand-logo"
-/></Link><AuthNav /></div></header>
+  return <><header className="site-header"><div className="header-inner"><Link href="/" className="brand" aria-label="BrewLite — về thực đơn">
+   <Image
+    src="/images/logo.png"
+    alt="BrewLite"
+    width={120}
+    height={120}
+    unoptimized
+    className="brand-logo"
+  />
+   </Link><AuthNav /></div></header>
     <main id="main-content" className="page-shell">{children}</main><footer className="site-footer"><span>BrewLite</span><p>Một ly ngon. Một khoảng nghỉ nhẹ nhàng.</p></footer><NotificationHost /></>;
 }

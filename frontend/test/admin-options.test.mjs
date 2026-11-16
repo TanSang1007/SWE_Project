@@ -32,13 +32,17 @@ test('A05 rejects malformed lifecycle/version/money/duplicates/mismatched produc
 });
 test('A05 create/edit forms label price/lifecycle, preserve original revision and pending gates',()=>{
   const create=html(ToppingForm,{busy:false,save:()=>{},cancel:()=>{}});assert(create.includes('topping-name'));assert(create.includes('topping-price'));assert(!create.includes('name="isActive"'));assert(!create.includes('name="version"'));
-  const edit=html(ToppingForm,{topping:top,busy:true,save:()=>{},cancel:()=>{}});assert(edit.includes('Phiên bản đã đọc: 7'));assert(edit.includes('name="isActive"'));assert(edit.includes('disabled'));
+  const edit=html(ToppingForm,{topping:top,busy:true,save:()=>{},cancel:()=>{}});
+  assert(edit.includes('aria-label="Chỉnh sửa topping"'));
+  assert(edit.includes('value="Cream"'));
+  assert(edit.includes('value="5000"'));
+  assert(edit.includes('name="isActive"'));assert(edit.includes('disabled'));
   const addSize=html(SizeForm,{available:['S','L'],busy:false,save:()=>{},cancel:()=>{}});assert(addSize.includes('<option>S</option>'));assert(!addSize.includes('<option>M</option>'));
   const editSize=html(SizeForm,{size,busy:true,available:[],save:()=>{},cancel:()=>{}});assert(editSize.includes('7000'));assert(editSize.includes('name="isActive"'));assert(editSize.includes('disabled'));
 });
 test('A05 loading/error/review/confirmed states announce errors and require explicit review',()=>{
   const props={busy:false,error:optionMessage('CONCURRENT_UPDATE'),success:'',review:true,canReview:false,refresh:()=>{},acknowledge:()=>{}};
-  const value=html(Feedback,props);assert(value.includes('role="alert"'));assert(value.includes('Dữ liệu đã thay đổi'));assert(value.includes('Không tự gửi lại'));assert(value.includes('data-options-review'));assert(value.includes('disabled'));
+  const value=html(Feedback,props);assert(value.includes('role="alert"'));assert(value.includes('Dữ liệu đã thay đổi'));assert(value.includes('vui lòng kiểm tra lại'));assert(value.includes('data-options-review'));assert(value.includes('disabled'));
   assert(html(Feedback,{...props,busy:true,review:false,error:''}).includes('role="status"'));
 });
 test('retired selected size/topping remain explicit, not replaced and cannot submit until corrected',()=>{

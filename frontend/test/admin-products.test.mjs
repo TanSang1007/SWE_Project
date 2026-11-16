@@ -26,10 +26,10 @@ test('A04 parser returns exact phased DTO without option flags/version/internal 
   assert.deepEqual(parseAdminProducts({ items: [p] }), [p]); assert.deepEqual(parseAdminProducts({ items: [] }), []);
 });
 test('parser rejects malformed flags/versions/stock/money/IDs/options/duplicate rows', () => {
-  for (const [field, values] of [['price', [45000, '1.5', '-1', '1000000000000']], ['isActive', [null, 'true', 1]], ['stock', [-1, 1.5]], ['version', ['7', 2147483648]], ['createdAt', ['bad']], ['id', ['bad']]]) for (const value of values) assert.throws(() => parseAdminProduct({ ...p, [field]: value }));
+  for (const [field, values] of [['price', [45000, '1.5', '-1', '1000000000000']], ['isActive', [null, 'true', 1]], ['stock', [-1, 1.5]], ['version', ['7', 2147483648]], ['createdAt', ['bad']], ['id', ['bad!']]]) for (const value of values) assert.throws(() => parseAdminProduct({ ...p, [field]: value }));
   assert.throws(() => parseAdminProducts({ items: [p, p] })); assert.throws(() => parseAdminProduct({ ...p, sizes: [{ size: 'XL', extraPrice: '0' }] }));
 });
-test('Cold brew empty sizes remains a valid Admin response with stock visible', () => { assert.deepEqual(parseAdminProduct({ ...p, sizes: [] }).sizes, []); assert.match(html(ProductList, { items: [{ ...p, sizes: [] }], busy: false }), /hiện chưa thể đặt hàng/); });
+test('Cold brew empty sizes remains a valid Admin response with stock visible', () => { assert.deepEqual(parseAdminProduct({ ...p, sizes: [] }).sizes, []); assert.match(html(ProductList, { items: [{ ...p, sizes: [] }], busy: false }), /Chưa có kích cỡ mở bán/); });
 test('create form requires explicit sizes, no isActive/stock inputs, label/fieldset/pending accessibility', () => {
   const value = html(ProductForm, { toppings: p.toppings, busy: false });
   for (const text of ['Tên sản phẩm', 'Giá cơ bản (VND)', 'Kích cỡ bắt buộc', 'Cream', 'Lưu sản phẩm', 'name="sizes"', 'name="extra-M"']) assert(value.includes(text));
@@ -40,7 +40,7 @@ test('edit form shows flag/current metadata, no mutable inline sizes/stock', () 
 test('Product list/empty/status/delete actions format exact VND, stock read-only', () => {
   assert.match(html(ProductList, { items: [], busy: false }), /Chưa có sản phẩm/);
   const value = html(ProductList, { items: [p, { ...p, id: randomUUID(), isActive: false, stock: 0 }], busy: true });
-  for (const text of ['999.999.999.999', 'Đang kinh doanh', 'Ngừng kinh doanh', 'Hết tồn', 'Xóa sản phẩm', 'Bật bán lại', 'disabled']) assert(value.includes(text)); assert(!value.includes('<input'));
+  for (const text of ['999.999.999.999', 'Đang kinh doanh', 'Ngừng kinh doanh', 'Hết hàng', 'Xóa', 'Bật bán lại', 'disabled']) assert(value.includes(text)); assert(!value.includes('<input'));
 });
 test('form validation rejects invalid name/money/path/missing-size and allows Decimal VND boundaries', () => {
   assert.equal(validateProductForm(' Drink ', '0', '/images/drink.svg', p.sizes), '');

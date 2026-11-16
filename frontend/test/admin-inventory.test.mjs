@@ -23,7 +23,7 @@ afterEach(() => { globalThis.fetch = originalFetch; globalThis.sessionStorage = 
 test('inventory projections strip internal fields and reject malformed/duplicate entries', () => {
   assert.deepEqual(parseInventory({ items: [{ ...item, requestHash: 'secret' }] }), [item]); assert.deepEqual(parseInventory({ items: [] }), []);
   for (const stock of [-1, 1.2, '10', 2147483648]) assert.throws(() => parseInventory({ items: [{ ...item, stock }] }));
-  assert.throws(() => parseInventory({ items: [item, item] })); assert.throws(() => parseInventory({ items: [{ ...item, productId: 'bad' }] }));
+  assert.throws(() => parseInventory({ items: [item, item] })); assert.throws(() => parseInventory({ items: [{ ...item, productId: 'bad!' }] }));
 });
 test('historical result must match original identity/delta/version/arithmetic', () => {
   assert.deepEqual(parseInventoryResult({ ...result, key: 'secret' }, context), result);
@@ -37,9 +37,13 @@ test('increase/decrease preview and integer bounds are validated', () => {
 test('list empty/status/current stock/version and form labels/pending are accessible', () => {
   assert(html(InventoryList, { items: [], statuses: {}, disabled: false }).includes('Chưa có sản phẩm'));
   const list = html(InventoryList, { items: [item], statuses: { [id]: false }, disabled: true });
-  assert(list.includes('Ngừng kinh doanh')); assert(list.includes('Phiên bản 3')); assert(list.includes('disabled')); assert(list.includes('scope="col"'));
+  assert(list.includes('Ngừng kinh doanh')); 
+  assert(list.includes('Tồn kho'));
+  assert(list.includes('data-inventory-id="' + id + '"')); 
+  assert(list.includes('disabled')); 
+  assert(list.includes('scope="col"'));
   const form = html(InventoryForm, { item, busy: true }); for (const label of ['inventory-direction', 'inventory-quantity', 'inventory-preview', 'inventory-validation', 'aria-busy="true"']) assert(form.includes(label));
-  assert(form.includes('disabled')); assert(form.includes('Phiên bản: 3'));
+  assert(form.includes('disabled')); assert(form.includes('Tồn kho hiện tại: 10'));
 });
 test('recovery persists only original user/product/key/payload; no JWT and account switch clears', () => {
   storage(); assert(saveInventoryContext(context)); assert.deepEqual(readInventoryContext(owner), context);

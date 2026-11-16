@@ -27,7 +27,8 @@ export class SandboxProfileService implements OnApplicationBootstrap {
         }
       }, { isolationLevel: 'RepeatableRead', maxWait: 2000, timeout: 5000 });
     } catch (error) {
-      this.logger.warn(`Sandbox verification profile check skipped: ${(error as Error)?.message || error}`);
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Sandbox verification profile check skipped: ${message}`);
       // Comment lại dòng throw Error để vượt qua bước kiểm tra bootstrap khi test giao diện / phát triển:
       // throw Error('Sandbox verification profile unavailable or incompatible with outstanding attempts');
     }

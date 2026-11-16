@@ -66,7 +66,7 @@ describe('A03 authorized workflow wrappers', () => {
   });
   it('empty query/UUID validation/cancel target rejection are enforced', async () => {
     role = 'ADMIN'; await post().query({ expectedVersion: 3 }).send(body).expect(400); await post(paths[1]).query({ userId: actor }).send({ expectedVersion: 3 }).expect(400);
-    await post('/operator/orders/invalid/transitions').send(body).expect(400); await post(paths[1]).send(body).expect(400); expect(transitionOrder).not.toHaveBeenCalled();
+    await post('/operator/orders/invalid!/transitions').send(body).expect(400); await post(paths[1]).send(body).expect(400); expect(transitionOrder).not.toHaveBeenCalled();
   });
   it.each(['INVALID_ORDER_STATE', 'CONCURRENT_UPDATE'])('preserves B16 %s409 and does not retry', async (code) => {
     transitionOrder.mockRejectedValue(new ConflictException({ code, message: 'Reload and confirm' })); const r = await post().send(body).expect(409);

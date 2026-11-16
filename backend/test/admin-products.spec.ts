@@ -35,7 +35,7 @@ describe('A04 Product HTTP contract and authorization', () => {
   });
   test.each(['STAFF', 'CUSTOMER'])('%s forbidden on every method, including invalid resources and forged claims', async value => {
     role = value; const token = jwt.sign({ sub: actor, role: 'ADMIN' });
-    for (const method of ['get', 'post', 'patch', 'delete'] as const) await call(method, token, method === 'get' || method === 'post' ? '/admin/products' : '/admin/products/invalid').set('X-Role', 'ADMIN').send(input).expect(403);
+    for (const method of ['get', 'post', 'patch', 'delete'] as const) await call(method, token, method === 'get' || method === 'post' ? '/admin/products' : '/admin/products/invalid!').set('X-Role', 'ADMIN').send(input).expect(403);
     for (const mock of Object.values(service)) expect(mock).not.toHaveBeenCalled();
   });
   test.each(['get', 'post', 'patch', 'delete'] as const)('%s requires valid JWT', async method => {
@@ -60,7 +60,7 @@ describe('A04 Product HTTP contract and authorization', () => {
   });
   test('strict query/body/UUID and null/boolean enforcement', async () => {
     await call('get').query({ active: true }).expect(400); await call('get').send({ role: 'ADMIN' }).expect(400);
-    await call('post').query({ stock: 7 }).send(input).expect(400); await call('get', undefined, '/admin/products/invalid').expect(400);
+    await call('post').query({ stock: 7 }).send(input).expect(400); await call('get', undefined, '/admin/products/invalid!').expect(400);
     for (const isActive of [null, 'false', 0]) await call('patch', undefined, `/admin/products/${id}`).send({ expectedVersion: 0, isActive }).expect(400);
   });
 });

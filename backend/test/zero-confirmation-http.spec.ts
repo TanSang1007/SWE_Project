@@ -36,4 +36,4 @@ test.each([{ amount: '0' }, { status: 'PAID' }, { provider: 'INTERNAL_ZERO' }, {
 test('unknown query rejects', async () => { await call().query({ amount: '0' }).send({}).expect(400); expect(confirm).not.toHaveBeenCalled(); });
 test('non-JSON framed body rejects', async () => { await call().set('Content-Type', 'text/plain').send('ignored').expect(400); expect(confirm).not.toHaveBeenCalled(); });
 test('malformed JSON rejects', async () => { await call().set('Content-Type', 'application/json').send('{').expect(400); expect(confirm).not.toHaveBeenCalled(); });
-test('invalid UUID rejects', async () => { await request(app.getHttpServer()).post('/orders/not-uuid/confirm-zero').set('Authorization', 'Bearer ' + jwt.sign({ sub: customer })).send({}).expect(400); expect(confirm).not.toHaveBeenCalled(); });
+test('invalid UUID rejects', async () => { await request(app.getHttpServer()).post('/orders/invalid!/confirm-zero').set('Authorization', 'Bearer ' + jwt.sign({ sub: customer })).send({}).expect(400); expect(confirm).not.toHaveBeenCalled(); });

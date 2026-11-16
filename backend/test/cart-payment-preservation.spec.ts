@@ -21,7 +21,26 @@ function fixture() {
     reservationCycle: 0, version: 0, payments: [], loyaltyAward: null, createdAt: new Date(), paidAt: null };
   let created = false, stock = 10;
   const tx = {
-    $executeRaw: jest.fn().mockResolvedValue(0), $queryRaw: jest.fn().mockResolvedValue([]),
+    $executeRaw: jest.fn().mockResolvedValue(0), 
+    $queryRaw: jest.fn().mockImplementation(
+      (query: TemplateStringsArray, ...values: unknown[]) => {
+        const sql = query.join('');
+
+        if (sql.includes("nextval('orders_id_seq')")) {
+          return Promise.resolve([{ id: '1' }]);
+        }
+
+        if (sql.includes("nextval('order_items_id_seq')")) {
+          return Promise.resolve(
+            Array.from({ length: Number(values[0]) }, (_, i) => ({
+              id: String(i + 1),
+            })),
+          );
+        }
+
+        return Promise.resolve([]);
+      },
+    ),
     cart: { findUnique: jest.fn(() => Promise.resolve({ id: cartId, userId, items: cartItems })), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
     cartItem: {
       findMany: jest.fn(() => Promise.resolve(cartItems)),

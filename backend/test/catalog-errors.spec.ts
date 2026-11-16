@@ -28,7 +28,7 @@ describe('Catalog error boundary', () => {
     expect(result.text).not.toMatch(/Prisma|SELECT|postgresql|stack/);
   });
   it('rejects invalid UUID before querying the database', async () => {
-    await request(app.getHttpServer()).get('/products/not-a-uuid').expect(400);
+    await request(app.getHttpServer()).get('/products/invalid!').expect(400);
     expect(product.findUnique).not.toHaveBeenCalled();
   });
 });

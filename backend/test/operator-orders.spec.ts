@@ -23,10 +23,16 @@ describe('A02 operator read contract and authorization', () => {
     payments: [{ status: 'SUCCEEDED', idempotencyKey: 'private', userId: owner }],
     items: [{ productId: id, productNameSnapshot: 'Historical drink', size: 'M', qty: 1, unitPrice: new Prisma.Decimal('105000'),
       lineTotal: new Prisma.Decimal('105000'), toppings: [{ toppingNameSnapshot: 'Cream', priceSnapshot: new Prisma.Decimal('5000') }] }] });
-  const summaryKeys = ['redeemedPoints','loyaltyDiscountAmount','redemptionState','estimatedEarnedPoints','id', 'orderCode', 'status', 'total', 'currency', 'createdAt', 'earnedPoints', 'version', 'updatedAt'].sort();
+  const summaryKeys = ['customerOrderCode','redeemedPoints','loyaltyDiscountAmount','redemptionState','estimatedEarnedPoints','id', 'orderCode', 'status', 'total', 'currency', 'createdAt', 'earnedPoints', 'version', 'updatedAt'].sort();
   beforeAll(async () => {
     process.env.DATABASE_URL = 'postgresql://demo:example@localhost:5432/brewlite';
-    const module = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(PrismaService).useValue({ user, order }).compile();
+    const module = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(PrismaService)
+    .useValue({
+      user,
+      order,
+      $queryRaw: jest.fn().mockResolvedValue([{ id, seq: 1 }]),
+    })    
+    .compile();
     app = module.createNestApplication<NestExpressApplication>({ bodyParser: false }); configureApp(app); await app.init(); jwt = app.get(JwtService);
   });
   beforeEach(() => {
@@ -78,12 +84,12 @@ describe('A02 operator read contract and authorization', () => {
     await get().query({ [field]: '1' }).expect(400); expect(order.findMany).not.toHaveBeenCalled();
   });
   it('rejects body, invalid UUID and detail query input', async () => {
-    await get().send({ status: 'PAID' }).expect(400); await get('/operator/orders/invalid').expect(400);
+    await get().send({ status: 'PAID' }).expect(400); await get('/operator/orders/invalid!').expect(400);
     await get(`/operator/orders/${id}`).send({ version: 1 }).expect(400); await get(`/operator/orders/${id}`).query({ status: 'PAID' }).expect(400);
   });
   it.each(['STAFF', 'ADMIN'])('%s detail reuses exact immutable snapshot and payment/promotion projection', async (value) => {
     role = value; order.findFirst.mockResolvedValue(row()); const r = await get(`/operator/orders/${id.toUpperCase()}`).expect(200);
-    expect(r.body).toEqual({ id, orderCode: 'BL-fixture', status: 'PAID', currency: 'VND', items: [{ productId: id, productName: 'Historical drink', size: 'M', qty: 1,
+    expect(r.body).toEqual({ id, orderCode: 'BL-fixture', customerOrderCode: 'BL001', status: 'PAID', currency: 'VND', items: [{ productId: id, productName: 'Historical drink', size: 'M', qty: 1,
       unitPrice: '105000', lineTotal: '105000', toppings: [{ name: 'Cream', price: '5000' }] }], subtotal: '105000', discountAmount: '10000', total: '95000',
       redeemedPoints: 0, loyaltyDiscountAmount: '0', redemptionState: 'NONE', estimatedEarnedPoints: 9, promotionCode: 'SNAPSHOT', createdAt: '2026-10-07T00:00:00.000Z', paymentStartedAt: null, expiresAt: null, paymentExpiredAt: null, cancellationReason: null, serverNow: (r.body as { serverNow: string }).serverNow, paidAt: '2026-10-07T00:01:00.000Z', earnedPoints: 9, paymentStatus: 'SUCCEEDED',
       version: 7, updatedAt: '2026-10-09T00:01:00.000Z' });

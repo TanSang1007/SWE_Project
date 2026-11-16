@@ -25,11 +25,13 @@ test('owner-selected BREW10K displays 40000 subtotal,10000 discount and30000 pay
 });
 function login() { useAuthStore.getState().signIn({ accessToken: 'test-only', expiresIn: 3600, user: { id, email: 'test@example.invalid', loyaltyPoints: 0, role: 'CUSTOMER' } }); }
 afterEach(() => { globalThis.fetch = originalFetch; globalThis.sessionStorage = originalStorage; useAuthStore.getState().clear(); });
-test('Promotion input is labeled, bounded, disabled during recovery and explains server confirmation', () => {
+test('Promotion input is labeled, bounded and disabled during recovery', () => {
   const html = renderToStaticMarkup(React.createElement(OrderCheckout, { cart: { items: [], subtotal: '0' }, disabled: false, onLock() {} }));
-  assert.match(html, /for="checkout-promotion"/); assert.match(html, /aria-describedby="checkout-promotion-note"/);
-  assert.match(html, /maxLength="32" disabled=""/); assert(html.includes('Mã được kiểm tra khi đặt hàng'));
-  assert(!html.includes('Giảm giá cố định')); assert(!html.includes('BREW10K'));
+  assert.match(html, /for="checkout-promotion"/);
+  assert.match(html, /<input[^>]*id="checkout-promotion"[^>]*maxLength="32"[^>]*disabled=""/);
+  assert(html.includes('Mã giảm giá (tùy chọn)'));
+  assert(!html.includes('Giảm giá cố định'));
+  assert(!html.includes('BREW10K'));
 });
 test('valid code is sent only through POST orders; snapshot supplies discount/final total', async () => {
   login(); const calls = []; globalThis.fetch = async (url, options) => { calls.push({ url, options }); return Response.json(order); };

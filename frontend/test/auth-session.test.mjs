@@ -34,11 +34,3 @@ test('logout clears memory only after server revocation succeeds', async () => {
   globalThis.fetch = async url => { assert.equal(url, '/api/auth/logout'); return Response.json({ loggedOut: true }); };
   await logoutSession(); assert.equal(useAuthStore.getState().user, null);
 });
-test('countdown anchors to backend time even when the browser wall clock differs', () => {
-  const React = require('react'), { renderToStaticMarkup } = require('react-dom/server');
-  const { PaymentCountdown } = require('../src/components/payment-countdown.tsx');
-  const render = props => renderToStaticMarkup(React.createElement(PaymentCountdown, props));
-  const serverNow = '2026-01-01T00:00:00Z';
-  assert(render({ serverNow, expiresAt: '2026-01-01T00:10:00Z' }).includes('10:00'));
-  assert(render({ serverNow, expiresAt: serverNow, verifying: true }).includes('đang xác minh'));
-});

@@ -17,7 +17,7 @@ const originalFetch = globalThis.fetch;
 process.env.NEXT_PUBLIC_API_BASE_URL = 'http://localhost:3001';
 const id = randomUUID(); const actor = randomUUID();
 const session = (role = 'STAFF', owner = actor) => ({ accessToken: `fixture-${owner}-${role}`, tokenType: 'Bearer', expiresIn: 3600, user: { id: owner, email: 'fixture@example.invalid', loyaltyPoints: 0, role } });
-const summary = { id, orderCode: 'BL-fixture', status: 'PAID', total: '95000', currency: 'VND', createdAt: '2026-10-07T00:00:00Z', earnedPoints: 9, version: 7, updatedAt: '2026-10-08T00:00:00Z' };
+const summary = { id, orderCode: 'BL-fixture', customerOrderCode: 'BL-fixture', status: 'PAID', total: '95000', currency: 'VND', createdAt: '2026-10-07T00:00:00Z', earnedPoints: 9, version: 7, updatedAt: '2026-10-08T00:00:00Z' };
 const detail = { ...summary, subtotal: '105000', discountAmount: '10000', promotionCode: 'SNAPSHOT', paidAt: '2026-10-07T00:01:00Z', paymentStatus: 'SUCCEEDED',
   items: [{ productId: id, productName: 'Historical drink', size: 'M', qty: 1, unitPrice: '105000', lineTotal: '105000', toppings: [{ name: 'Cream', price: '5000' }] }] };
 const html = (state) => renderToStaticMarkup(React.createElement(OperatorReadContent, { state, retry: () => {} }));
@@ -49,13 +49,13 @@ test('all seven real statuses use Vietnamese labels and operator detail links', 
 });
 test('snapshot renders options/qty/unit/line/discount/payment/revision; only read controls', () => {
   const value = html({ status: 'detail', order: detail });
-  for (const text of ['Historical drink', 'Cream', 'Size M', '105.000', '10.000', '95.000', 'SNAPSHOT', 'Thành công', 'Phiên bản hiện tại']) assert(value.includes(text));
+  for (const text of ['Historical drink', 'Cream', 'Size M', '105.000', '10.000', '95.000', 'SNAPSHOT', 'Thành công', 'Cập nhật gần nhất']) assert(value.includes(text));
   assert(!value.includes('/cart')); assert(!value.includes('Hủy đơn')); assert(!value.includes('/payments'));
   assert.equal((value.match(/<button/g) ?? []).length, 1);
 });
 test('VND upper boundary and zero values remain exact, paid cancellation has no refund claim', () => {
   assert(html({ status: 'list', items: [{ ...summary, total: '999999999999' }] }).includes('999.999.999.999'));
-  assert(html({ status: 'detail', order: { ...detail, total: '0', status: 'CANCELLED', earnedPoints: 0 } }).includes('không xác nhận việc hoàn tiền'));
+  assert(html({ status: 'detail', order: { ...detail, total: '0', status: 'CANCELLED', earnedPoints: 0 } }).includes('Đơn hàng đã hủy.'));
 });
 test('STAFF/ADMIN shell access, CUSTOMER/guest/loading suppress operator data', () => {
   for (const role of ['STAFF', 'ADMIN', 'CUSTOMER', undefined]) {
@@ -75,7 +75,7 @@ test('list and detail GET use approved namespace/status/no-store; no mutation or
 test('invalid detail/filter do not perform fetch; mismatched response ID rejected', async () => {
   useAuthStore.getState().signIn(session()); let calls = 0;
   globalThis.fetch = async () => { calls++; return Response.json({ ...detail, id: randomUUID() }); };
-  await assert.rejects(getOperatorOrder('invalid'), { code: 'ORDER_NOT_FOUND' }); await assert.rejects(getOperatorOrders('UNKNOWN'), { code: 'VALIDATION_ERROR' }); assert.equal(calls, 0);
+  await assert.rejects(getOperatorOrder('invalid!'), { code: 'ORDER_NOT_FOUND' }); await assert.rejects(getOperatorOrders('UNKNOWN'), { code: 'VALIDATION_ERROR' }); assert.equal(calls, 0);
   await assert.rejects(getOperatorOrder(id), { code: 'UNAVAILABLE' });
 });
 test('403 rejects protected data; 401 clears session; network/503 offer retry errors', async () => {

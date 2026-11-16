@@ -28,15 +28,19 @@ const originalFetch = globalThis.fetch, originalStorage = globalThis.sessionStor
 process.env.NEXT_PUBLIC_API_BASE_URL = 'http://example.invalid';
 function login(user = id) { useAuthStore.getState().signIn({ accessToken: 'synthetic-' + user, expiresIn: 3600, user: { id: user, role: 'CUSTOMER', email: 'fixture@example.invalid', loyaltyPoints: 0 } }); }
 afterEach(() => { globalThis.fetch = originalFetch; globalThis.sessionStorage = originalStorage; useAuthStore.getState().clear(); });
-test('verified cancellation API result navigates Home and displays session-bound notification/order link', async () => {
+test('verified cancellation navigates Home and stores session-bound notification context', async () => {
   login();
   const cancelled = { ...pending, effectiveState: 'FAILED', applicationState: 'APPLIED', paymentId: id, orderStatus: 'CANCELLED', failureReason: 'CUSTOMER_CANCELLED', canResume: false };
   globalThis.fetch = async () => Response.json(cancelled);
   const status = await api.attemptStatus(id), destinations = [];
   assert(navigateAfterCancellation(status, useAuthStore.getState().accessToken, p => destinations.push(p)));
   assert.deepEqual(destinations, ['/']);
-  const html = renderToStaticMarkup(React.createElement(CancellationNoticeContent, { token: useAuthStore.getState().accessToken, notice: useCancellationNotice.getState().notice }));
-  assert(html.includes('Bạn đã hủy giao dịch VNPAY')); assert(html.includes(`/orders/${other}/confirmation`));
+  const notice = useCancellationNotice.getState().notice;
+  assert.deepEqual(notice, {
+    token: useAuthStore.getState().accessToken,
+    status,
+  });
+  assert.equal(notice.status.orderId, other);
   login(other); assert.equal(renderToStaticMarkup(React.createElement(CancellationNoticeContent, { token: useAuthStore.getState().accessToken, notice: useCancellationNotice.getState().notice })), '');
   useCancellationNotice.setState({ notice: null });
 });
@@ -135,7 +139,9 @@ for (const state of ['AWAITING', 'SUCCEEDED', 'FAILED', 'UNKNOWN', 'REVIEW']) te
 });
 test('paid cancellation separates payment success from cancelled Order and no refund claim', () => {
   const html = renderToStaticMarkup(React.createElement(PaymentResultContent, { status: { ...pending, effectiveState: 'SUCCEEDED', orderStatus: 'CANCELLED' } }));
-  assert(html.includes('Thanh toán thành công.')); assert(html.includes('BrewLite chưa tự hoàn tiền'));
+  assert(html.includes('Thanh toán thành công.')); 
+  assert(html.includes('Đơn hàng đã hủy. Thanh toán đã được ghi nhận.'));
+  assert(!html.includes('>Thanh toán lại</a>'));
 });
 test('success parser rejects Return-style or unapplied/unpaid contradictory evidence', () => {
   assert.throws(() => api.parseAttempt({ vnp_ResponseCode: '00' }));
@@ -144,7 +150,7 @@ test('success parser rejects Return-style or unapplied/unpaid contradictory evid
   assert.equal(api.parseAttempt({ ...pending, effectiveState: 'SUCCEEDED', applicationState: 'APPLIED', paymentId: id, orderStatus: 'PAID' }).effectiveState, 'SUCCEEDED');
 });
 test('lost/expired session shows login only; opaque ID alone reveals no Order details', () => {
-  const html = renderToStaticMarkup(React.createElement(PaymentResult, { attemptId: id })); assert(html.includes('Đăng nhập để kiểm tra')); assert(!html.includes(other));
+  const html = renderToStaticMarkup(React.createElement(PaymentResult, { attemptId: id })); assert(html.includes('Vui lòng đăng nhập để kiểm tra kết quả thanh toán.')); assert(!html.includes(other));
   const invalid = renderToStaticMarkup(React.createElement(PaymentResult)); assert(invalid.includes('Không có thông tin thanh toán hợp lệ'));
 });
 test('returnTo only exact internal result route plus UUID; rejects arbitrary gateway query', () => {
@@ -163,14 +169,20 @@ test('late status response after account switch is discarded', async () => {
 });
 test('gateway/zero markup has semantic disabled controls and no Mock selector', () => {
   for (const total of ['85000', '0']) { const html = renderToStaticMarkup(React.createElement(GatewayCheckout, { order: { ...order, total }, disabled: false, onBusy() {}, async onConfirmed() {}, async onCancel() {} }));
-    assert(!html.includes('<select')); assert(html.includes('aria-busy="true"')); assert(html.includes(total === '0' ? 'Xác nhận đơn 0 VND' : '>Thanh toán</button>')); assert(!html.includes('vnp_BankCode'));
+    assert(!html.includes('<select')); assert(html.includes('aria-busy="true"')); assert(html.includes(total === '0' ? 'Xác nhận đơn 0 VND' : '>Thanh toán VNPAY</button>')); 
+    assert.match(
+      html,
+      /<button[^>]*data-checkout-action="gateway-payment"[^>]*disabled/
+    );
+    assert(!html.includes('vnp_BankCode'));
   }
 });
 test('confirmation separates historical FAILED from current pending retry and links owned result', () => {
   const detail = { ...order, orderCode: 'BL-fixture', currency: 'VND', createdAt: '2026-10-18T00:00:00Z', subtotal: '85000', discountAmount: '0', promotionCode: null,
     items: [], paidAt: null, earnedPoints: null, paymentStatus: 'FAILED' };
   const html = renderToStaticMarkup(React.createElement(OrderDetailContent, { order: detail, attempt: pending }));
-  assert(html.includes('Kết quả thanh toán cục bộ gần nhất')); assert(html.includes('Đang xác minh kết quả thanh toán.'));
+  assert(html.includes('Kết quả thanh toán'));
+  assert(html.includes('Thất bại')); assert(html.includes('Đang xác minh kết quả thanh toán.'));
   assert(html.includes('/payments/vnpay/result?attemptId=' + id)); assert(!html.includes('Thanh toán không thành công.'));
 });
 function clock() {

@@ -21,7 +21,13 @@ describe('B15 owned Order reads', () => {
       unitPrice: new Prisma.Decimal('105000'), lineTotal: new Prisma.Decimal('105000'), toppings: [{ toppingNameSnapshot: 'Cream', priceSnapshot: new Prisma.Decimal('5000') }] }] });
   beforeAll(async () => {
     process.env.DATABASE_URL = 'postgresql://demo:example@localhost:5432/brewlite';
-    const module = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(PrismaService).useValue({ user, order }).compile();
+    const module = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(PrismaService)
+    .useValue({
+      user,
+      order,
+      $queryRaw: jest.fn().mockResolvedValue([{ id, seq: 1 }]),
+    })
+    .compile();
     app = module.createNestApplication<NestExpressApplication>({ bodyParser: false }); configureApp(app); await app.init(); jwt = app.get(JwtService);
   });
   beforeEach(() => {
@@ -37,7 +43,7 @@ describe('B15 owned Order reads', () => {
   });
   it('projects exact summary fields and delegates stable native sorting/owner filtering to PostgreSQL', async () => {
     order.findMany.mockResolvedValue([row()]); const r = await get().set('Origin', 'http://localhost:3000').expect(200);
-    expect(r.body).toEqual({ items: [{ id, orderCode: 'BL-fixture', status: 'PAID', total: '95000', redeemedPoints: 0, loyaltyDiscountAmount: '0', redemptionState: 'NONE', currency: 'VND', createdAt: '2026-10-07T00:00:00.000Z', earnedPoints: 9 }] });
+    expect(r.body).toEqual({ items: [{ id, orderCode: 'BL-fixture', customerOrderCode: 'BL001', status: 'PAID', total: '95000', redeemedPoints: 0, loyaltyDiscountAmount: '0', redemptionState: 'NONE', currency: 'VND', createdAt: '2026-10-07T00:00:00.000Z', earnedPoints: 9 }] });
     expect(order.findMany).toHaveBeenCalledWith({ where: { userId: owner }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       select: { id: true, orderCode: true, status: true, total: true, redeemedPoints: true, loyaltyDiscountAmount: true, redemptionState: true, createdAt: true, loyaltyAward: { select: { points: true, reversedAt: true } } } });
     expect(r.headers['cache-control']).toBe('private, no-store, max-age=0'); expect(r.headers.vary).toMatch(/Authorization/); expect(r.headers.vary).toMatch(/Origin/);
@@ -67,7 +73,7 @@ describe('B15 owned Order reads', () => {
   });
   it('rejects client body data, invalid UUID and owner/detail query fields', async () => {
     await get().send({ userId: other, status: 'PAID' }).expect(400); await get(`/orders/${id}`).send({ total: '1' }).expect(400);
-    await get(`/orders/${id}`).query({ userId: other }).expect(400); await get('/orders/not-an-id').expect(400);
+    await get(`/orders/${id}`).query({ userId: other }).expect(400); await get('/orders/invalid!').expect(400);
   });
   it('uses JWT owner for history and common404 for missing/cross-owner detail', async () => {
     await get('/orders/me', other).expect(200); expect(order.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: other } }));

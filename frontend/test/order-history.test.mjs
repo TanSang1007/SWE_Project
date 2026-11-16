@@ -12,7 +12,7 @@ const { orderStatusLabels, formatOrderTime } = require('../src/lib/order-display
 const { OrderReadContent, OrderHistoryList, OrderDetailContent, OrderHistoryView } = require('../src/components/order-history-view.tsx');
 const React = require('react'); const { renderToStaticMarkup } = require('react-dom/server');
 const originalFetch = globalThis.fetch; const originalBase = process.env.NEXT_PUBLIC_API_BASE_URL;
-const id = randomUUID(); const summary = { id, orderCode: 'BL-history', status: 'PAID', total: '95000', currency: 'VND', createdAt: '2026-10-07T00:00:00Z', earnedPoints: 9 };
+const id = randomUUID(); const summary = { id, orderCode: 'BL-history', customerOrderCode: 'BL-history', status: 'PAID', total: '95000', currency: 'VND', createdAt: '2026-10-07T00:00:00Z', earnedPoints: 9 };
 const detail = { ...summary, subtotal: '105000', discountAmount: '10000', promotionCode: 'ORIGINAL', paidAt: '2026-10-07T00:01:00Z', paymentStatus: 'SUCCEEDED',
   items: [{ productId: id, productName: 'Original drink', size: 'M', qty: 1, unitPrice: '105000', lineTotal: '105000', toppings: [{ name: 'Cream', price: '5000' }] }] };
 const login = (token = 'owner') => useAuthStore.getState().signIn({ accessToken: token, expiresIn: 3600, user: { id: token, email: 'fixture@example.invalid', loyaltyPoints: 500, role: 'CUSTOMER' } });
@@ -43,7 +43,7 @@ test('fresh history/detail GETs carry only JWT/no-store and never create Order o
 test('guest/expired auth and invalid detail ID do not fetch; login return path preserves Order ID', async () => {
   let calls = 0; globalThis.fetch = async () => { calls++; return Response.json({ items: [] }); };
   await assert.rejects(api.getOrderHistory(), { code: 'UNAUTHORIZED' }); login(); useAuthStore.setState({ expiresAt: Date.now() - 1 });
-  await assert.rejects(api.getOrderHistory(), { code: 'UNAUTHORIZED' }); await assert.rejects(api.getOrderDetail('invalid'), { code: 'ORDER_NOT_FOUND' }); assert.equal(calls, 0);
+  await assert.rejects(api.getOrderHistory(), { code: 'UNAUTHORIZED' }); await assert.rejects(api.getOrderDetail('invalid!'), { code: 'ORDER_NOT_FOUND' }); assert.equal(calls, 0);
   assert(render(OrderHistoryView, { id }).includes(encodeURIComponent(`/orders/${id}/confirmation`)));
 });
 test('401 clears current session; old401/200 after account switch do not clear/reveal new account', async () => {
@@ -79,7 +79,8 @@ test('detail renders historical options/discount/final money/metadata and never 
 });
 test('unpaid details link to known-ID checkout; cancellation does not claim refund or permit payment', () => {
   assert(render(OrderDetailContent, { order: { ...detail, status: 'PAYMENT_FAILED', paidAt: null, earnedPoints: null, paymentStatus: 'FAILED' } }).includes(`/checkout?orderId=${id}`));
-  const cancelled = render(OrderDetailContent, { order: { ...detail, status: 'CANCELLED', earnedPoints: 0 } }); assert(cancelled.includes('không xác nhận việc hoàn tiền')); assert(!cancelled.includes('Tiếp tục tại giỏ hàng'));
+  const cancelled = render(OrderDetailContent, { order: { ...detail, status: 'CANCELLED', earnedPoints: 0 } }); assert(cancelled.includes('Đã hủy'));
+  assert(!cancelled.includes(`/checkout?orderId=${id}`)); assert(!cancelled.includes('Tiếp tục tại giỏ hàng'));
 });
 test('known-ID resume never replaces an uncertain original create/payment transport context', () => {
   const saved = { userId: 'owner', key: 'old-create', payload: { items: [] } };

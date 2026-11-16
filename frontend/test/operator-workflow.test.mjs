@@ -63,7 +63,7 @@ test('409/400/503 never auto resubmit or change original expectedVersion', async
 });
 test('401 clears current session,403 reports forbidden; invalid ID/version do not fetch', async () => {
   for(const [status,code]of [[401,'UNAUTHORIZED'],[403,'FORBIDDEN']]) {useAuthStore.getState().signIn(session());globalThis.fetch=async()=>new Response('',{status});await assert.rejects(sendWorkflow(command),{code});assert.equal(!!useAuthStore.getState().accessToken,status!==401);}
-  globalThis.fetch=async()=>assert.fail('invalid command must not fetch');await assert.rejects(sendWorkflow({...command,id:'invalid'}),{code:'VALIDATION_ERROR'});await assert.rejects(sendWorkflow({...command,expectedVersion:-1}),{code:'VALIDATION_ERROR'});
+  globalThis.fetch=async()=>assert.fail('invalid command must not fetch');await assert.rejects(sendWorkflow({...command,id:'invalid!'}),{code:'VALIDATION_ERROR'});await assert.rejects(sendWorkflow({...command,expectedVersion:-1}),{code:'VALIDATION_ERROR'});
 });
 test('logout/account switch discard late mutation response and old401 cannot clear a new session', async () => {
   for(const status of [200,401]) {useAuthStore.getState().signIn(session());let finish;globalThis.fetch=async()=>new Promise(r=>{finish=r;});const send=sendWorkflow(command);

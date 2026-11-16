@@ -43,7 +43,9 @@ test('summary renders server monetary snapshot/status and never displays payment
 });
 test('creation controls show Place Order; empty/disabled state cannot submit', () => {
   const html = renderToStaticMarkup(React.createElement(OrderCheckout, { cart: { items: [], subtotal: '0', totalQuantity: 0, currency: 'VND' }, disabled: false, onLock() {} }));
-  assert.match(html, /disabled="">Đặt hàng/); assert(html.includes('Đang khôi phục đơn')); assert(html.includes('aria-busy="true"'));
+  assert.match(html, /disabled=\"\">Thanh toán/);
+  assert(html.includes('Đang tải thông tin đơn'));
+  assert(html.includes('aria-busy="true"'));
 });
 test('typed parser strips internal fields and rejects malformed money/status', () => {
   assert(!('passwordHash' in parseOrder({ ...order, passwordHash: 'private' })));

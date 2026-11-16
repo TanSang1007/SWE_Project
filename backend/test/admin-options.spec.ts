@@ -55,9 +55,9 @@ describe('A05 strict HTTP contracts and DB-authoritative authorization', () => {
   test('strict size enum/UUID/query/body/null lifecycle and PATCH fields', async () => {
     await call('post', `/admin/products/${p}/sizes`, { expectedVersion: 7, size: 'XL', extraPrice: '0' }).expect(400);
     await call('patch', `/admin/products/${p}/sizes/m`, { expectedVersion: 7, extraPrice: '0' }).expect(400);
-    await call('get', '/admin/toppings/invalid').expect(400); await call('get', '/admin/toppings').query({ search: 'Cream' }).expect(400);
+    await call('get', '/admin/toppings/invalid!').expect(400); await call('get', '/admin/toppings').query({ search: 'Cream' }).expect(400);
     await call('get', `/admin/products/${p}/sizes`, { role: 'ADMIN' }).expect(400);
-    await call('post', `/admin/products/${p}/toppings`, { expectedVersion: 7, toppingId: 'invalid' }).expect(400);
+    await call('post', `/admin/products/${p}/toppings`, { expectedVersion: 7, toppingId: 'invalid!' }).expect(400);
     for (const isActive of [null, 'false', 0]) await call('patch', `/admin/toppings/${t}`, { expectedVersion: 7, isActive }).expect(400);
     await call('patch', `/admin/toppings/${t}`, { expectedVersion: 7, stock: 1 }).expect(400);
   });
