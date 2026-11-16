@@ -1,0 +1,83 @@
+
+name: BrewLite CI
+
+on:
+  push:
+    branches:
+      - "**"
+
+  pull_request:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    name: Kiểm tra BrewLite
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: brewlite_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d brewlite_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/brewlite_ci
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/brewlite_ci
+      JWT_SECRET: ci-test-secret-not-for-production
+
+    steps:
+      # Bước 1: Lấy mã nguồn từ GitHub
+      - name: Lấy mã nguồn
+        uses: actions/checkout@v4
+
+      # Bước 2: Cài đặt Node.js
+      - name: Cài đặt Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # Bước 3: Cài đặt thư viện
+      - name: Cài đặt thư viện
+        run: npm ci
+
+      # Bước 4: Kiểm tra cấu trúc database
+      - name: Kiểm tra Prisma
+        run: npm run db:validate
+
+      # Bước 5: Sinh Prisma Client
+      - name: Sinh Prisma Client
+        run: npm run db:generate
+
+      # Bước 6: Kiểm thử Backend
+      - name: Kiểm thử Backend
+        run: npm test
+
+      # Bước 7: Kiểm thử chương trình Runtime
+      - name: Kiểm thử Runtime
+        run: npm run test:runtime
+
+      # Bước 8: Kiểm tra quy tắc code
+      - name: Kiểm tra mã nguồn
+        run: npm run lint
+
+      # Bước 9: Build toàn bộ hệ thống
+      - name: Build Frontend và Backend
+        run: npm run build

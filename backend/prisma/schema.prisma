@@ -317,22 +317,13 @@ model IngredientCountLine {
   @@map("ingredient_count_lines")
 }
 
+
 model IngredientMovement {
-<<<<<<< HEAD
-  id             String                 @id @default(uuid()) @db.Uuid
-  sequence       BigInt                 @unique @default(autoincrement())
-  ingredientId   String                 @map("ingredient_id") @db.Uuid
-  receiptLineId  String?                @unique @map("receipt_line_id") @db.Uuid
-  countLineId    String?                @unique @map("count_line_id") @db.Uuid
-  reservationId String?                @map("reservation_id") @db.Uuid
-  reservationAction String?            @map("reservation_action") @db.VarChar(12)
-  reservationCycle Int?                @map("reservation_cycle")
-=======
   id             String                 @id @default(dbgenerated("(nextval('ingredient_movements_id_seq')::text)")) @db.Text
   ingredientId   String                 @map("ingredient_id") @db.Text
   receiptLineId  String?                @unique @map("receipt_line_id") @db.Text
   countLineId    String?                @unique @map("count_line_id") @db.Text
->>>>>>> origin/main
+
   beforeQuantity Decimal                @map("before_quantity") @db.Decimal(12, 3)
   afterQuantity  Decimal                @map("after_quantity") @db.Decimal(12, 3)
   delta          Decimal                @db.Decimal(13, 3)
@@ -342,7 +333,25 @@ model IngredientMovement {
   receiptLine    IngredientReceiptLine? @relation(fields: [receiptLineId], references: [id], onDelete: Restrict)
   countLine      IngredientCountLine?   @relation(fields: [countLineId], references: [id], onDelete: Restrict)
   actor          User                   @relation(fields: [actorId], references: [id], onDelete: Restrict)
-  reservation    IngredientReservation? @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  id                String                 @id @default(dbgenerated("(nextval('ingredient_movements_id_seq')::text)")) @db.Text
+  sequence          BigInt                 @unique @default(autoincrement())
+  ingredientId      String                 @map("ingredient_id") @db.Text
+  receiptLineId     String?                @unique @map("receipt_line_id") @db.Text
+  countLineId       String?                @unique @map("count_line_id") @db.Text
+  reservationId     String?                @map("reservation_id") @db.Uuid
+  reservationAction String?                @map("reservation_action") @db.VarChar(12)
+  reservationCycle  Int?                   @map("reservation_cycle")
+  beforeQuantity    Decimal                @map("before_quantity") @db.Decimal(12, 3)
+  afterQuantity     Decimal                @map("after_quantity") @db.Decimal(12, 3)
+  delta             Decimal                @db.Decimal(13, 3)
+  actorId           String                 @map("actor_id") @db.Text
+  createdAt         DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  ingredient        Ingredient             @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+  receiptLine       IngredientReceiptLine? @relation(fields: [receiptLineId], references: [id], onDelete: Restrict)
+  countLine         IngredientCountLine?   @relation(fields: [countLineId], references: [id], onDelete: Restrict)
+  actor             User                   @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  reservation       IngredientReservation? @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+
 
   @@unique([reservationId, reservationAction, reservationCycle], map: "ingredient_movements_reservation_id_reservation_action_reserv_k")
   @@index([createdAt(sort: Desc), id(sort: Desc)])
@@ -350,6 +359,7 @@ model IngredientMovement {
   @@index([ingredientId, sequence], map: "ingredient_movements_ingredient_sequence_idx")
   @@map("ingredient_movements")
 }
+
 
 enum RecipeIngredientState {
   RESERVED
@@ -376,6 +386,7 @@ model IngredientReservation {
   @@index([ingredientId, state])
   @@map("order_recipe_ingredients")
 }
+
 
 model Product {
   id        String   @id @default(dbgenerated("('BR' || lpad(nextval('products_id_seq')::text, 3, '0'))")) @db.Text

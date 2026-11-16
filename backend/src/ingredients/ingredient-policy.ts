@@ -19,7 +19,19 @@ export function checkHash(stored: string, expected: string) {
   if (stored !== expected) throw new ConflictException({ code: 'IDEMPOTENCY_KEY_REUSED', message: 'Mã yêu cầu đã dùng cho nội dung khác.' });
 }
 export function unitThreshold(unit: IngredientUnit) {
-  return new Prisma.Decimal({PIECE:'10',L:'5',KG:'10',G:'10000',ML:'5000',EGG:'10',BOTTLE:'10',BAG:'5'}[unit]);
+  const thresholds: Partial<Record<IngredientUnit, string>> = {
+    PIECE: '10',
+    L: '5',
+    KG: '10',
+    G: '10000',
+    ML: '5000',
+    EGG: '10',
+    BAG: '10',
+    BOTTLE: '10',
+  };
+  const threshold = thresholds[unit];
+  if (!threshold) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Đơn vị không hợp lệ.' });
+  return new Prisma.Decimal(threshold);
 }
 export const historicalIngredientThresholds: Record<string, string> = { 'bột ca cao|KG':'1', 'bột matcha|KG':'0.5', 'bột quế|KG':'0.1', 'cà phê|KG':'3', 'sữa tươi|L':'10', 'sữa đặc|L':'3', 'đường|KG':'5', 'sốt caramel|BOTTLE':'1', 'đá|BAG':'1' };
 export function ingredientThreshold(name: string, unit: IngredientUnit) {
