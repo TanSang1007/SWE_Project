@@ -1,4 +1,4 @@
-import { Body, Controller, Header, HttpCode, Param, Post, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Header, HttpCode, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -16,8 +16,8 @@ export class AdminOrderController {
   @HttpCode(200)
   @Header('Cache-Control', 'private, no-store, max-age=0')
   cancelPaid(@Param() params: OrderParamsDto, @Body() body: PaidCancelDto, @Query() query: OrderEmptyDto,
-    @Res({ passthrough: true }) res: Response) {
+    @Res({ passthrough: true }) res: Response, @Req() req: { user: { id: string } }) {
     void query; res.vary('Authorization');
-    return this.orders.transitionOrder(params.id.toLowerCase(), body.expectedVersion, 'CANCELLED');
+    return this.orders.transitionOrder(params.id.toLowerCase(), body.expectedVersion, 'CANCELLED', req.user.id);
   }
 }

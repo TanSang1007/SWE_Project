@@ -4,6 +4,18 @@ import { readTabSession, useAuthStore } from './auth-store';
 
 let pending: Promise<void> | null = null;
 let generation = 0;
+<<<<<<< HEAD
+export function requiresSession(pathname: string): boolean {
+  return /^\/(cart|checkout|orders|loyalty|admin|operator)(\/|$)/.test(pathname);
+}
+async function serialized<T>(work: () => Promise<T>): Promise<T> {
+  if (typeof navigator !== 'undefined' && navigator.locks) return navigator.locks.request('brewlite-session', work);
+  return work();
+}
+async function request(action: 'session' | 'logout') {
+  return fetch('/api/auth/' + action, { method: 'POST', credentials: 'same-origin', cache: 'no-store',
+    headers: { 'X-BrewLite-CSRF': '1' }, signal: AbortSignal.timeout(10000) });
+=======
 
 async function request(action: 'session' | 'logout', sessionToken?: string | null, isTabInit?: boolean) {
   const headers: Record<string, string> = { 'X-BrewLite-CSRF': '1' };
@@ -16,6 +28,7 @@ async function request(action: 'session' | 'logout', sessionToken?: string | nul
     headers,
     signal: AbortSignal.timeout(10000),
   });
+>>>>>>> origin/main
 }
 
 export function restoreSession(): Promise<void> {

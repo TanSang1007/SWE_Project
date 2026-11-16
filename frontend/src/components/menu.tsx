@@ -10,7 +10,7 @@ export function ProductListView({ catalog }: { catalog: ProductList }) {
   if (!catalog.items.length) return <CatalogState kind="empty" />;
   return <section aria-labelledby="menu-heading" className="menu-section"><div className="section-heading"><h2 id="menu-heading">Thực đơn hôm nay</h2><span>{catalog.items.length} đồ uống</span></div>
     <ul className="product-grid">{catalog.items.map((product) => <li key={product.id} className="product-card"><div className="card-image"><ProductImage src={product.imageUrl} name={product.name} />
-      <span className={`availability ${product.available ? '' : 'sold-out'}`}>{product.available ? 'Còn món' : 'Tạm hết'}</span></div>
+      <span className={`availability ${product.available ? '' : 'sold-out'}`}>{product.available ? product.stockStatus === 'LOW_STOCK' ? 'Sắp hết món' : 'Còn món' : 'Hết món'}</span></div>
       <div className="card-content"><h3>{product.name}</h3><p className="price">{formatVnd(product.price)}</p>
         <Link className="detail-link" href={`/products/${product.id}`} aria-label={`Xem chi tiết ${product.name}`}>Xem chi tiết <span aria-hidden="true">↗</span></Link></div></li>)}</ul></section>;
 }

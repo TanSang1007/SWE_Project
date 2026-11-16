@@ -1,3 +1,5 @@
+import { assertIngredientStock, ingredientBalances, productStockDemand } from '../catalog/product-ingredients';
+import { assertHeldOrderIngredients, canReserveOrderIngredients, changeOrderIngredients, orderReservations } from '../ingredients/order-ingredients';
 import { ConflictException, HttpException, Injectable, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomUUID } from 'node:crypto';
@@ -63,10 +65,7 @@ export class AttemptService {
             && o.version < maxInt && (o.redeemedPoints === 0 || (o.redemptionState === 'RELEASED' && o.reservationCycle < maxInt));
     }
     private async reserveStock(tx: Prisma.TransactionClient, o: Order) {
-        const demand = new Map<string, number>();
-        for (const item of o.items)
-            demand.set(item.productId, (demand.get(item.productId) ?? 0) + item.qty);
-        for (const [id, qty] of [...demand].sort(([a], [b]) => a.localeCompare(b))) {
+        for (const [id, qty] of productStockDemand(o.items)) {
             const p = await tx.product.findUniqueOrThrow({ where: { id } });
             if (p.stock < qty)
                 throw new ConflictException({ code: 'OUT_OF_STOCK', message: 'Insufficient stock for payment retry' });
@@ -117,6 +116,9 @@ export class AttemptService {
                     throw new UnprocessableEntityException({ code: 'PAYMENT_AMOUNT_UNSUPPORTED', message: 'Order amount is unsupported by the gateway' });
                 }
                 assertPaymentAdmission(this.config);
+                const recipeReservations = await orderReservations(tx, orderId);
+                if (!recipeReservations.length) await assertIngredientStock(tx, o.items.flatMap(i => i.ingredientKeysSnapshot ?? []));
+                else if (o.status === 'PENDING') await assertHeldOrderIngredients(tx, orderId);
                 const before = await reconcileAccount(tx, userId), account = { ...before };
                 reservationGate(account, o.redeemedPoints);
                 if (o.status === 'PAYMENT_FAILED' && account.available < BigInt(o.redeemedPoints))
@@ -137,6 +139,7 @@ export class AttemptService {
                     if (changed.count !== 1)
                         throw conflict();
                     await this.reserveStock(tx, o);
+                    await changeOrderIngredients(tx, orderId, 'RESERVE', userId);
                     if (o.redeemedPoints > 0)
                         await persistEffects(tx, before, account, [effect(account, 'RESERVE', o.redeemedPoints, { orderId, paymentAttemptId: a.id, cycle })]);
                 }
@@ -178,9 +181,12 @@ export class AttemptService {
         const account = await reconcileAccount(tx, o.userId);
         if (o.redeemedPoints > 0 && (account.debt > 0n || account.available < BigInt(o.redeemedPoints)))
             return false;
-        const demand = new Map<string, number>();
-        for (const i of o.items)
-            demand.set(i.productId, (demand.get(i.productId) ?? 0) + i.qty);
+        const recipeRetry = await canReserveOrderIngredients(tx, o.id);
+        const keys = recipeRetry === undefined ? o.items.flatMap(i => i.ingredientKeysSnapshot ?? []) : [];
+        if (recipeRetry === false) return false;
+        const balances = await ingredientBalances(tx, keys);
+        if (keys.some(key => !new Prisma.Decimal(balances.get(key) ?? '0').gt(0))) return false;
+        const demand = new Map(productStockDemand(o.items));
         const products = await tx.product.findMany({ where: { id: { in: [...demand.keys()] } }, select: { id: true, stock: true, version: true } });
         return products.length === demand.size && products.every(p => p.stock >= demand.get(p.id)! && p.version < maxInt);
     }

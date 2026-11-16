@@ -9,11 +9,11 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { PrismaService } from '../../src/database/prisma.service';
-import { PrismaClient, type UserRole } from '../../src/generated/prisma/client';
+import { Prisma, PrismaClient, type UserRole } from '../../src/generated/prisma/client';
 import { utcConnectionString } from '../../src/database/pg-connection';
 import { configureApp } from '../../src/common/configure-app';
 import { IngredientService } from '../../src/ingredients/ingredient.service';
-import { requestHash } from '../../src/ingredients/ingredient-policy';
+import { ingredientThreshold, requestHash } from '../../src/ingredients/ingredient-policy';
 import { ingredientCatalog } from '../../src/ingredients/ingredient-catalog';
 import * as catalog from '../../src/ingredients/ingredient-catalog';
 
@@ -88,10 +88,10 @@ test('zero difference and zero actual are valid; positive/fractional piece rules
   const id=await ingredient(),doc=await count(id,'0');await review(doc).expect(200);const movements=await db.ingredientMovement.findMany({where:{ingredientId:id}});expect(movements).toHaveLength(1);expect(movements[0].delta.toFixed(3)).toBe('0.000');
   const piece=await ingredient('PIECE','10');await api('post','counts',staff,{lines:[{ingredientId:piece,expectedVersion:0,actualQuantity:'1.1'}]},randomUUID()).expect(422);
 });
-test('receipt arriving during review cannot be overwritten; request recount records a new snapshot',async()=>{
-  const id=await ingredient();await confirm(await receipt(id,'10')).expect(200);const old=await count(id,'8');await confirm(await receipt(id,'20')).expect(200);
-  const denied=await review(old).expect(409);expect((denied.body as {error:{code:string}}).error.code).toBe('INVENTORY_CHANGED');expect((await stock(id)).quantity.toFixed(3)).toBe('30.000');expect((await db.ingredientCount.findUniqueOrThrow({where:{id:old.id}})).status).toBe('SUBMITTED');
-  await review(old,'REQUEST_RECOUNT','Đã nhập thêm 20 lít').expect(200);const newer=await count(id,'29',staff,old.id);expect(newer.lines[0].systemQuantity).toBe('30.000');await review(newer).expect(200);expect((await stock(id)).quantity.toFixed(3)).toBe('29.000');
+test('approval preserves a later receipt; requested recount records a separate snapshot',async()=>{
+  const id=await ingredient();await confirm(await receipt(id,'10')).expect(200);const original=await count(id,'8');await confirm(await receipt(id,'20')).expect(200);
+  await review(original).expect(200);expect((await stock(id)).quantity.toFixed(3)).toBe('28.000');
+  const old=await count(id,'27');await review(old,'REQUEST_RECOUNT','Đối chiếu lại số đo').expect(200);const newer=await count(id,'29',staff,old.id);expect(newer.lines[0].systemQuantity).toBe('28.000');await review(newer).expect(200);expect((await stock(id)).quantity.toFixed(3)).toBe('29.000');
   const list=await api('get','counts',staff).expect(200);const docs=(list.body as {items:Count[]}).items;expect(docs.find(c=>c.id===old.id)?.replacementId).toBe(newer.id);
   const sameVersion=await stock(id);await api('post','counts',staff,{recountOfId:old.id,lines:[{ingredientId:id,expectedVersion:sameVersion.version,actualQuantity:'29'}]},randomUUID()).expect(409);
   await api('post','counts',staff2,{recountOfId:old.id,lines:[{ingredientId:id,expectedVersion:sameVersion.version,actualQuantity:'29'}]},randomUUID()).expect(404);
@@ -122,7 +122,7 @@ test('simultaneous import and approval serialize without losing the newly import
   const results=await Promise.all([review(c,'APPROVE','',admin),confirm(r,admin2)]);for(const x of results)expect([200,409]).toContain(x.status);
   await confirm(r,admin2).expect(200);const saved=await db.ingredientCount.findUniqueOrThrow({where:{id:c.id}});
   expect((await stock(id)).quantity.toFixed(3)).toBe(saved.status==='APPROVED'?'28.000':'30.000');
-  if(saved.status==='SUBMITTED')await review(c).expect(409);
+  if(saved.status==='SUBMITTED'){await review(c).expect(200);expect((await stock(id)).quantity.toFixed(3)).toBe('28.000');}
 });
 test('multi-line stock and journal roll back together on a movement failure',async()=>{
   const a=await ingredient(),b=await ingredient();const made=await api('post','receipts',admin,{lines:[{ingredientId:a,quantity:'2'},{ingredientId:b,quantity:'3'}]},randomUUID()).expect(201);const doc=made.body as Receipt;
@@ -143,7 +143,7 @@ test('inventory operations leave existing product/order/payment/loyalty rows unt
   const p=await db.product.create({data:{name:'Existing product',price:'40000',imageUrl:'/images/latte.svg',stock:8,isActive:true}});const users=await db.user.findMany({orderBy:{id:'asc'}});const id=await ingredient();await confirm(await receipt(id,'10')).expect(200);await review(await count(id,'9')).expect(200);expect(await db.product.findUniqueOrThrow({where:{id:p.id}})).toEqual(p);expect(await db.user.findMany({orderBy:{id:'asc'}})).toEqual(users);expect(await db.order.count()).toBe(0);expect(await db.payment.count()).toBe(0);expect(await db.loyaltyEntry.count()).toBe(0);
 });
 
-test.each([['PIECE','10','9','11'],['L','5','4.999','5.001'],['KG','10','9.999','10.001'],['EGG','10','9','11']] as const)('%s uses fixed threshold and strict boundaries in list and summary',async(unit,limit,below,above)=>{
+test.each([['PIECE','10','9','11'],['L','5','4.999','5.001'],['KG','10','9.999','10.001'],['EGG','10','9','11'],['BOTTLE','10','9','11'],['BAG','5','4','6']] as const)('%s uses fixed threshold and strict boundaries in list and summary',async(unit,limit,below,above)=>{
   const made=await api('post','ingredients',admin,{name:'I02 '+randomUUID(),unit},randomUUID()).expect(201),id=(made.body as {id:string}).id;
   for(const [quantity,status]of [['0','OUT_OF_STOCK'],[below,'LOW_STOCK'],[limit,'IN_STOCK'],[above,'IN_STOCK']]){
     await db.ingredient.update({where:{id},data:{quantity}});
@@ -164,17 +164,22 @@ test('fixed thresholds reject new overrides while historical exact creation repl
 test('catalog initialization requires Admin, strict empty input, reuses existing stock and creates only missing real definitions',async()=>{
   const beforeCount=await db.ingredient.count();for(const who of [staff,customer])await api('post','catalog/initialize',who,{}).expect(403);await api('post','catalog/initialize',undefined,{}).expect(401);
   await api('post','catalog/initialize',admin,{quantity:'999'}).expect(400);await api('post','catalog/initialize?unit=L',admin,{}).expect(400);expect(await db.ingredient.count()).toBe(beforeCount);
-  const old=await db.ingredient.findUniqueOrThrow({where:{normalizedName:'ly nhựa'}});await confirm(await receipt(old.id,'12')).expect(200);const preserved=await stock(old.id),movements=await db.ingredientMovement.count();
-  const first=await api('post','catalog/initialize',admin,{}).expect(200);expect(first.body).toEqual({created:11,existing:1});expect(await stock(old.id)).toEqual(preserved);expect(await db.ingredientMovement.count()).toBe(movements);
-  const saved=await db.ingredient.findMany({where:{normalizedName:{in:ingredientCatalog.map(i=>i.name.toLocaleLowerCase('vi'))}}});expect(saved).toHaveLength(12);
+  const made=await api('post','ingredients',admin,{name:'Sữa tươi',unit:'L'},randomUUID()).expect(201);const old=await stock((made.body as {id:string}).id);await confirm(await receipt(old.id,'12')).expect(200);const preserved=await stock(old.id),movements=await db.ingredientMovement.count();
+  const first=await api('post','catalog/initialize',admin,{}).expect(200);expect(first.body).toEqual({created:18,existing:0});expect(await stock(old.id)).toEqual(preserved);expect(await db.ingredientMovement.count()).toBe(movements);
+  const saved=await db.ingredient.findMany({where:{normalizedName:{in:ingredientCatalog.map(i=>i.name.toLocaleLowerCase('vi'))}}});expect(saved).toHaveLength(18);
   for(const definition of ingredientCatalog){const row=saved.find(i=>i.normalizedName===definition.name.toLocaleLowerCase('vi'))!;expect(row.unit).toBe(definition.unit);if(row.id!==old.id){expect(row.quantity.toFixed(3)).toBe('0.000');expect(row.version).toBe(0);expect(row.createdById).toBe(admin.id);}}
-  const snapshot=await db.ingredient.findMany({orderBy:{id:'asc'}});for(const who of [admin,admin2]){const retry=await api('post','catalog/initialize',who,{}).expect(200);expect(retry.body).toEqual({created:0,existing:12});}expect(await db.ingredient.findMany({orderBy:{id:'asc'}})).toEqual(snapshot);
+  const snapshot=await db.ingredient.findMany({orderBy:{id:'asc'}});for(const who of [admin,admin2]){const retry=await api('post','catalog/initialize',who,{}).expect(200);expect(retry.body).toEqual({created:0,existing:18});}expect(await db.ingredient.findMany({orderBy:{id:'asc'}})).toEqual(snapshot);
+  // Historical catalog fixtures keep their original unit/threshold rules after
+  // the active catalog switches to separate I07 storage identities.
+  for(const [name,unit]of [['Bột ca cao','KG'],['Bột matcha','KG'],['Bột quế','KG'],['Cà phê','KG'],['Sữa đặc','L'],['Đường','KG'],['Sốt caramel','BOTTLE'],['Đá','BAG']] as const){
+    await db.ingredient.create({data:{name,normalizedName:name.toLocaleLowerCase('vi'),unit,lowStockThreshold:ingredientThreshold(name,unit),createdById:admin.id,requestKey:randomUUID(),requestHash:requestHash({name,unit})}});
+  }
 });
 test('catalog unit conflict is explicit and never rewrites stock, unit or history',async()=>{
-  const egg=await db.ingredient.findUniqueOrThrow({where:{normalizedName:'trứng'}});await db.ingredient.update({where:{id:egg.id},data:{unit:'L',lowStockThreshold:'5'}});
+  const bottle=await db.ingredient.findUniqueOrThrow({where:{normalizedName:'syrup caramel (công thức)'}});await db.ingredient.update({where:{id:bottle.id},data:{unit:'KG',lowStockThreshold:'10'}});
   const before=await db.ingredient.findMany({orderBy:{id:'asc'}});
   try{const response=await api('post','catalog/initialize',admin,{}).expect(409);expect((response.body as {error:{code:string}}).error.code).toBe('INGREDIENT_UNIT_MISMATCH');expect(await db.ingredient.findMany({orderBy:{id:'asc'}})).toEqual(before);}
-  finally{await db.ingredient.update({where:{id:egg.id},data:{unit:'EGG',lowStockThreshold:'10'}});}
+  finally{await db.ingredient.update({where:{id:bottle.id},data:{unit:'L',lowStockThreshold:'5'}});}
 });
 
 test('catalog removal/relabel/restore controls read metadata without changing persisted stock or history',async()=>{
@@ -195,9 +200,43 @@ test('catalog removal/relabel/restore controls read metadata without changing pe
     expect(await db.ingredientMovement.count()).toBe(movements);
   }finally{config.mockRestore();}
 });
-test('egg receipts/count approvals use whole eggs and journal once',async()=>{
-  const egg=await db.ingredient.findUniqueOrThrow({where:{normalizedName:'trứng'}});await api('post','receipts',admin,{lines:[{ingredientId:egg.id,quantity:'1.5'}]},randomUUID()).expect(422);
-  await confirm(await receipt(egg.id,'12')).expect(200);await api('post','counts',staff,{lines:[{ingredientId:egg.id,expectedVersion:1,actualQuantity:'9.5'}]},randomUUID()).expect(422);
-  const doc=await count(egg.id,'9');await review(doc).expect(200);await review(doc).expect(200);expect((await stock(egg.id)).quantity.toFixed(3)).toBe('9.000');expect(await db.ingredientMovement.count({where:{ingredientId:egg.id}})).toBe(2);
-  await expect(db.ingredient.update({where:{id:egg.id},data:{quantity:'9.5'}})).rejects.toThrow();
+test('bottle receipts/count approvals use whole bottles and journal once',async()=>{
+  const bottle=await db.ingredient.findUniqueOrThrow({where:{normalizedName:'sốt caramel'}});await api('post','receipts',admin,{lines:[{ingredientId:bottle.id,quantity:'1.5'}]},randomUUID()).expect(422);
+  await confirm(await receipt(bottle.id,'12')).expect(200);await api('post','counts',staff,{lines:[{ingredientId:bottle.id,expectedVersion:1,actualQuantity:'9.5'}]},randomUUID()).expect(422);
+  const doc=await count(bottle.id,'9');await review(doc).expect(200);await review(doc).expect(200);expect((await stock(bottle.id)).quantity.toFixed(3)).toBe('9.000');expect(await db.ingredientMovement.count({where:{ingredientId:bottle.id}})).toBe(2);
+  await expect(db.ingredient.update({where:{id:bottle.id},data:{quantity:'9.5'}})).rejects.toThrow();
+});
+
+ test('ice bag receipts remain integral and ice is excluded from new count adjustments',async()=>{
+  const ice=await db.ingredient.findUniqueOrThrow({where:{normalizedName:'đá'}});
+  await api('post','receipts',admin,{lines:[{ingredientId:ice.id,quantity:'1.5'}]},randomUUID()).expect(422);
+  await confirm(await receipt(ice.id,'5')).expect(200);
+  await api('post','counts',staff,{lines:[{ingredientId:ice.id,expectedVersion:1,actualQuantity:'4.5'}]},randomUUID()).expect(422);
+  const before=await stock(ice.id),movements=await db.ingredientMovement.count({where:{ingredientId:ice.id}});
+  const denied=await api('post','counts',staff,{lines:[{ingredientId:ice.id,expectedVersion:before.version,actualQuantity:'4'}]},randomUUID()).expect(422);
+  expect((denied.body as {error:{code:string}}).error.code).toBe('INVENTORY_COUNT_NOT_SUPPORTED');
+  expect(await stock(ice.id)).toEqual(before);expect(await db.ingredientMovement.count({where:{ingredientId:ice.id}})).toBe(movements);
+  await expect(db.ingredient.update({where:{id:ice.id},data:{quantity:'4.5'}})).rejects.toThrow();
+});
+
+test.each([['Bột ca cao','KG','1'],['Bột matcha','KG','0.5'],['Bột quế','KG','0.1'],['Cà phê','KG','3'],['Sữa tươi','L','10'],['Sữa đặc','L','3'],['Đường','KG','5'],['Sốt caramel','BOTTLE','1'],['Đá','BAG','1']] as const)('%s uses the supplied per-item warning threshold, including equality, in list and summary',async(name,unit,limit)=>{
+  const row=await db.ingredient.findUniqueOrThrow({where:{normalizedName:name.toLocaleLowerCase('vi')}});
+  expect(row.unit).toBe(unit);expect(row.lowStockThreshold.toString()).toBe(limit);
+  const amounts=['0',limit,new Prisma.Decimal(limit).plus(['BOTTLE','BAG'].includes(unit)?'1':'0.001').toString()];
+  for(const [i,quantity]of amounts.entries()){
+    await db.ingredient.update({where:{id:row.id},data:{quantity}});
+    const all=await api('get','ingredients',admin).expect(200);
+    const items=(all.body as {items:{id:string;status:string;lowStockThreshold:string;lowStockInclusive:boolean}[]}).items;
+    expect(items.find(r=>r.id===row.id)).toMatchObject({lowStockInclusive:true,status:['OUT_OF_STOCK','LOW_STOCK','IN_STOCK'][i],lowStockThreshold:new Prisma.Decimal(limit).toFixed(3)});
+    const summary=await api('get','summary',admin).expect(200);expect(summary.body).toMatchObject({lowStock:items.filter(r=>r.status==='LOW_STOCK').length,inStock:items.filter(r=>r.status==='IN_STOCK').length,outOfStock:items.filter(r=>r.status==='OUT_OF_STOCK').length});
+  }
+  await expect(db.ingredient.update({where:{id:row.id},data:{lowStockThreshold:'123'}})).rejects.toThrow();
+});
+test('old omitted-threshold requests replay after warning metadata changes without accepting changed content',async()=>{
+  const name='Cà phê',unit='KG',key=randomUUID();const row=await db.ingredient.findUniqueOrThrow({where:{normalizedName:'cà phê'}});
+  await db.ingredient.update({where:{id:row.id},data:{createdById:admin.id,requestKey:key,requestHash:requestHash({name,unit,threshold:'10.000'})}});
+  const before=await stock(row.id);
+  const replay=await api('post','ingredients',admin,{name,unit},key).expect(201);expect((replay.body as {id:string}).id).toBe(row.id);expect(await stock(row.id)).toEqual(before);
+  await api('post','ingredients',admin,{name:'Bột quế',unit},key).expect(409);
+  await api('post','ingredients',admin,{name,unit,lowStockThreshold:'10'},key).expect(201);
 });

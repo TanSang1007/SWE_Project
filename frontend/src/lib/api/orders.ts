@@ -1,6 +1,7 @@
 import { getApiBaseUrl } from '../env';
 import { getAccessToken, useAuthStore } from '../auth-store';
 import type { Order, OrderInput } from '../../types/order';
+import { validOrderId } from '../order-display';
 export class OrderError extends Error {
   constructor(public readonly code: string, public readonly existingOrderId?: string) { super(code); }
 }
@@ -33,7 +34,11 @@ export function parseOrder(value: unknown): Order {
       || !(o.cancellationReason === null || typeof o.cancellationReason === 'string')
       || (o.expiresAt !== null && (!o.paymentStartedAt || Date.parse(o.expiresAt) - Date.parse(o.paymentStartedAt) !== 600000))) throw new OrderError('UNAVAILABLE');
   }
+<<<<<<< HEAD
+  if (typeof o.id !== 'string' || !validOrderId(o.id) || typeof o.orderCode !== 'string'
+=======
   if (typeof o.id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(o.id) || typeof o.orderCode !== 'string'
+>>>>>>> origin/main
     || !['PENDING', 'PAYMENT_FAILED', 'CANCELLED', 'PAID', 'PREPARING', 'READY', 'COMPLETED'].includes(o.status)
     || o.currency !== 'VND' || !money(o.subtotal) || !money(o.discountAmount) || !money(o.total)
     || typeof o.createdAt !== 'string' || !Number.isFinite(Date.parse(o.createdAt))

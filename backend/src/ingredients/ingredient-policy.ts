@@ -1,13 +1,14 @@
 import { BadRequestException, ConflictException, UnprocessableEntityException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { Prisma, type IngredientUnit } from '../generated/prisma/client';
+import { readIngredientCatalog } from './ingredient-catalog';
 export const actorSelect = { id: true, email: true } as const;
 export const stockChanged = () => new ConflictException({ code: 'INVENTORY_CHANGED', message: 'Tồn kho đã thay đổi. Tải lại và kiểm kê lại trước khi phê duyệt.' });
 export const invalidState = () => new ConflictException({ code: 'INVALID_DOCUMENT_STATE', message: 'Phiếu không cho phép thao tác này.' });
 export function quantity(value: string, unit: IngredientUnit, positive = false) {
   if (!/^(0|[1-9]\d{0,8})(\.\d{1,3})?$/.test(value)) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Số lượng không hợp lệ.' });
   const q = new Prisma.Decimal(value);
-  if ((positive && q.isZero()) || (['PIECE','EGG'].includes(unit) && !q.isInteger())) throw new UnprocessableEntityException({ code: 'INVALID_QUANTITY', message: 'Lượng nhập phải dương; đơn vị cái và quả phải là số nguyên.' });
+  if ((positive && q.isZero()) || (['PIECE','EGG','BOTTLE','BAG'].includes(unit) && !q.isInteger())) throw new UnprocessableEntityException({ code: 'INVALID_QUANTITY', message: 'Lượng nhập phải dương; đơn vị cái, quả, chai và bao phải là số nguyên.' });
   return q;
 }
 export function uniqueLines(lines: { ingredientId: string }[]) {
@@ -32,4 +33,11 @@ export function unitThreshold(unit: IngredientUnit) {
   if (!threshold) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Đơn vị không hợp lệ.' });
   return new Prisma.Decimal(threshold);
 }
-export function stockStatus(q: Prisma.Decimal, threshold: Prisma.Decimal) { return q.isZero() ? 'OUT_OF_STOCK' : q.lt(threshold) ? 'LOW_STOCK' : 'IN_STOCK'; }
+export const historicalIngredientThresholds: Record<string, string> = { 'bột ca cao|KG':'1', 'bột matcha|KG':'0.5', 'bột quế|KG':'0.1', 'cà phê|KG':'3', 'sữa tươi|L':'10', 'sữa đặc|L':'3', 'đường|KG':'5', 'sốt caramel|BOTTLE':'1', 'đá|BAG':'1' };
+export function ingredientThreshold(name: string, unit: IngredientUnit) {
+  const normalizedName = name.trim().replace(/\s+/g, ' ').normalize('NFC').toLocaleLowerCase('vi');
+  const entry = readIngredientCatalog().find(i => i.normalizedName === normalizedName && i.unit === unit);
+  const threshold = entry?.lowStockThreshold ?? historicalIngredientThresholds[normalizedName + '|' + unit];
+  return threshold === undefined ? unitThreshold(unit) : new Prisma.Decimal(threshold);
+}
+export function stockStatus(q: Prisma.Decimal, threshold: Prisma.Decimal, inclusive = false) { return q.isZero() ? 'OUT_OF_STOCK' : (inclusive ? q.lte(threshold) : q.lt(threshold)) ? 'LOW_STOCK' : 'IN_STOCK'; }

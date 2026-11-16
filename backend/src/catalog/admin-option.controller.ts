@@ -5,7 +5,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CatalogQueryDto, ProductParamsDto, normalizeCatalogId } from './dto/catalog.dto';
 import { ProductVersionDto } from './admin-product.dto';
-import { AdminSizeCreateDto, AdminSizeUpdateDto, AssociationCreateDto, AssociationParamsDto, SizeParamsDto, ToppingCreateDto, ToppingUpdateDto } from './admin-option.dto';
+import { AdminSizeCreateDto, AdminSizeUpdateDto, AssociationCreateDto, AssociationParamsDto, SizeParamsDto, ToppingCreateDto, ToppingParamsDto, ToppingUpdateDto } from './admin-option.dto';
 import { AdminOptionService } from './admin-option.service';
 const vary = (res: Response) => res.vary('Authorization');
 const pid = (id: string) => String(normalizeCatalogId(id));
@@ -33,6 +33,15 @@ export class AdminToppingController {
   @Get() @Header('Cache-Control', 'private, no-store, max-age=0')
   list(@Query() q: CatalogQueryDto, @Body() b: CatalogQueryDto, @Res({ passthrough: true }) r: Response) { void q; void b; vary(r); return this.options.toppings(); }
   @Get(':id') @Header('Cache-Control', 'private, no-store, max-age=0')
+<<<<<<< HEAD
+  get(@Param() p: ToppingParamsDto, @Query() q: CatalogQueryDto, @Body() b: CatalogQueryDto, @Res({ passthrough: true }) r: Response) { void q; void b; vary(r); return this.options.topping(p.id.toLowerCase()); }
+  @Post() @Header('Cache-Control', 'private, no-store, max-age=0')
+  create(@Query() q: CatalogQueryDto, @Body() b: ToppingCreateDto, @Res({ passthrough: true }) r: Response) { void q; vary(r); return this.options.createTopping(b); }
+  @Patch(':id') @Header('Cache-Control', 'private, no-store, max-age=0')
+  update(@Param() p: ToppingParamsDto, @Query() q: CatalogQueryDto, @Body() b: ToppingUpdateDto, @Res({ passthrough: true }) r: Response) { void q; vary(r); return this.options.updateTopping(p.id.toLowerCase(), b); }
+  @Delete(':id') @HttpCode(204) @Header('Cache-Control', 'private, no-store, max-age=0')
+  remove(@Param() p: ToppingParamsDto, @Query() q: CatalogQueryDto, @Body() b: ProductVersionDto, @Res({ passthrough: true }) r: Response) { void q; vary(r); return this.options.deleteTopping(p.id.toLowerCase(), b.expectedVersion); }
+=======
   get(@Param() p: ProductParamsDto, @Query() q: CatalogQueryDto, @Body() b: CatalogQueryDto, @Res({ passthrough: true }) r: Response) { void q; void b; vary(r); return this.options.topping(p.id.trim().toLowerCase()); }
   @Post() @Header('Cache-Control', 'private, no-store, max-age=0')
   create(@Query() q: CatalogQueryDto, @Body() b: ToppingCreateDto, @Res({ passthrough: true }) r: Response) { void q; vary(r); return this.options.createTopping(b); }
@@ -40,4 +49,5 @@ export class AdminToppingController {
   update(@Param() p: ProductParamsDto, @Query() q: CatalogQueryDto, @Body() b: ToppingUpdateDto, @Res({ passthrough: true }) r: Response) { void q; vary(r); return this.options.updateTopping(p.id.trim().toLowerCase(), b); }
   @Delete(':id') @HttpCode(204) @Header('Cache-Control', 'private, no-store, max-age=0')
   remove(@Param() p: ProductParamsDto, @Query() q: CatalogQueryDto, @Body() b: ProductVersionDto, @Res({ passthrough: true }) r: Response) { void q; vary(r); return this.options.deleteTopping(p.id.trim().toLowerCase(), b.expectedVersion); }
+>>>>>>> origin/main
 }

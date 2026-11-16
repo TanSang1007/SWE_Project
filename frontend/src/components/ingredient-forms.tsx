@@ -1,21 +1,21 @@
 'use client';
 import { useState, type FormEvent } from 'react';
-import { displayQuantity, ingredientName, inventoryThresholds, listedIngredients, normalizeQuantity, quantityDifference, unitLabels } from '../lib/api/ingredients';
+import { displayQuantity, ingredientName, inventoryThresholds, listedIngredients, normalizeQuantity, quantityDifference, receivableIngredients, supportsInventoryCount, unitLabels } from '../lib/api/ingredients';
 import type { Ingredient, IngredientCount, IngredientReceipt, IngredientUnit, InventoryCategory } from '../types/ingredient';
 type Submit = (path:string,body:object)=>void;
 export function NewIngredientForm({busy,submit,category='materials'}:{busy:boolean;submit:Submit;category?:InventoryCategory}) {
   const [name,setName]=useState(''),[unit,setUnit]=useState<IngredientUnit>(category==='supplies'?'PIECE':'KG'),[error,setError]=useState('');
-  const label=category==='supplies'?'vật dụng':'nguyên liệu',units:IngredientUnit[]=category==='supplies'?['PIECE']:['L','KG','EGG'];
+  const label=category==='supplies'?'vật dụng':'nguyên liệu',units:IngredientUnit[]=category==='supplies'?['PIECE']:['L','KG','EGG','BOTTLE','BAG'];
   function save(e:FormEvent){e.preventDefault();if(!name.trim()){setError('Nhập tên '+label+'.');return;}setError('');submit('ingredients',{name:name.trim(),unit});}
   return <form className="ingredient-card ingredient-form" onSubmit={save}><h2>Thêm {label}</h2><fieldset disabled={busy}><legend>Thông tin {label}</legend>
     <label>Tên {label}<input value={name} maxLength={120} required onChange={e=>setName(e.target.value)}/></label>
     <label>Đơn vị tính<select value={unit} onChange={e=>setUnit(e.target.value as IngredientUnit)}>{units.map(k=><option key={k} value={k}>{unitLabels[k]}</option>)}</select></label>
-    <p>Cảnh báo sắp hết khi tồn dưới {inventoryThresholds[unit]} {unitLabels[unit]}. Bằng 0 là hết hàng.</p>
+    <p>{unit === 'PIECE' ? <>Cảnh báo sắp hết khi tồn dưới {inventoryThresholds[unit]} {unitLabels[unit]}.</> : <>Ngưỡng cảnh báo theo từng mặt hàng được hiển thị sau khi tạo. Sắp hết khi 0 &lt; tồn kho ≤ ngưỡng.</>} Bằng 0 là hết hàng.</p>
     <p>Tồn ban đầu là 0. Nhập hàng hoặc kiểm kê được phê duyệt để ghi nhận số lượng; đơn vị không thay đổi sau khi tạo.</p>
     <button className="button" type="submit">Thêm {label}</button></fieldset>{error&&<p role="alert">{error}</p>}</form>;
 }
 export function ReceiptForm({items:inventoryItems,busy,submit,category='materials'}:{items:Ingredient[];busy:boolean;submit:Submit;category?:InventoryCategory}) {
-  const items=listedIngredients(inventoryItems);
+  const items=receivableIngredients(inventoryItems);
   const [rows,setRows]=useState([{ingredientId:items[0]?.id??'',quantity:''}]),[note,setNote]=useState(''),[error,setError]=useState('');
   function save(e:FormEvent){e.preventDefault();const lines=rows.map(r=>{const i=items.find(i=>i.id===r.ingredientId);return i?{ingredientId:i.id,quantity:normalizeQuantity(r.quantity,i.unit,true)}:null;});
     if(!lines.length||lines.some(l=>!l||l.quantity===null)||new Set(rows.map(r=>r.ingredientId)).size!==rows.length){setError('Mỗi nguyên liệu chỉ xuất hiện một lần; lượng nhập phải lớn hơn 0 và đúng đơn vị.');return;}setError('');submit('receipts',{note,lines});}
@@ -31,12 +31,12 @@ export function ReceiptForm({items:inventoryItems,busy,submit,category='material
 }
 export function CountForm({items,busy,submit,recount,cancel}:{items:Ingredient[];busy:boolean;submit:Submit;recount:IngredientCount|null;cancel:()=>void}) {
   const [values,setValues]=useState<Record<string,{selected:boolean;actual:string;note:string}>>({}),[note,setNote]=useState(''),[error,setError]=useState('');
-  const available=recount?items.filter(i=>recount.lines.some(l=>l.ingredient.id===i.id)):listedIngredients(items);
+  const available=(recount?items.filter(i=>recount.lines.some(l=>l.ingredient.id===i.id)):listedIngredients(items)).filter(supportsInventoryCount);
   const value=(i:Ingredient)=>values[i.id]??{selected:!!recount,actual:'',note:''};
   function update(i:Ingredient,patch:Partial<ReturnType<typeof value>>){setValues({...values,[i.id]:{...value(i),...patch}});}
   function save(e:FormEvent){e.preventDefault();const lines=available.filter(i=>value(i).selected).map(i=>({ingredientId:i.id,expectedVersion:i.version,actualQuantity:normalizeQuantity(value(i).actual,i.unit),note:value(i).note}));
-    if(!lines.length||lines.length>50||lines.some(l=>l.actualQuantity===null)||(recount&&lines.length!==recount.lines.length)){setError('Chọn 1–50 nguyên liệu và nhập số lượng thực tế không âm cho từng dòng.');return;}setError('');submit('counts',{note,lines,...(recount?{recountOfId:recount.id}:{})});}
-  return <form className="ingredient-card ingredient-form" onSubmit={save}><h2>{recount?'Kiểm kê lại theo yêu cầu':'Gửi phiếu kiểm kê'}</h2><p>Nhập số lượng đếm thực tế. Tồn chính thức chỉ thay đổi khi Admin phê duyệt; không điền 0 nếu chưa kiểm kê.</p>
+    if(!lines.length||lines.length>50||lines.some(l=>l.actualQuantity===null)||(recount&&lines.length!==recount.lines.length)){setError('Chọn 1–50 nguyên liệu và nhập số lượng thực tế không âm cho từng dòng.');return;}setError('');const draft=(e.nativeEvent as SubmitEvent).submitter?.getAttribute('value')==='draft';submit('counts',{note,lines,...(recount?{recountOfId:recount.id}:{}),...(draft?{saveAsDraft:true}:{})});}
+  return <form className="ingredient-card ingredient-form" onSubmit={save}><h2>{recount?'Kiểm kê lại theo yêu cầu':'Kiểm kê tồn kho theo ngày'}</h2><p>Chỉ kiểm kê chênh lệch nguyên liệu; không gồm đá viên, nước lọc và vật dụng. Nhập số lượng đếm thực tế. Phiếu lưu mốc kiểm kê và tiêu hao từ đầu ngày theo giờ Việt Nam. Tồn chính thức chỉ thay đổi khi Admin phê duyệt; không điền 0 nếu chưa kiểm kê.</p>
     {recount&&<p>Lý do kiểm kê lại: {recount.reviewNote}</p>}<fieldset disabled={busy||!available.length}><legend>Kết quả kiểm kê nguyên liệu</legend>
     {available.map(i=>{const v=value(i),actual=normalizeQuantity(v.actual,i.unit);return <div key={i.id} className="ingredient-entry">
       <label className="ingredient-check"><input type="checkbox" checked={v.selected} disabled={!!recount} onChange={e=>update(i,{selected:e.target.checked})}/>{ingredientName(i)} ({unitLabels[i.unit]})</label>
@@ -45,7 +45,7 @@ export function CountForm({items,busy,submit,recount,cancel}:{items:Ingredient[]
         <p role="status">Chênh lệch: {actual===null?'Chưa nhập hợp lệ':`${displayQuantity(quantityDifference(actual,i.quantity))} ${unitLabels[i.unit]}`}</p>
         <label>Nguyên nhân chênh lệch — {ingredientName(i)}<textarea maxLength={500} value={v.note} onChange={e=>update(i,{note:e.target.value})}/></label></>}
     </div>;})}
-    <label>Ghi chú chung<textarea maxLength={500} value={note} onChange={e=>setNote(e.target.value)}/></label><button className="button" type="submit">Gửi Admin phê duyệt</button>
+    <label>Ghi chú chung<textarea maxLength={500} value={note} onChange={e=>setNote(e.target.value)}/></label><div className="ingredient-actions"><button type="submit" value="draft">Lưu nháp kiểm kê</button><button className="button" type="submit" value="submit">Gửi Admin phê duyệt</button></div>
     {recount&&<button type="button" onClick={cancel}>Hủy thao tác kiểm kê lại</button>}</fieldset>{error&&<p role="alert">{error}</p>}</form>;
 }
 export function ConfirmReceipt({doc,busy,submit}:{doc:IngredientReceipt;busy:boolean;submit:Submit}) {
@@ -54,9 +54,10 @@ export function ConfirmReceipt({doc,busy,submit}:{doc:IngredientReceipt;busy:boo
     <button className="button" disabled={busy||!confirmed} onClick={()=>submit(`receipts/${doc.id}/confirm`,{expectedVersion:doc.version})}>Xác nhận nhập hàng</button></div>;
 }
 export function ReviewCount({doc,busy,submit}:{doc:IngredientCount;busy:boolean;submit:Submit}) {
-  const [note,setNote]=useState(''),[confirmed,setConfirmed]=useState(false),stale=doc.lines.some(l=>l.stale);
+  const [note,setNote]=useState(''),[confirmed,setConfirmed]=useState(false),stale=doc.lines.some(l=>l.stale&&!l.canReconcile);
   return <fieldset className="ingredient-document-actions" disabled={busy}><legend>Phê duyệt kiểm kê</legend>
     {stale&&<p role="alert">Tồn kho đã thay đổi. Cần yêu cầu Staff kiểm kê lại; phiếu này không thể ghi đè tồn hiện tại.</p>}
+    {!stale&&doc.lines.some(l=>l.stale)&&<p role="status">Có giao dịch phát sinh sau kiểm kê. Máy chủ sẽ đối chiếu nhật ký và chỉ áp dụng chênh lệch; lượng nhập, tiêu hao và phần đã giữ được bảo toàn.</p>}
     <label>Lý do / ghi chú xử lý<textarea maxLength={500} value={note} onChange={e=>setNote(e.target.value)}/></label>
     <label className="ingredient-check"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>Đã đối chiếu số lượng thực tế</label>
     <div className="ingredient-actions"><button className="button" disabled={stale||!confirmed} onClick={()=>submit(`counts/${doc.id}/review`,{action:'APPROVE',expectedVersion:doc.version,note})}>Phê duyệt kiểm kê</button>

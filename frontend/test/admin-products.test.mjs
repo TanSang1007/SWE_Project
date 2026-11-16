@@ -20,10 +20,35 @@ const p = { id, name: 'Drink', price: '999999999999', imageUrl: '/images/cappucc
   sizes: [{ size: 'M', extraPrice: '0' }], toppings: [{ id: randomUUID(), name: 'Cream', price: '5000', createdAt: stamp, updatedAt: stamp }] };
 const session = (role = 'ADMIN', actor = owner) => useAuthStore.getState().signIn({ accessToken: `fixture-${role}-${actor}`, tokenType: 'Bearer', expiresIn: 3600, user: { id: actor, email: 'fixture@example.invalid', loyaltyPoints: 0, role } });
 const html = (component, props) => renderToStaticMarkup(React.createElement(component, props));
+test('recipe product rows display ingredient availability regardless of old manual stock', () => {
+  for (const [available, stock, label] of [[true, 0, 'Còn món'], [false, 999, 'Hết món']]) {
+    const recipe = parseAdminProduct({ ...p, inventorySource: 'INGREDIENTS', available, stock });
+    const markup = html(ProductList, { items: [recipe], busy: false });
+    assert(markup.includes(label)); assert(markup.includes('Theo nguyên liệu')); assert(!markup.includes('Tồn kho: 999'));
+  }
+});
 afterEach(() => { globalThis.fetch = originalFetch; useAuthStore.getState().clear(); });
 test('A04 parser returns exact phased DTO without option flags/version/internal fields', () => {
   assert.deepEqual(parseAdminProduct({ ...p, passwordHash: 'private', sizes: [{ ...p.sizes[0], isActive: true }], toppings: [{ ...p.toppings[0], version: 77, isActive: true }] }), p);
   assert.deepEqual(parseAdminProducts({ items: [p] }), [p]); assert.deepEqual(parseAdminProducts({ items: [] }), []);
+});
+test('seven Admin products remain readable when one linked topping has a stored numeric ID', async () => {
+  const topping = { ...p.toppings[0], id: '3', name: 'Sương Sáo' };
+  const rows = Array.from({ length: 7 }, (_, index) => ({ ...p, id: randomUUID(), toppings: index === 1 ? [...p.toppings, topping] : p.toppings }));
+  session(); globalThis.fetch = async () => Response.json({ items: rows });
+  const parsed = await adminProductRequest('GET');
+  assert.deepEqual(parsed, rows);
+  assert.match(html(ProductList, { items: parsed, busy: false }), /Sương Sáo/);
+  for (const id of ['1', '99999999999999999999']) assert.equal(parseAdminProduct({ ...p, toppings: [{ ...topping, id }] }).toppings[0].id, id);
+  for (const id of ['0', '03', '-3', '3.0', ' 3', '1'.repeat(21), 3, '../3']) assert.throws(() => parseAdminProduct({ ...p, toppings: [{ ...topping, id }] }));
+  assert.throws(() => parseAdminProduct({ ...p, id: '3' }));
+  globalThis.fetch = () => assert.fail('Product URL validation must remain UUID-only');
+  await assert.rejects(adminProductRequest('GET', '3'), { code: 'VALIDATION_ERROR' });
+});
+test('read failures describe loading while uncertain writes retain the no-resend instruction', () => {
+  assert.equal(productManagementMessage('UNAVAILABLE', 'read'), 'Chưa tải được dữ liệu sản phẩm. Hãy thử tải lại.');
+  assert.match(productManagementMessage('UNAVAILABLE'), /yêu cầu không được tự gửi lại/);
+  assert.equal(productManagementMessage('FORBIDDEN', 'read'), productManagementMessage('FORBIDDEN'));
 });
 test('parser rejects malformed flags/versions/stock/money/IDs/options/duplicate rows', () => {
   for (const [field, values] of [['price', [45000, '1.5', '-1', '1000000000000']], ['isActive', [null, 'true', 1]], ['stock', [-1, 1.5]], ['version', ['7', 2147483648]], ['createdAt', ['bad']], ['id', ['bad']]]) for (const value of values) assert.throws(() => parseAdminProduct({ ...p, [field]: value }));

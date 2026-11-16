@@ -26,6 +26,20 @@ describe('A05 strict HTTP contracts and DB-authoritative authorization', () => {
   });
   beforeEach(() => { jest.clearAllMocks(); role = 'ADMIN'; user.findUnique.mockImplementation(({ where }: { where: { id: string } }) => Promise.resolve(where.id === actor ? { id: actor, role } : null)); for (const fn of Object.values(service)) fn.mockResolvedValue({ fixture: true }); });
   afterAll(async () => { await app.close(); });
+  test('stored numeric Topping IDs support detail/update/delete with existing version and role guards', async () => {
+    await call('get', '/admin/toppings/3').expect(200); expect(service.topping).toHaveBeenCalledWith('3');
+    await call('patch', '/admin/toppings/3', { expectedVersion: 7, price: '9000' }).expect(200);
+    expect(service.updateTopping).toHaveBeenCalledWith('3', expect.objectContaining({ expectedVersion: 7 }));
+    await call('delete', '/admin/toppings/3', { expectedVersion: 7 }).expect(204);
+    expect(service.deleteTopping).toHaveBeenCalledWith('3', 7);
+    for (const value of ['STAFF', 'CUSTOMER']) { role = value; await call('get', '/admin/toppings/3').expect(403); await call('patch', '/admin/toppings/3', { expectedVersion: 7, price: '0' }).expect(403); }
+  });
+  test.each(['0', '03', '-3', '3.0', '111111111111111111111', 'not-an-id'])('invalid stored Topping ID %s is rejected before the service', async id => {
+    await call('get', '/admin/toppings/' + id).expect(400);
+    await call('patch', '/admin/toppings/' + id, { expectedVersion: 7, price: '0' }).expect(400);
+    await call('delete', '/admin/toppings/' + id, { expectedVersion: 7 }).expect(400);
+    expect(service.topping).not.toHaveBeenCalled(); expect(service.updateTopping).not.toHaveBeenCalled(); expect(service.deleteTopping).not.toHaveBeenCalled();
+  });
   test.each(routes)('ADMIN %s %s preserves status/private headers and strict delegation', async (method, path, body) => {
     const r = await call(method, path, body).set('Origin', 'http://localhost:3000').expect(method === 'post' ? 201 : method === 'delete' ? 204 : 200);
     expect(r.headers['cache-control']).toContain('no-store'); expect(r.headers.vary).toMatch(/Authorization/); expect(r.headers.vary).toMatch(/Origin/);
