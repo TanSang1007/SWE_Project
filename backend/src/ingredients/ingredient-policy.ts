@@ -18,6 +18,18 @@ export function checkHash(stored: string, expected: string) {
   if (stored !== expected) throw new ConflictException({ code: 'IDEMPOTENCY_KEY_REUSED', message: 'Mã yêu cầu đã dùng cho nội dung khác.' });
 }
 export function unitThreshold(unit: IngredientUnit) {
-  return new Prisma.Decimal({PIECE:'10',L:'5',KG:'10',G:'10000',ML:'5000',EGG:'10'}[unit]);
+  const thresholds: Partial<Record<IngredientUnit, string>> = {
+    PIECE: '10',
+    L: '5',
+    KG: '10',
+    G: '10000',
+    ML: '5000',
+    EGG: '10',
+    BAG: '10',
+    BOTTLE: '10',
+  };
+  const threshold = thresholds[unit];
+  if (!threshold) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Đơn vị không hợp lệ.' });
+  return new Prisma.Decimal(threshold);
 }
 export function stockStatus(q: Prisma.Decimal, threshold: Prisma.Decimal) { return q.isZero() ? 'OUT_OF_STOCK' : q.lt(threshold) ? 'LOW_STOCK' : 'IN_STOCK'; }
