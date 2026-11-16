@@ -1,0 +1,66 @@
+
+name: BrewLite CI
+
+on:
+  push:
+    branches:
+      - "**"
+
+  pull_request:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    name: Kiểm tra BrewLite
+    runs-on: ubuntu-latest
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/brewlite_ci
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/brewlite_ci
+      JWT_SECRET: ci-test-secret-not-for-production
+      PAYMENT_PROVIDER_MODE: MOCK
+      PAYMENT_MOCK_MODE: SUCCESS
+
+    steps:
+      # Bước 1: Lấy mã nguồn từ GitHub
+      - name: Lấy mã nguồn
+        uses: actions/checkout@v4
+
+      # Bước 2: Cài đặt Node.js
+      - name: Cài đặt Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # Bước 3: Cài đặt thư viện
+      - name: Cài đặt thư viện
+        run: npm ci
+
+      # Bước 4: Kiểm tra cấu trúc database
+      - name: Kiểm tra Prisma
+        run: npm run db:validate
+
+      # Bước 5: Kiểm thử Backend
+      - name: Kiểm thử Backend
+        run: npm test
+
+      # Bước 6: Kiểm thử chương trình Runtime
+      - name: Kiểm thử Runtime
+        run: npm run test:runtime
+
+      # Bước 7: Kiểm tra quy tắc code
+      - name: Kiểm tra mã nguồn
+        run: npm run lint
+
+      # Bước 8: Build toàn bộ hệ thống
+      - name: Build Frontend và Backend
+        run: npm run build
