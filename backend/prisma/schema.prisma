@@ -297,7 +297,9 @@ model IngredientCountLine {
   @@map("ingredient_count_lines")
 }
 
+
 model IngredientMovement {
+<<<<<<< Updated upstream
   id             String                 @id @default(dbgenerated("(nextval('ingredient_movements_id_seq')::text)")) @db.Text
   ingredientId   String                 @map("ingredient_id") @db.Text
   receiptLineId  String?                @unique @map("receipt_line_id") @db.Text
@@ -311,12 +313,62 @@ model IngredientMovement {
   receiptLine    IngredientReceiptLine? @relation(fields: [receiptLineId], references: [id], onDelete: Restrict)
   countLine      IngredientCountLine?   @relation(fields: [countLineId], references: [id], onDelete: Restrict)
   actor          User                   @relation(fields: [actorId], references: [id], onDelete: Restrict)
+=======
+  id                String                 @id @default(dbgenerated("(nextval('ingredient_movements_id_seq')::text)")) @db.Text
+  sequence          BigInt                 @unique @default(autoincrement())
+  ingredientId      String                 @map("ingredient_id") @db.Text
+  receiptLineId     String?                @unique @map("receipt_line_id") @db.Text
+  countLineId       String?                @unique @map("count_line_id") @db.Text
+  reservationId     String?                @map("reservation_id") @db.Uuid
+  reservationAction String?                @map("reservation_action") @db.VarChar(12)
+  reservationCycle  Int?                   @map("reservation_cycle")
+  beforeQuantity    Decimal                @map("before_quantity") @db.Decimal(12, 3)
+  afterQuantity     Decimal                @map("after_quantity") @db.Decimal(12, 3)
+  delta             Decimal                @db.Decimal(13, 3)
+  actorId           String                 @map("actor_id") @db.Text
+  createdAt         DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  ingredient        Ingredient             @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+  receiptLine       IngredientReceiptLine? @relation(fields: [receiptLineId], references: [id], onDelete: Restrict)
+  countLine         IngredientCountLine?   @relation(fields: [countLineId], references: [id], onDelete: Restrict)
+  actor             User                   @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  reservation       IngredientReservation? @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+>>>>>>> Stashed changes
 
   @@index([createdAt(sort: Desc), id(sort: Desc)])
   @@index([ingredientId, createdAt(sort: Desc), id(sort: Desc)])
   @@map("ingredient_movements")
 }
 
+<<<<<<< Updated upstream
+=======
+
+enum RecipeIngredientState {
+  RESERVED
+  RELEASED
+  CONSUMED
+}
+
+model IngredientReservation {
+  id           String                     @id @default(uuid()) @db.Uuid
+  orderId      String                     @map("order_id") @db.Uuid
+  ingredientId String                     @map("ingredient_id") @db.Uuid
+  nameSnapshot String                     @map("name_snapshot") @db.VarChar(120)
+  unitSnapshot IngredientUnit             @map("unit_snapshot")
+  quantity     Decimal                    @db.Decimal(12, 3)
+  state        RecipeIngredientState @default(RESERVED)
+  cycle        Int                        @default(1)
+  createdAt    DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime                   @default(now()) @map("updated_at") @db.Timestamptz(6)
+  order        Order                      @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  ingredient   Ingredient                 @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+  movements    IngredientMovement[]
+
+  @@unique([orderId, ingredientId])
+  @@index([ingredientId, state])
+  @@map("order_recipe_ingredients")
+}
+
+>>>>>>> Stashed changes
 model Product {
   id        String   @id @default(dbgenerated("('BR' || lpad(nextval('products_id_seq')::text, 3, '0'))")) @db.Text
   name      String   @db.Text

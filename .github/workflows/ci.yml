@@ -29,11 +29,17 @@ jobs:
       PAYMENT_MOCK_MODE: SUCCESS
 
     steps:
+<<<<<<< Updated upstream
       # Bước 1: Lấy mã nguồn từ GitHub
       - name: Lấy mã nguồn
         uses: actions/checkout@v4
 
       # Bước 2: Cài đặt Node.js
+=======
+      - name: Lấy mã nguồn
+        uses: actions/checkout@v4
+
+>>>>>>> Stashed changes
       - name: Cài đặt Node.js
         uses: actions/setup-node@v4
         with:
@@ -41,6 +47,7 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+<<<<<<< Updated upstream
       # Bước 3: Cài đặt thư viện
       - name: Cài đặt thư viện
         run: npm ci
@@ -64,3 +71,25 @@ jobs:
       # Bước 8: Build toàn bộ hệ thống
       - name: Build Frontend và Backend
         run: npm run build
+=======
+      - name: Cài đặt thư viện
+        run: npm ci
+
+      - name: Kiểm tra Prisma
+        run: npm run db:validate
+
+      - name: Sinh Prisma Client
+        run: npm run db:generate
+
+      - name: Kiểm thử Backend
+        run: npm test
+
+      - name: Kiểm thử Runtime
+        run: npm run test:runtime
+
+      - name: Kiểm tra mã nguồn
+        run: npm run lint
+
+      - name: Build Frontend và Backend
+        run: npm run build
+>>>>>>> Stashed changes
