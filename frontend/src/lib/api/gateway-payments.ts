@@ -45,7 +45,6 @@ export function parseAttempt(v: unknown): AttemptStatus {
     || ![a.canResume, a.canRetry, a.canCancel, a.requiresReview].every(x => typeof x === 'boolean')
     || !(a.paymentId === null || uuid(a.paymentId))) throw new OrderError('UNAVAILABLE');
   if (a.effectiveState === 'SUCCEEDED' && (a.applicationState !== 'APPLIED' || !a.paymentId || !['PAID', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED'].includes(a.orderStatus))) throw new OrderError('UNAVAILABLE');
-  if (a.effectiveState === 'FAILED' && (a.applicationState !== 'APPLIED' || !a.paymentId)) throw new OrderError('UNAVAILABLE');
   if (a.failureReason !== undefined && (a.failureReason !== 'CUSTOMER_CANCELLED' || a.effectiveState !== 'FAILED'
     || a.requiresReview || a.applicationState !== 'APPLIED' || !a.paymentId || !['PAYMENT_FAILED', 'CANCELLED'].includes(a.orderStatus))) throw new OrderError('UNAVAILABLE');
   return a;

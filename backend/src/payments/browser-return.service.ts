@@ -48,7 +48,7 @@ export class BrowserReturnService {
         const verified = verifyPayCallback(raw, settings, { txnRef: a.txnRef, orderTotalVnd: a.amount.toFixed(0) });
         // Ignore verified.outcome. Return authenticates navigation context only.
         return contextMatches(a, settings, verified.parameters) ? a.id : null;
-      }, { isolationLevel: 'RepeatableRead', ...(this.db.transactionOptions ?? { maxWait: 50, timeout: 400 }) });
+      }, { isolationLevel: 'RepeatableRead', ...(this.db.transactionOptions ?? { maxWait: 5000, timeout: 10000 }) });
       if (!id) return base;
       const destination = new URL(base); destination.searchParams.set('attemptId', id);
       if ((/^http:\/\/(localhost|127\.0\.0\.1):3001\/payments\/vnpay\/return$/.test(settings.returnUrl) || deploySandbox) && this.ipn) await this.ipn.receive(raw).catch(() => {});

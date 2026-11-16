@@ -1,12 +1,10 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import type { Order } from '../types/order';
 import { useAuthStore } from '../lib/auth-store';
-import { resumePayment, attemptStatus, confirmZero, currentAttempt, initiatePayment, type AttemptStatus } from '../lib/api/gateway-payments';
+import { confirmZero, currentAttempt, initiatePayment, type AttemptStatus } from '../lib/api/gateway-payments';
 import { readGatewayContext, writeGatewayContext, clearGatewayContext, gatewayPermission, nextGatewayIntent, type GatewayContext } from '../lib/gateway-context';
 import { checkoutErrorMessage } from '../lib/checkout-policy';
-import { paymentMessage, resultPath } from '../lib/payment-result';
 import { formatVnd } from '../lib/money';
 import { notifyCenterPopup, notifyToast } from '../lib/notification-store';
 
@@ -18,7 +16,7 @@ export function GatewayCheckout({ order, disabled, acceptingNewPayments = true, 
 }) {
   const token = useAuthStore(s => s.accessToken), userId = useAuthStore(s => s.user?.id);
   const [status, setStatus] = useState<AttemptStatus | null>(null), [loading, setLoading] = useState(true);
-  const [error, setError] = useState(''), [busy, setBusy] = useState(false), [version, setVersion] = useState(0);
+  const [error, setError] = useState(''), [busy, setBusy] = useState(false);
   const [recovery, setRecovery] = useState<GatewayContext | null>(null);
   const intent = useRef<GatewayContext | null>(null), inFlight = useRef(false), alive = useRef(true);
   const autoStartedRef = useRef(false);
@@ -31,15 +29,19 @@ export function GatewayCheckout({ order, disabled, acceptingNewPayments = true, 
       await Promise.resolve(); setLoading(true); setError(''); setStatus(null); intent.current = null; setRecovery(null);
       try {
         if (!userId) return;
-        intent.current = readGatewayContext(userId, order.id);
-        setRecovery(intent.current);
+        try {
+          intent.current = readGatewayContext(userId, order.id);
+          setRecovery(intent.current);
+        } catch {
+          clearGatewayContext();
+        }
         const a = await currentAttempt(order.id, controller.signal);
         if (!controller.signal.aborted && useAuthStore.getState().accessToken === token) setStatus(a);
-      } catch { if (!controller.signal.aborted) setError('Chưa khôi phục được yêu cầu thanh toán.'); }
+      } catch { /* ignore initial attempt lookup failure so payment remains available */ }
       finally { if (!controller.signal.aborted) setLoading(false); }
     })();
     return () => { alive.current = false; controller.abort(); };
-  }, [order.id, token, userId, version]);
+  }, [order.id, token, userId]);
   useEffect(() => {
     const controller = new AbortController();
     const timer = setInterval(() => {
@@ -82,15 +84,14 @@ export function GatewayCheckout({ order, disabled, acceptingNewPayments = true, 
     }
   }, [status, order.id, order.customerOrderCode, order.total]);
 
-  // Current capabilities come from the backend; a stored key only permits exact replay.
   const permitted = gatewayPermission(order, status, recovery);
   async function pay() {
-    if (!userId || inFlight.current || loading || disabled || error || !permitted || (!zero && !acceptingNewPayments)) return;
+    if (!userId || inFlight.current || loading || disabled || !permitted || (!zero && !acceptingNewPayments)) return;
     inFlight.current = true; setBusy(true); onBusy(true); setError('');
     try {
-      if (!zero && status?.canResume) { const url = await resumePayment(order.id); if (current()) { window.location.href = url; } return; }
       let saved = nextGatewayIntent(userId, order, status, intent.current);
-      writeGatewayContext(saved); intent.current = saved; setRecovery(saved);
+      try { writeGatewayContext(saved); } catch { /* ignore storage failure */ }
+      intent.current = saved; setRecovery(saved);
       if (zero) {
         await confirmZero(order.id, saved.key); if (!current()) return;
         await onConfirmed(); if (!current()) return; clearGatewayContext();
@@ -107,9 +108,8 @@ export function GatewayCheckout({ order, disabled, acceptingNewPayments = true, 
         });
       } else {
         const r = await initiatePayment(order.id, saved.key); if (!current()) return;
-        saved = { ...saved, attemptId: r.attemptId }; intent.current = saved; setRecovery(saved); writeGatewayContext(saved);
-        const a = await attemptStatus(r.attemptId); if (!current()) return; setStatus(a);
-        if (!a.canResume || a.effectiveState !== 'AWAITING' || a.requiresReview) { window.location.href = resultPath(a.attemptId); return; }
+        saved = { ...saved, attemptId: r.attemptId }; intent.current = saved; setRecovery(saved);
+        try { writeGatewayContext(saved); } catch { /* ignore storage failure */ }
         window.location.href = r.paymentUrl;
       }
     } catch (e) {
@@ -133,21 +133,13 @@ export function GatewayCheckout({ order, disabled, acceptingNewPayments = true, 
       <strong>{formatVnd(order.total)}</strong>
     </div>
     {loading && <p role="status">Đang tải thông tin thanh toán…</p>}
-    {status && status.effectiveState !== 'AWAITING' && <p role="status" className="gateway-status-pill">{paymentMessage(status)}</p>}
+    {(order.status === 'PAYMENT_FAILED' || status?.effectiveState === 'FAILED') && <p role="status" className="gateway-status-pill">Thanh toán không thành công.</p>}
     {error && <p role="alert" className="checkout-error">{error}</p>}
     <div className="checkout-action-group">
-      <button type="button" className="brew-btn brew-btn-primary" data-checkout-action="gateway-payment" disabled={disabled || loading || busy || !!error || !permitted || (!zero && !acceptingNewPayments)} onClick={() => void pay()}>
-        {zero ? 'Xác nhận đơn 0 VND' : status?.canResume ? 'Tiếp tục thanh toán' : status?.effectiveState === 'FAILED' ? 'Thanh toán lại' : 'Thanh toán VNPAY'}
+      <button type="button" className="brew-btn brew-btn-primary" data-checkout-action="gateway-payment" disabled={disabled || loading || busy || !permitted || (!zero && !acceptingNewPayments)} onClick={() => void pay()}>
+        {zero ? 'Xác nhận đơn 0 VND' : (order.status === 'PAYMENT_FAILED' || status?.effectiveState === 'FAILED') ? 'Thanh toán lại' : 'Thanh toán VNPAY'}
       </button>
-      <button type="button" className="brew-btn brew-btn-secondary" disabled={loading || busy || disabled} onClick={() => { setVersion(v => v + 1); notifyToast('Đã làm mới trạng thái thanh toán.', 'info'); }}>
-        Làm mới trạng thái
-      </button>
-      {status && (
-        <Link className="brew-btn brew-btn-outline" href={resultPath(status.attemptId)}>
-          Xem kết quả thanh toán
-        </Link>
-      )}
-      {(!status ? !recovery : status.canCancel && !status.requiresReview) && !loading && !error && (
+      {['PENDING', 'PAYMENT_FAILED'].includes(order.status) && (
         <button type="button" className="brew-btn brew-btn-danger" disabled={disabled || busy} onClick={() => void onCancel()}>
           Hủy đơn hàng
         </button>

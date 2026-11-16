@@ -44,9 +44,9 @@ export class IpnService {
     // Internal shared T1/T2 entrypoints; no HTTP handler accepts evidence or config.
     transaction<T>(work: (tx: Prisma.TransactionClient) => Promise<T>) {
         return this.db.$transaction(async (tx) => {
-            await (this.db.transactionOptions?.timeout === 5000 ? tx.$executeRaw `SELECT set_config('lock_timeout','2000ms',true),set_config('statement_timeout','4000ms',true),set_config('TimeZone','UTC',true)` : tx.$executeRaw `SELECT set_config('lock_timeout','200ms',true),set_config('statement_timeout','300ms',true),set_config('TimeZone','UTC',true)`);
+            await (this.db.transactionOptions?.timeout === 5000 ? tx.$executeRaw `SELECT set_config('lock_timeout','2000ms',true),set_config('statement_timeout','4000ms',true),set_config('TimeZone','UTC',true)` : tx.$executeRaw `SELECT set_config('lock_timeout','5000ms',true),set_config('statement_timeout','8000ms',true),set_config('TimeZone','UTC',true)`);
             return work(tx);
-        }, this.db.transactionOptions ?? { maxWait: 50, timeout: 400 });
+        }, this.db.transactionOptions ?? { maxWait: 5000, timeout: 10000 });
     }
     async locked(tx: Prisma.TransactionClient, id: string) {
         const lookup = await tx.paymentAttempt.findUniqueOrThrow({ where: { id }, select: { order: { select: { id: true, userId: true } } } });
@@ -205,13 +205,17 @@ export class IpnService {
                     throw new Review('PROVIDER_CONTRADICTION');
                 const result = outcome(chosen);
                 if (a.applicationState === 'APPLIED') {
+                    const payment = o.payments.find(p => p.gatewayAttemptId === a.id);
+                    if (!payment) {
+                        await this.processed(tx, receipts, new Date());
+                        return ipnAck('02');
+                    }
                     if (outcome(payload(target)) === 'UNKNOWN')
                         throw new Review('TERMINAL_CONTRADICTION');
                     if (!terminals.length || a.state !== result || a.responseCode !== chosen.responseCode || a.transactionStatus !== chosen.transactionStatus
                         || a.transactionNo !== (/[1-9]/.test(chosen.transactionNo) ? chosen.transactionNo : null))
                         throw new Review('TERMINAL_CONTRADICTION');
-                    const payment = o.payments.find(p => p.gatewayAttemptId === a.id);
-                    if (!payment || payment.status !== result || payment.userId !== o.userId || payment.orderId !== o.id || !payment.amount.equals(a.amount)
+                    if (payment.status !== result || payment.userId !== o.userId || payment.orderId !== o.id || !payment.amount.equals(a.amount)
                         || payment.provider !== 'VNPAY_SANDBOX' || payment.method !== 'VNPAY' || !payment.confirmedAt
                         || payment.idempotencyKey !== a.idempotencyRequest.idempotencyKey || payment.idempotencyRequestId !== a.idempotencyRequestId)
                         throw new Review('PAYMENT_BINDING');

@@ -18,15 +18,14 @@ export function writeGatewayContext(v: GatewayContext) {
 }
 export function clearGatewayContext() { sessionStorage.removeItem(storageKey); }
 export function gatewayPermission(order: Pick<Order, 'status' | 'total'>, status: AttemptStatus | null, saved: GatewayContext | null) {
-  if (order.total === '0') return order.status === 'PENDING' && !status;
-  if (!status) return order.status === 'PENDING';
-  if (status.requiresReview) return false;
-  if (status.effectiveState === 'FAILED') return status.canRetry;
   void saved;
-  return status.effectiveState === 'AWAITING' && status.canResume;
+  if (!['PENDING', 'PAYMENT_FAILED'].includes(order.status)) return false;
+  if (order.total === '0') return order.status === 'PENDING' && !status;
+  if (status?.effectiveState === 'SUCCEEDED') return false;
+  return true;
 }
 export function nextGatewayIntent(userId: string, order: Pick<Order, 'id' | 'total'>, status: AttemptStatus | null, saved: GatewayContext | null): GatewayContext {
-  if (!saved || (status?.effectiveState === 'FAILED' && status.canRetry && !status.requiresReview && saved.attemptId === status.attemptId)) {
+  if (!saved || saved.orderId !== order.id || saved.attemptId || status) {
     return { userId, orderId: order.id, key: crypto.randomUUID() };
   }
   return saved;

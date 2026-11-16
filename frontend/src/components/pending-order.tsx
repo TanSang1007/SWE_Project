@@ -5,9 +5,13 @@ import { useRouter } from 'next/navigation';
 import { getApiBaseUrl } from '../lib/env';
 import { getAccessToken, useAuthStore } from '../lib/auth-store';
 import { useCartStore } from '../lib/cart-store';
-import { parseOrder } from '../lib/api/orders';
+import { orderRequest, parseOrder } from '../lib/api/orders';
 import type { Order } from '../types/order';
 import { currentAttempt, type AttemptStatus } from '../lib/api/gateway-payments';
+import { clearOrderContext } from '../lib/order-context';
+import { clearGatewayContext } from '../lib/gateway-context';
+import { checkoutErrorMessage } from '../lib/checkout-policy';
+import { notifyToast } from '../lib/notification-store';
 
 export async function activeOrder(signal?: AbortSignal): Promise<Order | null> {
   const token = getAccessToken(); if (!token) throw Error('Authentication required');
@@ -19,6 +23,7 @@ export async function activeOrder(signal?: AbortSignal): Promise<Order | null> {
 }
 export function PendingOrder({ order, modal = false }: { order: Order; modal?: boolean }) {
   const [attempt, setAttempt] = useState<AttemptStatus | null>(null);
+  const [cancelling, setCancelling] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null), router = useRouter();
   useEffect(() => {
     const abort = new AbortController();
@@ -26,9 +31,29 @@ export function PendingOrder({ order, modal = false }: { order: Order; modal?: b
     return () => abort.abort();
   }, [order.id]);
   useEffect(() => { if (modal) dialog.current?.showModal(); }, [modal]);
+  async function handleCancel() {
+    if (cancelling) return;
+    setCancelling(true);
+    try {
+      await orderRequest('/orders/' + order.id + '/cancel', 'POST');
+      clearOrderContext();
+      clearGatewayContext();
+      dialog.current?.close();
+      window.dispatchEvent(new CustomEvent('brewlite-order-state-changed'));
+      await useCartStore.getState().load();
+      notifyToast(`Đã hủy đơn hàng ${order.customerOrderCode}.`, 'info', 'Bạn có thể tạo đơn hàng mới ngay bây giờ.');
+    } catch (e) {
+      notifyToast(checkoutErrorMessage(e, 'cancel'), 'error');
+    } finally {
+      setCancelling(false);
+    }
+  }
   const content = <><h2>Đơn hàng {order.customerOrderCode}</h2>
-    <div className="checkout-action-group"><Link className="brew-btn brew-btn-primary" href={`/checkout?orderId=${order.id}`}>{attempt?.canResume ? 'Tiếp tục thanh toán' : 'Xử lý đơn hàng'}</Link>
+    <div className="checkout-action-group"><Link className="brew-btn brew-btn-primary" href={`/checkout?orderId=${order.id}`}>{order.status === 'PAYMENT_FAILED' || attempt?.effectiveState === 'FAILED' ? 'Thanh toán lại' : 'Tiếp tục thanh toán'}</Link>
       <Link className="brew-btn brew-btn-outline" href={`/orders/${order.id}/confirmation`}>Xem chi tiết</Link>
+      <button type="button" className="brew-btn brew-btn-danger" disabled={cancelling} onClick={() => void handleCancel()}>
+        {cancelling ? 'Đang hủy…' : 'Hủy đơn hàng'}
+      </button>
       {modal && <Link className="brew-btn brew-btn-secondary" href="/cart">Quay lại giỏ hàng</Link>}</div></>;
   return modal ? <dialog ref={dialog} aria-label="Đơn hàng đang chờ thanh toán" onCancel={() => router.push('/cart')}>{content}</dialog>
     : <aside className="pending-order-banner">{content}</aside>;

@@ -3,13 +3,17 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '../lib/auth-store';
 import { getOrderDetail, getOrderHistory } from '../lib/api/order-history';
-import { OrderError } from '../lib/api/orders';
+import { OrderError, orderRequest } from '../lib/api/orders';
 import { formatVnd } from '../lib/money';
 import { formatOrderTime, orderStatusLabels } from '../lib/order-display';
 import { OrderSummary } from './order-summary';
 import type { OrderDetail, OrderHistoryItem } from '../types/order';
 import { currentAttempt, type AttemptStatus } from '../lib/api/gateway-payments';
-import { paymentMessage, resultPath } from '../lib/payment-result';
+import { clearOrderContext } from '../lib/order-context';
+import { clearGatewayContext } from '../lib/gateway-context';
+import { useCartStore } from '../lib/cart-store';
+import { checkoutErrorMessage } from '../lib/checkout-policy';
+import { notifyToast } from '../lib/notification-store';
 export type OrderReadState = { status: 'loading' } | { status: 'error'; notFound: boolean }
   | { status: 'history'; items: OrderHistoryItem[] } | { status: 'detail'; order: OrderDetail; attempt?: AttemptStatus | null; attemptUnavailable?: boolean };
 export function OrderHistoryView({ id }: { id?: string }) {
@@ -43,7 +47,7 @@ export function OrderReadContent({ state, retry }: { state: OrderReadState; retr
     {state.status === 'error' && <div className="state-panel" role="alert"><h2>{state.notFound ? 'Không tìm thấy đơn hàng' : 'Chưa tải được đơn hàng'}</h2>
       <p>{state.notFound ? 'Kiểm tra đường dẫn và tài khoản đăng nhập của bạn.' : 'Kết nối đang gián đoạn. Bạn thử lại sau một chút nhé.'}</p></div>}
     {state.status === 'history' && (state.items.length ? <OrderHistoryList items={state.items} /> : <div className="state-panel" role="status"><h2>Bạn chưa có đơn hàng</h2><p>Các đơn đã đặt sẽ xuất hiện ở đây.</p><Link className="button" href="/">Xem thực đơn</Link></div>)}
-    {state.status === 'detail' && <OrderDetailContent order={state.order} attempt={state.attempt} attemptUnavailable={state.attemptUnavailable} />}
+    {state.status === 'detail' && <OrderDetailContent order={state.order} attempt={state.attempt} attemptUnavailable={state.attemptUnavailable} onCancelled={retry} />}
     <div className="checkout-action-group" style={{ marginTop: 16 }}>
       <button type="button" className="brew-btn brew-btn-secondary" data-order-read-retry disabled={state.status === 'loading'} onClick={retry}>{state.status === 'error' ? 'Thử lại' : 'Tải lại đơn hàng'}</button>
     </div>
@@ -57,18 +61,48 @@ export function OrderHistoryList({ items }: { items: OrderHistoryItem[] }) {
     <Link className="brew-btn brew-btn-primary" href={`/orders/${order.id}/confirmation`} aria-label={`Xem chi tiết đơn ${order.customerOrderCode}`}>Xem chi tiết</Link>
   </li>)}</ol>;
 }
-export function OrderDetailContent({ order, attempt, attemptUnavailable }: { order: OrderDetail; attempt?: AttemptStatus | null; attemptUnavailable?: boolean }) {
+export function OrderDetailContent({ order, attempt, attemptUnavailable, onCancelled }: { order: OrderDetail; attempt?: AttemptStatus | null; attemptUnavailable?: boolean; onCancelled?: () => void }) {
+  void attempt;
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState('');
+  async function handleCancel() {
+    if (cancelling || !['PENDING', 'PAYMENT_FAILED'].includes(order.status)) return;
+    setCancelling(true); setCancelError('');
+    try {
+      await orderRequest('/orders/' + order.id + '/cancel', 'POST');
+      clearOrderContext();
+      clearGatewayContext();
+      window.dispatchEvent(new CustomEvent('brewlite-order-state-changed'));
+      void useCartStore.getState().load();
+      notifyToast(`Đã hủy đơn hàng ${order.customerOrderCode}.`, 'info', 'Bạn có thể tạo đơn hàng mới ngay bây giờ.');
+      onCancelled?.();
+    } catch (e) {
+      const msg = checkoutErrorMessage(e, 'cancel');
+      setCancelError(msg);
+      notifyToast(msg, 'error');
+    } finally {
+      setCancelling(false);
+    }
+  }
   return <article className="order-confirmation" data-confirmation-order={order.id}>
     <OrderSummary order={order} localizedStatus />
     <dl className="order-metadata"><div><dt>Thời điểm đặt</dt><dd><time dateTime={order.createdAt}>{formatOrderTime(order.createdAt)}</time></dd></div>
       {order.paidAt && <div><dt>Thời điểm thanh toán</dt><dd><time dateTime={order.paidAt}>{formatOrderTime(order.paidAt)}</time></dd></div>}
       <div><dt>Kết quả thanh toán</dt><dd>{order.paymentStatus === 'SUCCEEDED' ? 'Thành công' : order.paymentStatus === 'FAILED' ? 'Thất bại' : 'Chưa có kết quả'}</dd></div>
       <div><dt>Điểm từ đơn này</dt><dd>{order.earnedPoints === null ? 'Chưa phát sinh' : order.earnedPoints.toLocaleString('vi-VN') + ' điểm'}</dd></div></dl>
-    {attempt && <div className="gateway-checkout"><p role="status" className="gateway-status-pill">{paymentMessage(attempt)}</p></div>}
     {attemptUnavailable && <p role="alert">Chưa đọc được trạng thái giao dịch hiện tại.</p>}
+    {cancelError && <p role="alert" className="checkout-error">{cancelError}</p>}
     <div className="checkout-action-group" style={{ marginTop: 18 }}>
-      {['PENDING', 'PAYMENT_FAILED'].includes(order.status) && <Link className="brew-btn brew-btn-primary" href={`/checkout?orderId=${order.id}`}>Thanh toán đơn hàng</Link>}
-      {attempt && <Link className="brew-btn brew-btn-secondary" href={resultPath(attempt.attemptId)}>Kết quả giao dịch</Link>}
+      {['PENDING', 'PAYMENT_FAILED'].includes(order.status) && (
+        <>
+          <Link className="brew-btn brew-btn-primary" href={`/checkout?orderId=${order.id}`}>
+            {order.status === 'PAYMENT_FAILED' ? 'Thanh toán lại' : 'Thanh toán đơn hàng'}
+          </Link>
+          <button type="button" className="brew-btn brew-btn-danger" disabled={cancelling} onClick={() => void handleCancel()}>
+            {cancelling ? 'Đang hủy…' : 'Hủy đơn hàng'}
+          </button>
+        </>
+      )}
       <Link className="brew-btn brew-btn-outline" href="/orders">Về lịch sử đơn hàng</Link>
       <Link className="brew-btn brew-btn-outline" href="/">Về thực đơn</Link>
     </div>
