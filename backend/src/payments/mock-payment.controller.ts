@@ -30,6 +30,7 @@ import { effect, lockOrder, persistEffects, reconcileAccount, reservationGate, t
 import { assertGatewayClear, gatewayBlocks, lockAttempts } from './gateway-policy';
 import { assertPaymentWindow } from './payment-deadline';
 import { clearPurchasedCart } from './cart-cleanup';
+import { customerOrderCode } from '../orders/customer-order-code';
 
 const trimLower = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().toLowerCase() : value);
 const trimUpper = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().toUpperCase() : value);
@@ -202,7 +203,7 @@ export class MockPaymentService {
             method: payment.method,
             failureCode: payment.failureCode,
           },
-          order: { id: orderId, orderCode: o.orderCode, status: nextStatus },
+          order: { id: orderId, orderCode: o.orderCode, customerOrderCode: await customerOrderCode(tx, orderId, o.orderCode), status: nextStatus },
           earnedPoints: awardedPoints,
         };
         await tx.idempotencyRequest.update({

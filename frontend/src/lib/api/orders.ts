@@ -34,6 +34,7 @@ export function parseOrder(value: unknown): Order {
       || (o.expiresAt !== null && (!o.paymentStartedAt || Date.parse(o.expiresAt) - Date.parse(o.paymentStartedAt) !== 600000))) throw new OrderError('UNAVAILABLE');
   }
   if (typeof o.id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(o.id) || typeof o.orderCode !== 'string'
+    || !(o.customerOrderCode === undefined || typeof o.customerOrderCode === 'string')
     || !['PENDING', 'PAYMENT_FAILED', 'CANCELLED', 'PAID', 'PREPARING', 'READY', 'COMPLETED'].includes(o.status)
     || o.currency !== 'VND' || !money(o.subtotal) || !money(o.discountAmount) || !money(o.total)
     || typeof o.createdAt !== 'string' || !Number.isFinite(Date.parse(o.createdAt))
@@ -52,7 +53,7 @@ export function parseOrder(value: unknown): Order {
     return { productId: i.productId, productName: i.productName, size: i.size, qty: i.qty, unitPrice: i.unitPrice, lineTotal: i.lineTotal,
       toppings: i.toppings.map((t) => ({ name: t.name, price: t.price })) };
   });
-  return { id: o.id, orderCode: o.orderCode, status: o.status, currency: o.currency, items, subtotal: o.subtotal,
+  return { id: o.id, orderCode: o.orderCode, customerOrderCode: o.customerOrderCode ?? o.orderCode, status: o.status, currency: o.currency, items, subtotal: o.subtotal,
     discountAmount: o.discountAmount, total: o.total, promotionCode: o.promotionCode, createdAt: o.createdAt,
     ...(o.expiresAt !== undefined ? { paymentStartedAt: o.paymentStartedAt, expiresAt: o.expiresAt, serverNow: o.serverNow,
       paymentExpiredAt: o.paymentExpiredAt, cancellationReason: o.cancellationReason } : {}), ...loyalty };

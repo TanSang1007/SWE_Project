@@ -5,6 +5,7 @@ import { canRetryOriginal, sendWorkflow, type WorkflowCommand, type WorkflowTarg
 import { OrderError } from '../lib/api/orders';
 import type { OperatorOrderDetail } from '../types/operator-order';
 import type { UserRole } from '../types/auth';
+import { notifyToast } from '../lib/notification-store';
 
 export type WorkflowPhase = 'idle' | 'confirm' | 'pending' | 'conflict' | 'unresolved' | 'retry' | 'confirmed';
 const actions = { PAID: { target: 'PREPARING', label: 'Bắt đầu pha chế' }, PREPARING: { target: 'READY', label: 'Đánh dấu sẵn sàng' },
@@ -50,9 +51,12 @@ export function OperatorWorkflow({ order, role, onCurrent, onBusy, onDenied }: {
       onCurrent(current);
       if (!committed.current && phaseRef.current !== 'conflict' && canRetryOriginal(original, current)) {
         stage('retry'); setMessage('Chưa xác nhận được kết quả thao tác. Bạn có thể thử lại thao tác vừa gửi.');
+        notifyToast('Chưa xác nhận được kết quả thao tác.', 'warning');
       } else {
         stage('idle'); command.current = null;
-        setMessage(committed.current ? 'Đã cập nhật trạng thái đơn hàng.' : 'Đã làm mới dữ liệu đơn hàng.');
+        const msg = committed.current ? 'Đã cập nhật trạng thái đơn hàng.' : 'Đã làm mới dữ liệu đơn hàng.';
+        setMessage(msg);
+        notifyToast(msg, 'success');
       }
     } catch (error) {
       if (denied(error)) return;

@@ -1,8 +1,16 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 import type { Response } from 'express';
 
-// P00 local-browser topology. Changing the destination requires a separate task.
-export function browserReturnBase(frontendOrigin: unknown): string {
+// P00 local-browser topology + Render deploy sandbox HTTPS origin.
+export function browserReturnBase(frontendOrigin: unknown, deploySandbox = false): string {
+  if (deploySandbox && typeof frontendOrigin === 'string') {
+    try {
+      const url = new URL(frontendOrigin);
+      if (url.protocol === 'https:' && url.origin === frontendOrigin && url.hostname.endsWith('.onrender.com')) {
+        return `${frontendOrigin}/payments/vnpay/result`;
+      }
+    } catch { /* fall through */ }
+  }
   if (frontendOrigin !== 'http://localhost:3000')
     throw new ServiceUnavailableException({ code: 'PAYMENT_UNAVAILABLE', message: 'Payment return unavailable' });
   return 'http://localhost:3000/payments/vnpay/result';

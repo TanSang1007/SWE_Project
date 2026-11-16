@@ -2,9 +2,9 @@
 import { formatVnd } from '../lib/money';
 import { orderStatusLabels } from '../lib/order-display';
 import type { Order } from '../types/order';
-export function OrderSummary({ order, localizedStatus = false }: { order: Order; localizedStatus?: boolean }) {
-  return <section className="order-summary" aria-labelledby="order-summary-heading"><h3 id="order-summary-heading">Đơn {order.orderCode}</h3><p data-order-status={order.status}>Trạng thái: {localizedStatus ? orderStatusLabels[order.status] : order.status}</p>
-    <p>Chi tiết và tổng tiền bên dưới được giữ theo đơn đã đặt.</p>
+export function OrderSummary({ order, localizedStatus = false, showStatus = true, operator = false }: { order: Order; localizedStatus?: boolean; showStatus?: boolean; operator?: boolean }) {
+  // Customers see their per-account code; operators see the global DB code plus the customer's code.
+  return <section className="order-summary" aria-labelledby="order-summary-heading"><h3 id="order-summary-heading">Đơn {operator ? order.orderCode : order.customerOrderCode}</h3>{operator && order.customerOrderCode !== order.orderCode && <p className="customer-order-code">Mã đơn của khách: {order.customerOrderCode}</p>}{showStatus && <p data-order-status={order.status}>Trạng thái: {localizedStatus ? orderStatusLabels[order.status] : order.status}</p>}
     <ul>{order.items.map((i, index) => <li key={index}><strong>{i.productName}</strong><p>Size {i.size} · {i.qty} ly</p>
       <p>Topping: {i.toppings.map((t) => t.name + ' (' + formatVnd(t.price) + ')').join(', ') || 'Không topping'}</p>
       <p>Đơn giá: {formatVnd(i.unitPrice)} / ly · Thành tiền: {formatVnd(i.lineTotal)}</p></li>)}</ul>

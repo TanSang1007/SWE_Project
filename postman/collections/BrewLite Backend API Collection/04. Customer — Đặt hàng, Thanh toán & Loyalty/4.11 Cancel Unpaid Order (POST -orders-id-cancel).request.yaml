@@ -1,0 +1,11 @@
+$kind: http-request
+name: 4.11 Cancel Unpaid Order (POST /orders/:id/cancel)
+url: "{{baseUrl}}/orders/{{orderId}}/cancel"
+method: POST
+headers:
+  Authorization: Bearer {{customerToken}}
+  Content-Type: application/json
+body:
+  type: text
+  content: "{}"
+order: 11000

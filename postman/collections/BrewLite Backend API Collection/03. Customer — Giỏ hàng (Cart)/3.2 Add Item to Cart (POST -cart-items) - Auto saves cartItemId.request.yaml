@@ -1,0 +1,28 @@
+$kind: http-request
+name: 3.2 Add Item to Cart (POST /cart/items) -> Auto saves cartItemId
+url: "{{baseUrl}}/cart/items"
+method: POST
+headers:
+  Authorization: Bearer {{customerToken}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "productId": "{{cappuccinoId}}",
+      "size": "M",
+      "qty": 2,
+      "toppingIds": ["{{kemToppingId}}"]
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Created 201', function () {
+          pm.response.to.have.status(201);
+      });
+      const json = pm.response.json();
+      if (json.items && json.items.length > 0) {
+          pm.environment.set('cartItemId', json.items[0].id);
+      }
+    language: text/javascript
+order: 2000

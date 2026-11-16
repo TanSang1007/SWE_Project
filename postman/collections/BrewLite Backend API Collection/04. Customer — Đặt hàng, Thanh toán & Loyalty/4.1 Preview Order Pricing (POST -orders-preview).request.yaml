@@ -1,0 +1,23 @@
+$kind: http-request
+name: 4.1 Preview Order Pricing (POST /orders/preview)
+url: "{{baseUrl}}/orders/preview"
+method: POST
+headers:
+  Authorization: Bearer {{customerToken}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "items": [
+        {
+          "productId": "{{cappuccinoId}}",
+          "size": "M",
+          "qty": 2,
+          "toppingIds": ["{{kemToppingId}}"]
+        }
+      ],
+      "promotionCode": "{{promotionCode}}",
+      "redeemedPoints": 0
+    }
+order: 1000

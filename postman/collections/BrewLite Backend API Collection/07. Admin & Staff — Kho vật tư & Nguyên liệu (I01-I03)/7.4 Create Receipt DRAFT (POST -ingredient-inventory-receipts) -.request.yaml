@@ -1,0 +1,30 @@
+$kind: http-request
+name: 7.4 Create Receipt DRAFT (POST /ingredient-inventory/receipts) -> Auto saves receiptId
+url: "{{baseUrl}}/ingredient-inventory/receipts"
+method: POST
+headers:
+  Authorization: Bearer {{adminToken}}
+  Idempotency-Key: receipt-{{$guid}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "note": "Nhập hàng đầu tuần qua Postman",
+      "lines": [
+        {
+          "ingredientId": "{{ingredientId}}",
+          "quantity": "25"
+        }
+      ]
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      const json = pm.response.json();
+      if (json.id) {
+          pm.environment.set('receiptId', json.id);
+          pm.environment.set('receiptVersion', String(json.version ?? 0));
+      }
+    language: text/javascript
+order: 4000

@@ -66,3 +66,18 @@ test('PAYMENT_PROVIDER_MODE defaults to VNPAY_SANDBOX and rejects MOCK', () => {
 test('production admission is false even with a manually injected acceptance flag', () => {
   expect(acceptsNewPayments(new ConfigService({ NODE_ENV: 'production', VNPAY_ACCEPT_NEW_PAYMENTS: true }))).toBe(false);
 });
+test('deploy sandbox mode accepts Render HTTPS origin and dynamic PORT on brewlite_dev', () => {
+  const DATABASE_URL = 'postgresql://fixture:fixture@endpoint-pooler.region.aws.neon.tech/brewlite_dev?sslmode=require';
+  const FRONTEND_ORIGIN = 'https://brewlite-frontend.onrender.com';
+  const settings = initiationSettings({
+    ...env,
+    PORT: '10000',
+    DATABASE_URL,
+    FRONTEND_ORIGIN,
+    VNPAY_RESULT_URL: `${FRONTEND_ORIGIN}/payments/vnpay/result`,
+    VNPAY_DEPLOY_SANDBOX: 'true',
+    VNPAY_ACCEPT_NEW_PAYMENTS: 'true',
+  });
+  expect(settings.VNPAY_DEPLOY_SANDBOX).toBe(true);
+  expect(acceptsNewPayments(new ConfigService({ ...env, ...settings }))).toBe(true);
+});

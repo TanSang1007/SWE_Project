@@ -1,0 +1,8 @@
+$kind: http-request
+name: 2.5 Restore Session (POST /auth/session)
+url: "{{baseUrl}}/auth/session"
+method: POST
+headers:
+  Origin: "{{frontendOrigin}}"
+  X-Brewlite-Csrf: "1"
+order: 5000

@@ -1,0 +1,8 @@
+$kind: http-request
+name: 2.6 Logout Session (POST /auth/logout)
+url: "{{baseUrl}}/auth/logout"
+method: POST
+headers:
+  Origin: "{{frontendOrigin}}"
+  X-Brewlite-Csrf: "1"
+order: 6000

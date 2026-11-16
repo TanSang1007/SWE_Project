@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "09261575-37ae-4901-8287-3cdea87af606",
+  "status": "current",
+  "command": "deliver",
+  "type": "workflow",
+  "input": "D:\\SWE_Project\\.archify\\workflow-brewlite-payment-flow-20261103-162500\\candidate.json",
+  "output": "D:\\SWE_Project\\.archify\\workflow-brewlite-payment-flow-20261103-162500\\brewlite-payment-flow.html",
+  "specification": {
+    "sha256": "4583a23304d5dbd6e48f312ea0bbe27b655c1389a614bd2532a832c1316f1cdc",
+    "bytes": 16065
+  },
+  "artifact": {
+    "sha256": "32c70bfdb5122d351bec3e6c779892fa1e548f55d5b980035ea32b5536cf20d3",
+    "bytes": 884267
+  }
+}

@@ -18,7 +18,3 @@ backend/src/generated/prisma/
 Thumbs.db
 *.tmp
 .brewlite/
-
-# Docker local env
-docker/*.env
-docker/local.env

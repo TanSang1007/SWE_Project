@@ -11,6 +11,7 @@ export interface Environment {
   VNPAY_INITIATION_CONFIG: VnpayConfig | null;
   VNPAY_ACCEPT_NEW_PAYMENTS?: boolean;
   VNPAY_SANDBOX_ENABLED?: boolean;
+  VNPAY_DEPLOY_SANDBOX?: boolean;
 }
 
 export function validateEnvironment(values: Record<string, unknown>): Environment {

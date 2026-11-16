@@ -1,0 +1,7 @@
+$kind: http-request
+name: 7.8 List Inventory Movements (GET /ingredient-inventory/movements)
+url: "{{baseUrl}}/ingredient-inventory/movements"
+method: GET
+headers:
+  Authorization: Bearer {{adminToken}}
+order: 8000

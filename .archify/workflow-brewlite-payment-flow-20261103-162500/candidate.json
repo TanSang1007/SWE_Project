@@ -1,0 +1,473 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Luồng Vận hành & Thanh toán BrewLite (VNPAY Sandbox & INTERNAL_ZERO)",
+    "quality_profile": "showcase",
+    "output": ".archify/workflow-brewlite-payment-flow-20261103-162500/brewlite-payment-flow.html",
+    "repository": {
+      "url": "https://github.com/TanSang1007/SWE_Project.git",
+      "provider": "github",
+      "revision": "6b89c38d586cb23642833a06e9d1c262c210a83b"
+    },
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "frontend": { "label": "Giao diện & Điều hướng (Next.js)" },
+        "backend": { "label": "Xử lý Đơn hàng & Thanh toán (NestJS)" },
+        "security": { "label": "Kiểm soát An toàn, IPN & Đối soát" },
+        "messagebus": { "label": "Tiến trình Nền & Khôi phục" },
+        "database": { "label": "Lưu trữ PostgreSQL & Sổ cái" },
+        "cloud": { "label": "Cổng Thanh toán VNPAY Sandbox" },
+        "external": { "label": "Nhận món & Hoàn tất tại Quầy" }
+      }
+    }
+  },
+  "lanes": [
+    { "id": "ui", "label": "Giao diện Khách hàng & Điều hướng (Next.js)" },
+    { "id": "backend", "label": "Điều phối Đơn hàng & Thanh toán (NestJS)" },
+    { "id": "store", "label": "PostgreSQL, Biên nhận T1 & Sổ cái Loyalty" },
+    { "id": "exception", "label": "Ngoại lệ, Hết hạn, Thử lại & Đối soát", "variant": "exception" }
+  ],
+  "phases": [
+    { "id": "phase_order", "label": "1. Tạo Đơn & Giữ chỗ", "fromCol": 0, "toCol": 1 },
+    { "id": "phase_gateway", "label": "2. VNPAY & Xác thực IPN T1", "fromCol": 2, "toCol": 3, "variant": "emphasis" },
+    { "id": "phase_settle", "label": "3. Quyết toán T2 & Phục vụ", "fromCol": 4, "toCol": 5, "variant": "dashed" }
+  ],
+  "mainPath": [
+    "cart_checkout",
+    "create_order",
+    "init_attempt",
+    "vnpay_gateway",
+    "ipn_verify",
+    "ipn_settle",
+    "staff_fulfill",
+    "pickup_complete"
+  ],
+  "nodes": [
+    {
+      "id": "cart_checkout",
+      "lane": "ui",
+      "col": 0,
+      "type": "frontend",
+      "label": "Giỏ hàng & Checkout",
+      "sublabel": "Chọn món, KM & điểm",
+      "sources": [
+        { "path": "frontend/src/components/checkout-view.tsx", "line": 10, "end_line": 30, "label": "CheckoutView" },
+        { "path": "frontend/src/components/order-checkout.tsx", "line": 19, "end_line": 43, "label": "OrderCheckout" }
+      ]
+    },
+    {
+      "id": "create_order",
+      "lane": "backend",
+      "col": 0,
+      "type": "backend",
+      "label": "Tạo đơn (POST /orders)",
+      "sublabel": "Giá DB, đơn PENDING",
+      "tag": "Hạn 10 phút",
+      "sources": [
+        { "path": "backend/src/orders/order.controller.ts", "line": 14, "end_line": 29, "label": "OrderController.create" },
+        { "path": "backend/src/orders/order.service.ts", "line": 83, "end_line": 138, "label": "OrderService.create" }
+      ]
+    },
+    {
+      "id": "reserve_db",
+      "lane": "store",
+      "col": 0,
+      "type": "database",
+      "label": "Khóa Tồn & Điểm",
+      "sublabel": "Trừ tồn CAS, RESERVE",
+      "sources": [
+        { "path": "backend/src/orders/order.service.ts", "line": 107, "end_line": 133, "label": "Stock CAS & Loyalty RESERVE" }
+      ]
+    },
+    {
+      "id": "expire_cancel",
+      "lane": "exception",
+      "col": 0,
+      "type": "security",
+      "label": "Hủy / Quá hạn 10p",
+      "sublabel": "Hoàn tồn & RELEASE",
+      "sources": [
+        { "path": "backend/src/orders/payment-expiration.worker.ts", "line": 17, "end_line": 33, "label": "PaymentExpirationWorker" },
+        { "path": "backend/src/orders/order.service.ts", "line": 202, "end_line": 233, "label": "OrderService.cancel" }
+      ]
+    },
+    {
+      "id": "init_attempt",
+      "lane": "backend",
+      "col": 1,
+      "type": "backend",
+      "label": "Khởi tạo VNPAY",
+      "sublabel": "POST .../vnpay/attempts",
+      "tag": "Đơn >= 5.000đ",
+      "sources": [
+        { "path": "backend/src/payments/attempt.controller.ts", "line": 23, "end_line": 42, "label": "AttemptController.initiate" },
+        { "path": "backend/src/payments/attempt.service.ts", "line": 80, "end_line": 144, "label": "AttemptService.initiate" }
+      ]
+    },
+    {
+      "id": "zero_confirm",
+      "lane": "store",
+      "col": 1,
+      "type": "security",
+      "label": "Xác nhận Đơn 0đ",
+      "sublabel": "POST .../confirm-zero",
+      "tag": "INTERNAL_ZERO",
+      "sources": [
+        { "path": "backend/src/payments/zero-confirmation.controller.ts", "line": 14, "end_line": 30, "label": "ZeroConfirmationController" },
+        { "path": "backend/src/payments/zero-confirmation.service.ts", "line": 48, "end_line": 94, "label": "ZeroConfirmationService" }
+      ]
+    },
+    {
+      "id": "browser_return",
+      "lane": "ui",
+      "col": 2,
+      "type": "frontend",
+      "label": "Browser Return",
+      "sublabel": "GET .../vnpay/return",
+      "sources": [
+        { "path": "backend/src/payments/browser-return.controller.ts", "line": 9, "end_line": 16, "label": "BrowserReturnController" },
+        { "path": "backend/src/payments/browser-return.service.ts", "line": 34, "end_line": 60, "label": "BrowserReturnService" }
+      ]
+    },
+    {
+      "id": "vnpay_gateway",
+      "lane": "backend",
+      "col": 2,
+      "type": "cloud",
+      "label": "VNPAY Sandbox",
+      "sublabel": "Thẻ test & ký HMAC",
+      "tag": "VNPAY 2.1.0",
+      "sources": [
+        { "path": "backend/src/payments/vnpay/vnpay-pay.ts", "line": 32, "end_line": 44, "label": "buildPaymentUrl" },
+        { "path": "backend/src/payments/vnpay/vnpay-pay.ts", "line": 68, "end_line": 90, "label": "verifyPayCallback" }
+      ]
+    },
+    {
+      "id": "result_poll",
+      "lane": "ui",
+      "col": 3,
+      "type": "frontend",
+      "label": "Trang Kết quả",
+      "sublabel": "Poll trạng thái Attempt",
+      "sources": [
+        { "path": "frontend/src/app/payments/vnpay/result/page.tsx", "line": 3, "end_line": 8, "label": "PaymentResultPage" },
+        { "path": "frontend/src/components/payment-result.tsx", "line": 27, "end_line": 51, "label": "PaymentResult" }
+      ]
+    },
+    {
+      "id": "ipn_verify",
+      "lane": "backend",
+      "col": 3,
+      "type": "security",
+      "label": "Xác thực IPN (T1)",
+      "sublabel": "GET .../vnpay/ipn",
+      "tag": "HMAC & khớp tiền",
+      "sources": [
+        { "path": "backend/src/payments/ipn.controller.ts", "line": 7, "end_line": 17, "label": "IpnController.receive" },
+        { "path": "backend/src/payments/ipn.service.ts", "line": 86, "end_line": 110, "label": "IpnService.receive" }
+      ]
+    },
+    {
+      "id": "t1_receipt_db",
+      "lane": "store",
+      "col": 3,
+      "type": "messagebus",
+      "label": "Biên nhận & Worker",
+      "sublabel": "Lưu VERIFIED, quét 5s",
+      "sources": [
+        { "path": "backend/src/payments/ipn.service.ts", "line": 97, "end_line": 108, "label": "Persist T1 Receipt" },
+        { "path": "backend/src/payments/payment-receipt.worker.ts", "line": 17, "end_line": 29, "label": "PaymentReceiptWorker" }
+      ]
+    },
+    {
+      "id": "failed_or_review",
+      "lane": "exception",
+      "col": 3,
+      "type": "security",
+      "label": "Lỗi / Cần đối soát",
+      "sublabel": "FAILED hoặc REVIEW",
+      "sources": [
+        { "path": "backend/src/payments/ipn.service.ts", "line": 158, "end_line": 190, "label": "IpnService.review" },
+        { "path": "backend/src/payments/ipn.service.ts", "line": 240, "end_line": 255, "label": "Failed Settlement Restore" }
+      ]
+    },
+    {
+      "id": "order_confirm",
+      "lane": "ui",
+      "col": 4,
+      "type": "frontend",
+      "label": "Chi tiết Đơn hàng",
+      "sublabel": "GET /orders/:id & /me",
+      "sources": [
+        { "path": "backend/src/orders/order.controller.ts", "line": 30, "end_line": 47, "label": "OrderController.get" },
+        { "path": "frontend/src/components/payment-result.tsx", "line": 20, "end_line": 26, "label": "PaymentResultContent" }
+      ]
+    },
+    {
+      "id": "ipn_settle",
+      "lane": "backend",
+      "col": 4,
+      "type": "backend",
+      "label": "Quyết toán (T2)",
+      "sublabel": "Đơn PAID, dọn giỏ mua",
+      "tag": "Atomic TX",
+      "sources": [
+        { "path": "backend/src/payments/ipn.service.ts", "line": 192, "end_line": 274, "label": "IpnService.apply" }
+      ]
+    },
+    {
+      "id": "loyalty_ledger",
+      "lane": "store",
+      "col": 4,
+      "type": "database",
+      "label": "Sổ cái & Loyalty",
+      "sublabel": "Payment, SETTLE/EARN",
+      "sources": [
+        { "path": "backend/src/payments/ipn.service.ts", "line": 259, "end_line": 273, "label": "Payment & Loyalty Writes" },
+        { "path": "backend/src/loyalty/loyalty-accounting.ts", "line": 35, "end_line": 99, "label": "reconcileAccount" }
+      ]
+    },
+    {
+      "id": "payment_retry",
+      "lane": "exception",
+      "col": 4,
+      "type": "messagebus",
+      "label": "Thử lại Thanh toán",
+      "sublabel": "Giữ giỏ, cấp lại tồn",
+      "sources": [
+        { "path": "backend/src/payments/attempt.controller.ts", "line": 18, "end_line": 22, "label": "AttemptController.resume" },
+        { "path": "backend/src/payments/attempt.service.ts", "line": 134, "end_line": 143, "label": "Retry Re-reserve" }
+      ]
+    },
+    {
+      "id": "pickup_complete",
+      "lane": "ui",
+      "col": 5,
+      "type": "external",
+      "label": "Nhận món tại quầy",
+      "sublabel": "Đơn COMPLETED",
+      "sources": [
+        { "path": "backend/src/orders/order.service.ts", "line": 53, "end_line": 72, "label": "Order Detail & Points" }
+      ]
+    },
+    {
+      "id": "staff_fulfill",
+      "lane": "backend",
+      "col": 5,
+      "type": "backend",
+      "label": "Pha chế (Staff)",
+      "sublabel": "PREPARING → READY",
+      "tag": "Operator API",
+      "sources": [
+        { "path": "backend/src/orders/operator-order.controller.ts", "line": 24, "end_line": 31, "label": "OperatorOrderController" },
+        { "path": "backend/src/orders/order.service.ts", "line": 274, "end_line": 302, "label": "OrderService.transitionOrder" }
+      ]
+    },
+    {
+      "id": "admin_paid_cancel",
+      "lane": "store",
+      "col": 5,
+      "type": "security",
+      "label": "Hủy PAID (Admin)",
+      "sublabel": "Hoàn tồn & REVERSE",
+      "sources": [
+        { "path": "backend/src/orders/order.service.ts", "line": 303, "end_line": 316, "label": "Paid Cancel Reversal" }
+      ]
+    },
+    {
+      "id": "admin_reconcile",
+      "lane": "exception",
+      "col": 5,
+      "type": "security",
+      "label": "Đối soát (Admin)",
+      "sublabel": "POST .../reconcile",
+      "sources": [
+        { "path": "backend/src/payments/querydr.controller.ts", "line": 15, "end_line": 27, "label": "QueryDrController.reconcile" },
+        { "path": "backend/src/payments/querydr.service.ts", "line": 23, "end_line": 86, "label": "QueryDrService.run" }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge_checkout_create",
+      "from": "cart_checkout",
+      "to": "create_order",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "id": "edge_create_reserve",
+      "from": "create_order",
+      "to": "reserve_db",
+      "variant": "default",
+      "role": "branch"
+    },
+    {
+      "id": "edge_reserve_expire",
+      "from": "reserve_db",
+      "to": "expire_cancel",
+      "variant": "security",
+      "role": "error"
+    },
+    {
+      "id": "edge_reserve_zero",
+      "from": "reserve_db",
+      "to": "zero_confirm",
+      "label": "Đơn 0đ",
+      "variant": "dashed",
+      "role": "branch"
+    },
+    {
+      "id": "edge_create_attempt",
+      "from": "create_order",
+      "to": "init_attempt",
+      "label": ">= 5.000đ",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "id": "edge_attempt_gateway",
+      "from": "init_attempt",
+      "to": "vnpay_gateway",
+      "label": "URL HMAC",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "id": "edge_gateway_return",
+      "from": "vnpay_gateway",
+      "to": "browser_return",
+      "variant": "dashed",
+      "role": "branch"
+    },
+    {
+      "id": "edge_return_poll",
+      "from": "browser_return",
+      "to": "result_poll",
+      "label": "303 Redirect",
+      "variant": "dashed",
+      "role": "branch"
+    },
+    {
+      "id": "edge_poll_confirm",
+      "from": "result_poll",
+      "to": "order_confirm",
+      "label": "Xem đơn",
+      "variant": "default",
+      "role": "branch"
+    },
+    {
+      "id": "edge_gateway_ipn",
+      "from": "vnpay_gateway",
+      "to": "ipn_verify",
+      "label": "IPN Callback",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "id": "edge_ipn_t1",
+      "from": "ipn_verify",
+      "to": "t1_receipt_db",
+      "variant": "dashed",
+      "role": "async"
+    },
+    {
+      "id": "edge_t1_failed",
+      "from": "t1_receipt_db",
+      "to": "failed_or_review",
+      "variant": "security",
+      "role": "error"
+    },
+    {
+      "id": "edge_failed_retry",
+      "from": "failed_or_review",
+      "to": "payment_retry",
+      "label": "Nếu FAILED",
+      "variant": "dashed",
+      "role": "branch"
+    },
+    {
+      "id": "edge_retry_reconcile",
+      "from": "payment_retry",
+      "to": "admin_reconcile",
+      "label": "Nếu UNKNOWN",
+      "variant": "security",
+      "role": "branch"
+    },
+    {
+      "id": "edge_ipn_settle",
+      "from": "ipn_verify",
+      "to": "ipn_settle",
+      "label": "Qua T2",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "id": "edge_settle_confirm",
+      "from": "ipn_settle",
+      "to": "order_confirm",
+      "variant": "default",
+      "role": "return"
+    },
+    {
+      "id": "edge_settle_ledger",
+      "from": "ipn_settle",
+      "to": "loyalty_ledger",
+      "variant": "default",
+      "role": "branch"
+    },
+    {
+      "id": "edge_ledger_cancel",
+      "from": "loyalty_ledger",
+      "to": "admin_paid_cancel",
+      "label": "Hủy PAID",
+      "variant": "security",
+      "role": "branch"
+    },
+    {
+      "id": "edge_settle_staff",
+      "from": "ipn_settle",
+      "to": "staff_fulfill",
+      "label": "Vào quầy",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "id": "edge_staff_pickup",
+      "from": "staff_fulfill",
+      "to": "pickup_complete",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "id": "edge_confirm_pickup",
+      "from": "order_confirm",
+      "to": "pickup_complete",
+      "label": "Hoàn tất",
+      "variant": "default",
+      "role": "branch"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Nguyên tắc Quyết toán Hai Pha (T1 & T2)",
+      "items": [
+        "Browser Return (GET /payments/vnpay/return) chỉ đọc ngữ cảnh và redirect 303, tuyệt đối không tự chốt đơn PAID.",
+        "Pha T1 xác thực chữ ký HMAC-SHA512, kiểm tra khớp số tiền/txnRef và lưu độc lập biên nhận PaymentVerification (VERIFIED).",
+        "Pha T2 thực thi giao dịch nguyên tử: chuyển Order sang PAID, ghi Payment, quyết toán điểm SETTLE, thưởng điểm EARN floor(total/10000) và chỉ xóa món đã mua khỏi giỏ."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Bảo vệ Tồn kho, Giỏ hàng & Điểm thưởng",
+      "items": [
+        "Tạo đơn (POST /orders) giữ chỗ tồn kho bằng CAS (version) và ghi bút toán RESERVE điểm thưởng nhưng vẫn giữ nguyên Cart.",
+        "Đơn 0 VND sau khuyến mãi/đổi điểm đi theo nhánh nội bộ POST /orders/:id/confirm-zero (INTERNAL_ZERO), còn VNPAY yêu cầu tối thiểu 5.000 VND.",
+        "Khi thanh toán thất bại (PAYMENT_FAILED) hoặc quá hạn 10 phút, hệ thống hoàn tồn kho và nhả điểm RELEASE; khách có thể thử lại trên cùng đơn mà không mất giỏ hàng."
+      ]
+    }
+  ]
+}

@@ -6,6 +6,7 @@ import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { requireIdempotencyKey, replayResult } from '../common/idempotency';
 import { lockUser } from '../orders/order-policy';
+import { customerOrderCode } from '../orders/customer-order-code';
 import { effect, lockOrder, persistEffects, reconcileAccount, reservationGate, type Effect } from '../loyalty/loyalty-accounting';
 import { assertGatewayClear, gatewayBlocks, lockAttempts } from './gateway-policy';
 
@@ -87,7 +88,7 @@ export class ZeroConfirmationService {
         await persistEffects(tx, before, account, effects);
         await clearPurchasedCart(tx, userId);
         const body = { payment: { id: payment.id, orderId, provider: payment.provider, status: payment.status, amount: '0', method: payment.method },
-          order: { id: orderId, orderCode: o.orderCode, status: 'PAID' }, loyalty: { awardedPoints: 0, redeemedPoints: o.redeemedPoints,
+          order: { id: orderId, orderCode: o.orderCode, customerOrderCode: await customerOrderCode(tx, orderId, o.orderCode), status: 'PAID' }, loyalty: { awardedPoints: 0, redeemedPoints: o.redeemedPoints,
             redemptionState: o.redeemedPoints > 0 ? 'SETTLED' : 'NONE', debtOffsetPoints: 0, availablePointsAdded: 0 }, cashRefundStatus: 'NOT_APPLICABLE' };
         await tx.idempotencyRequest.update({ where: { id: claim.id }, data: { state: 'COMPLETED', orderId, responseStatus: 200, responseBody: body, completedAt: now } });
         return { body, replayed: false };

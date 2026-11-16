@@ -13,6 +13,7 @@ import { assertGatewayClear, gatewayBlocks, lockAttempts } from '../payments/gat
 import { assertVnpayMinimum, effectivePaymentProvider } from '../payments/minimum-payment-policy';
 import { assertPaymentAdmission } from '../payments/payment-admission';
 import { PAYMENT_WINDOW_MS } from '../payments/payment-deadline';
+import { customerOrderCode, customerOrderCodes } from './customer-order-code';
 
 export function normalizeItems(items: OrderItemDto[]) {
   if (!Array.isArray(items) || items.length === 0) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Cart must not be empty' });
@@ -53,8 +54,8 @@ function operatorScope(role: UserRole, status?: OrderStatus): Prisma.OrderWhereI
 function earnedPoints(order: { status: OrderRow['status']; loyaltyAward: { points: number; reversedAt: Date | null } | null }) {
   return order.status === 'CANCELLED' ? 0 : order.loyaltyAward?.reversedAt ? 0 : order.loyaltyAward?.points ?? null;
 }
-function response(order: OrderRow) {
-  return { id: order.id, orderCode: order.orderCode, status: order.status, currency: 'VND',
+function response(order: OrderRow, customerCode: string) {
+  return { id: order.id, orderCode: order.orderCode, customerOrderCode: customerCode, status: order.status, currency: 'VND',
     items: order.items.map((item) => ({ productId: item.productId, productName: item.productNameSnapshot, size: item.size, qty: item.qty,
       unitPrice: item.unitPrice.toFixed(0), lineTotal: item.lineTotal.toFixed(0),
       toppings: item.toppings.map((t) => ({ name: t.toppingNameSnapshot, price: t.priceSnapshot.toFixed(0) })) })),
@@ -65,8 +66,8 @@ function response(order: OrderRow) {
     redeemedPoints: order.redeemedPoints, loyaltyDiscountAmount: order.loyaltyDiscountAmount.toFixed(0),
     redemptionState: order.redemptionState, estimatedEarnedPoints: order.total.dividedBy(10000).floor().toNumber() };
 }
-function detail(order: OrderRow) {
-  return { ...response(order), paidAt: order.paidAt?.toISOString() ?? null,
+function detail(order: OrderRow, customerCode: string) {
+  return { ...response(order, customerCode), paidAt: order.paidAt?.toISOString() ?? null,
     earnedPoints: earnedPoints(order),
     paymentStatus: order.payments[0]?.status ?? null };
 }
@@ -132,7 +133,7 @@ export class OrderService {
         if (effects.length) await persistEffects(tx, before, account, effects);
         // Keep the Cart intact: a PENDING order is not a successful payment.
         // Cart writes stay locked until this order succeeds or is cancelled.
-        const body = response(order);
+        const body = response(order, await customerOrderCode(tx, id, order.orderCode));
         await tx.idempotencyRequest.update({ where: { id: claim.id }, data: { state: 'COMPLETED', orderId: id,
           responseStatus: 201, responseBody: body, completedAt: new Date() } });
         return { body, replayed: false };
@@ -182,13 +183,13 @@ export class OrderService {
     try {
       const order = await this.db.order.findFirst({ where: { id, userId }, include });
       if (!order) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
-      return detail(order);
+      return detail(order, await customerOrderCode(this.db, order.id, order.orderCode));
     } catch (error) { if (error instanceof HttpException) throw error; throw new ServiceUnavailableException(); }
   }
   async active(userId: string) {
     try {
       const order = await this.db.order.findFirst({ where: { userId, status: { in: ['PENDING', 'PAYMENT_FAILED'] } }, include });
-      return { order: order ? detail(order) : null, serverNow: new Date().toISOString() };
+      return { order: order ? detail(order, await customerOrderCode(this.db, order.id, order.orderCode)) : null, serverNow: new Date().toISOString() };
     } catch (error) { if (error instanceof HttpException) throw error; throw new ServiceUnavailableException(); }
   }
   async history(userId: string) {
@@ -196,7 +197,8 @@ export class OrderService {
       const orders = await this.db.order.findMany({ where: { userId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         select: { id: true, orderCode: true, status: true, total: true, redeemedPoints: true, loyaltyDiscountAmount: true, redemptionState: true, createdAt: true,
           loyaltyAward: { select: { points: true, reversedAt: true } } } });
-      return { items: orders.map((order) => ({ id: order.id, orderCode: order.orderCode, status: order.status,
+      const codes = await customerOrderCodes(this.db, orders.map((order) => order.id));
+      return { items: orders.map((order) => ({ id: order.id, orderCode: order.orderCode, customerOrderCode: codes.get(order.id) ?? order.orderCode, status: order.status,
         total: order.total.toFixed(0), redeemedPoints: order.redeemedPoints, loyaltyDiscountAmount: order.loyaltyDiscountAmount.toFixed(0), redemptionState: order.redemptionState, currency: 'VND', createdAt: order.createdAt.toISOString(), earnedPoints: earnedPoints(order) })) };
     } catch (error) { if (error instanceof HttpException) throw error; throw new ServiceUnavailableException(); }
   }
@@ -210,8 +212,9 @@ export class OrderService {
         if (!owned.length) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
         const order = await tx.order.findFirst({ where: { id, userId }, include });
         if (!order) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
-        if (order.status === 'CANCELLED') return detail(order);
-        if (timeout && (!order.paymentExpiresAt || order.paymentExpiresAt > new Date() || !['PENDING', 'PAYMENT_FAILED'].includes(order.status))) return detail(order);
+        const code = await customerOrderCode(tx, id, order.orderCode);
+        if (order.status === 'CANCELLED') return detail(order, code);
+        if (timeout && (!order.paymentExpiresAt || order.paymentExpiresAt > new Date() || !['PENDING', 'PAYMENT_FAILED'].includes(order.status))) return detail(order, code);
         if (!['PENDING', 'PAYMENT_FAILED'].includes(order.status)) throw new ConflictException({ code: 'INVALID_ORDER_STATE', message: 'Only unpaid orders can be cancelled' });
         await lockAttempts(tx, id);
         const blocks = await gatewayBlocks(tx, id);
@@ -219,7 +222,7 @@ export class OrderService {
           const expiredAt = order.paymentExpiredAt ?? new Date();
           if (!order.paymentExpiredAt) await tx.order.update({ where: { id }, data: { paymentExpiredAt: expiredAt } });
           // Time proves URL expiry, never a financial failure. Preserve late IPN.
-          if (blocks.pending || blocks.receipt || blocks.review) return detail({ ...order, paymentExpiredAt: expiredAt });
+          if (blocks.pending || blocks.receipt || blocks.review) return detail({ ...order, paymentExpiredAt: expiredAt }, code);
         } else assertGatewayClear(blocks);
         const account = await reconcileAccount(tx, userId); const before = { ...account };
         const effects = order.status === 'PENDING' && order.redeemedPoints > 0 ? [effect(account, 'RELEASE', order.redeemedPoints, { orderId: id, cycle: order.reservationCycle })] : [];
@@ -230,7 +233,7 @@ export class OrderService {
         if (changed.count !== 1) throw conflict();
         if (order.status === 'PENDING') await this.restoreStock(tx, order);
         if (effects.length) await persistEffects(tx, before, account, effects);
-        return detail(await tx.order.findUniqueOrThrow({ where: { id }, include }));
+        return detail(await tx.order.findUniqueOrThrow({ where: { id }, include }), code);
       });
     } catch (error) {
       if (error instanceof HttpException) throw error;
@@ -246,7 +249,8 @@ export class OrderService {
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         select: { id: true, orderCode: true, status: true, total: true, redeemedPoints: true, loyaltyDiscountAmount: true, redemptionState: true, createdAt: true, version: true, updatedAt: true,
           loyaltyAward: { select: { points: true, reversedAt: true } } } });
-      return { items: orders.map((order) => ({ id: order.id, orderCode: order.orderCode, status: order.status,
+      const codes = await customerOrderCodes(this.db, orders.map((order) => order.id));
+      return { items: orders.map((order) => ({ id: order.id, orderCode: order.orderCode, customerOrderCode: codes.get(order.id) ?? order.orderCode, status: order.status,
         total: order.total.toFixed(0), redeemedPoints: order.redeemedPoints, loyaltyDiscountAmount: order.loyaltyDiscountAmount.toFixed(0), redemptionState: order.redemptionState, currency: 'VND', createdAt: order.createdAt.toISOString(), earnedPoints: earnedPoints(order),
         estimatedEarnedPoints: order.total.dividedBy(10000).floor().toNumber(), version: order.version, updatedAt: order.updatedAt.toISOString() })) };
     } catch (error) { if (error instanceof HttpException) throw error; throw new ServiceUnavailableException(); }
@@ -256,7 +260,7 @@ export class OrderService {
       operatorScope(role);
       const order = await this.db.order.findFirst({ where: { id, ...(role === 'STAFF' ? { status: { in: staffReadable } } : {}) }, include });
       if (!order) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
-      return { ...detail(order), version: order.version, updatedAt: order.updatedAt.toISOString() };
+      return { ...detail(order, await customerOrderCode(this.db, order.id, order.orderCode)), version: order.version, updatedAt: order.updatedAt.toISOString() };
     } catch (error) { if (error instanceof HttpException) throw error; throw new ServiceUnavailableException(); }
   }
   private async restoreStock(tx: Prisma.TransactionClient, order: OrderRow) {
@@ -287,7 +291,8 @@ export class OrderService {
         await lockUser(tx, owner.userId);
         await lockOrder(tx, id);
         const order = await tx.order.findUniqueOrThrow({ where: { id }, include });
-        if (targetStatus === 'CANCELLED' && order.status === 'CANCELLED') return detail(order);
+        const code = await customerOrderCode(tx, id, order.orderCode);
+        if (targetStatus === 'CANCELLED' && order.status === 'CANCELLED') return detail(order, code);
         // Unpaid cancellation retains its existing customer/ownership write path.
         if (targetStatus === 'CANCELLED' && order.status !== 'PAID') {
           throw new ConflictException({ code: 'INVALID_ORDER_STATE', message: 'Internal cancellation requires a paid order' });
@@ -314,7 +319,7 @@ export class OrderService {
           effects.push(effect(account, 'REVERSE', award.points, { orderId: id }));
           await persistEffects(tx, before, account, effects);
         }
-        return detail(await tx.order.findUniqueOrThrow({ where: { id }, include }));
+        return detail(await tx.order.findUniqueOrThrow({ where: { id }, include }), code);
       });
     } catch (error) {
       if (error instanceof HttpException) throw error;

@@ -1,0 +1,11 @@
+$kind: http-request
+name: 7.1 Initialize Catalog (POST /ingredient-inventory/catalog/initialize)
+url: "{{baseUrl}}/ingredient-inventory/catalog/initialize"
+method: POST
+headers:
+  Authorization: Bearer {{adminToken}}
+  Content-Type: application/json
+body:
+  type: text
+  content: "{}"
+order: 1000

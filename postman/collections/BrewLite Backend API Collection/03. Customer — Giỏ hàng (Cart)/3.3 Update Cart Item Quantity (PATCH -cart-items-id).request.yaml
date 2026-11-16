@@ -1,0 +1,14 @@
+$kind: http-request
+name: 3.3 Update Cart Item Quantity (PATCH /cart/items/:id)
+url: "{{baseUrl}}/cart/items/{{cartItemId}}"
+method: PATCH
+headers:
+  Authorization: Bearer {{customerToken}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "qty": 3
+    }
+order: 3000

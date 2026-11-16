@@ -32,7 +32,8 @@ export class BrowserReturnService {
   constructor(private readonly db: PrismaService, private readonly config: ConfigService, @Optional() private readonly ipn?: IpnService) {}
   async resolve(raw: string): Promise<string> {
     // An invalid server origin fails closed with503, never a request-derived URL.
-    const base = browserReturnBase(this.config.get<unknown>('FRONTEND_ORIGIN'));
+    const deploySandbox = Boolean(this.config.get('VNPAY_DEPLOY_SANDBOX'));
+    const base = browserReturnBase(this.config.get<unknown>('FRONTEND_ORIGIN'), deploySandbox);
     if (this.config.get<string>('PAYMENT_PROVIDER_MODE') !== 'VNPAY_SANDBOX') return base;
     try {
       const configured = this.config.get<VnpayConfig>('VNPAY_INITIATION_CONFIG');
@@ -50,7 +51,7 @@ export class BrowserReturnService {
       }, { isolationLevel: 'RepeatableRead', ...(this.db.transactionOptions ?? { maxWait: 50, timeout: 400 }) });
       if (!id) return base;
       const destination = new URL(base); destination.searchParams.set('attemptId', id);
-      if (/^http:\/\/(localhost|127\.0\.0\.1):3001\/payments\/vnpay\/return$/.test(settings.returnUrl) && this.ipn) await this.ipn.receive(raw).catch(() => {});
+      if ((/^http:\/\/(localhost|127\.0\.0\.1):3001\/payments\/vnpay\/return$/.test(settings.returnUrl) || deploySandbox) && this.ipn) await this.ipn.receive(raw).catch(() => {});
       return destination.href;
     } catch {
       // Same generic redirect for syntax/signature/context/DB errors, no raw logs.

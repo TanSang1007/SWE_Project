@@ -7,7 +7,6 @@ import { getAccessToken, useAuthStore } from '../lib/auth-store';
 import { useCartStore } from '../lib/cart-store';
 import { parseOrder } from '../lib/api/orders';
 import type { Order } from '../types/order';
-import { PaymentCountdown } from './payment-countdown';
 import { currentAttempt, type AttemptStatus } from '../lib/api/gateway-payments';
 
 export async function activeOrder(signal?: AbortSignal): Promise<Order | null> {
@@ -27,13 +26,10 @@ export function PendingOrder({ order, modal = false }: { order: Order; modal?: b
     return () => abort.abort();
   }, [order.id]);
   useEffect(() => { if (modal) dialog.current?.showModal(); }, [modal]);
-  const content = <><h2>Đơn hàng đang chờ thanh toán</h2>
-    <p>Bạn đang có đơn hàng chờ thanh toán. Giỏ đang khóa. Hãy tiếp tục thanh toán hoặc hủy đơn cũ trước khi thay đổi món.</p>
-    <p>Mã đơn: <strong>{order.orderCode}</strong> · Trạng thái: {order.status}</p>
-    <PaymentCountdown key={order.serverNow} expiresAt={order.expiresAt} serverNow={order.serverNow} verifying={order.status === 'PENDING' && !!attempt && ['UNKNOWN', 'AWAITING', 'REVIEW'].includes(attempt.effectiveState)} />
-    <div className="cart-actions"><Link href={`/orders/${order.id}/confirmation`}>Xem đơn hàng</Link>
-      <Link href={`/checkout?orderId=${order.id}`}>{attempt?.canResume ? 'Tiếp tục thanh toán đơn A' : 'Xem trạng thái / xử lý đơn cũ'}</Link>
-      {modal && <Link href="/cart">Quay lại giỏ hàng</Link>}</div></>;
+  const content = <><h2>Đơn hàng {order.customerOrderCode}</h2>
+    <div className="checkout-action-group"><Link className="brew-btn brew-btn-primary" href={`/checkout?orderId=${order.id}`}>{attempt?.canResume ? 'Tiếp tục thanh toán' : 'Xử lý đơn hàng'}</Link>
+      <Link className="brew-btn brew-btn-outline" href={`/orders/${order.id}/confirmation`}>Xem chi tiết</Link>
+      {modal && <Link className="brew-btn brew-btn-secondary" href="/cart">Quay lại giỏ hàng</Link>}</div></>;
   return modal ? <dialog ref={dialog} aria-label="Đơn hàng đang chờ thanh toán" onCancel={() => router.push('/cart')}>{content}</dialog>
     : <aside className="pending-order-banner">{content}</aside>;
 }
@@ -56,12 +52,19 @@ export function useCartLock() {
     load(); const timer = setInterval(load, 5000);
     window.addEventListener('focus', load);
     window.addEventListener('brewlite-unpaid-order', load);
-    return () => { abort.abort(); clearInterval(timer); window.removeEventListener('focus', load); window.removeEventListener('brewlite-unpaid-order', load); };
+    window.addEventListener('brewlite-order-state-changed', load);
+    return () => {
+      abort.abort();
+      clearInterval(timer);
+      window.removeEventListener('focus', load);
+      window.removeEventListener('brewlite-unpaid-order', load);
+      window.removeEventListener('brewlite-order-state-changed', load);
+    };
   }, [token]);
   const ready = state.token === token;
   return { order: ready ? state.order : null, error: ready && state.error,
     locked: !!token && (!ready || state.error || !!state.order) };
 }
 export function PendingOrderBanner({ order, error }: { order: Order | null; error: boolean }) {
-  return <>{order && <PendingOrder order={order} />}{error && <p role="status">Chưa kiểm tra được đơn đang chờ. Tạm khóa chỉnh sửa giỏ; hãy kiểm tra kết nối và thử lại.</p>}</>;
+  return <>{order && <PendingOrder order={order} />}{error && <p role="status">Chưa kiểm tra được đơn đang chờ.</p>}</>;
 }

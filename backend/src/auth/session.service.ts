@@ -5,6 +5,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { Request, Response } from 'express';
 import { PrismaService } from '../database/prisma.service';
 import { UsersService } from '../users/users.service';
+import { sessionCutoff } from './session-cutoff';
 
 const cookieName = 'brewlite_session';
 const duration = 7 * 24 * 60 * 60 * 1000;
@@ -40,10 +41,14 @@ export class SessionService {
     }
   }
 
+  private isSecureCookie(): boolean {
+    return this.config.get('NODE_ENV') === 'production' || Boolean(this.config.get('VNPAY_DEPLOY_SANDBOX'));
+  }
+
   private cookie(res: Response, id: string, token: string, expires: Date) {
     res.cookie(cookieName, id + '.' + token, {
       httpOnly: true,
-      secure: this.config.get('NODE_ENV') === 'production',
+      secure: this.isSecureCookie(),
       sameSite: 'lax',
       path: '/api/auth',
       expires,
@@ -89,67 +94,32 @@ export class SessionService {
     const input = sessionCookie(req);
     const isTabInit = !input.fromHeader && req.headers['x-brewlite-tab-init'] === '1';
     const token = randomBytes(32).toString('base64url');
-    const now = new Date();
-    const session = await this.db.authSession.findUnique({ where: { id: input.id } });
-
-    if (!session || session.revokedAt || session.expiresAt <= now) {
-      throw new UnauthorizedException();
-    }
-
-    if (!equal(session.tokenHash, input.hash)) {
-      if (session.previousTokenHash && equal(session.previousTokenHash, input.hash)) {
-        await this.db.authSession.updateMany({
-          where: {
-            id: session.id,
-            previousTokenHash: input.hash,
-            revokedAt: null,
-            expiresAt: { gt: now },
-          },
-          data: { revokedAt: now },
+    const result = await this.db.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM auth_sessions WHERE id=${input.id} FOR UPDATE`;
+      const session = await tx.authSession.findUnique({ where: { id: input.id } });
+      if (!session || session.revokedAt || session.expiresAt <= new Date() || session.createdAt < sessionCutoff()) return null;
+      if (!equal(session.tokenHash, input.hash)) {
+        if (session.previousTokenHash && equal(session.previousTokenHash, input.hash)) {
+          await tx.authSession.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
+        }
+        return null;
+      }
+      if (isTabInit) {
+        return tx.authSession.create({
+          data: { userId: session.userId, tokenHash: digest(token), expiresAt: session.expiresAt },
         });
       }
-      throw new UnauthorizedException();
-    }
-
-    if (isTabInit) {
-      const created = await this.db.authSession.create({
-        data: { userId: session.userId, tokenHash: digest(token), expiresAt: session.expiresAt },
+      await tx.authSession.update({
+        where: { id: session.id },
+        data: { previousTokenHash: session.tokenHash, tokenHash: digest(token) },
       });
-      const body = await this.response(created.userId, created.id, `${created.id}.${token}`);
-      res.setHeader('Cache-Control', 'private, no-store');
-      return body;
-    }
-
-    const rotated = await this.db.authSession.updateMany({
-      where: {
-        id: session.id,
-        tokenHash: input.hash,
-        revokedAt: null,
-        expiresAt: { gt: now },
-      },
-      data: {
-        previousTokenHash: input.hash,
-        tokenHash: digest(token),
-      },
-    });
-
-    if (rotated.count !== 1) {
-      await this.db.authSession.updateMany({
-        where: {
-          id: session.id,
-          previousTokenHash: input.hash,
-          revokedAt: null,
-          expiresAt: { gt: now },
-        },
-        data: { revokedAt: now },
-      });
-      throw new UnauthorizedException();
-    }
-
-    const sessionToken = `${session.id}.${token}`;
-    const body = await this.response(session.userId, session.id, sessionToken);
+      return session;
+    }, this.db.transactionOptions);
+    if (!result) throw new UnauthorizedException();
+    const sessionToken = `${result.id}.${token}`;
+    const body = await this.response(result.userId, result.id, sessionToken);
     if (!input.fromHeader && !isTabInit) {
-      this.cookie(res, session.id, token, session.expiresAt);
+      this.cookie(res, result.id, token, result.expiresAt);
     } else {
       res.setHeader('Cache-Control', 'private, no-store');
     }
@@ -175,7 +145,7 @@ export class SessionService {
     if (shouldClearCookie) {
       res.clearCookie(cookieName, {
         httpOnly: true,
-        secure: this.config.get('NODE_ENV') === 'production',
+        secure: this.isSecureCookie(),
         sameSite: 'lax',
         path: '/api/auth',
       });

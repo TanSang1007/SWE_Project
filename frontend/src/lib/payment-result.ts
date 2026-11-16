@@ -5,11 +5,11 @@ export function verifiedCustomerCancellation(a: AttemptStatus) {
     && a.applicationState === 'APPLIED' && !!a.paymentId && !a.requiresReview && ['PAYMENT_FAILED', 'CANCELLED'].includes(a.orderStatus);
 }
 export function paymentMessage(a: AttemptStatus) {
-  if (verifiedCustomerCancellation(a)) return 'Bạn đã hủy giao dịch VNPAY. Thanh toán không thành công.';
+  if (verifiedCustomerCancellation(a)) return 'Thanh toán không thành công.';
   if (a.requiresReview || a.effectiveState === 'REVIEW') return a.messageCode === 'PAYMENT_RECEIVED_REVIEW'
-    ? 'Đã nhận kết quả thanh toán, giao dịch đang được kiểm tra. Vui lòng không thanh toán lại.' : 'Giao dịch đang được kiểm tra. Vui lòng không thanh toán lại.';
+    ? 'Đã nhận kết quả thanh toán, giao dịch đang được kiểm tra.' : 'Giao dịch đang được kiểm tra.';
   return { AWAITING: 'Đang xác minh kết quả thanh toán.', SUCCEEDED: 'Thanh toán thành công.',
-    FAILED: 'Thanh toán không thành công.', UNKNOWN: 'Chưa thể xác định kết quả thanh toán. Vui lòng kiểm tra lại sau; không thanh toán lại.' }[a.effectiveState];
+    FAILED: 'Thanh toán không thành công.', UNKNOWN: 'Chưa xác định được kết quả thanh toán.' }[a.effectiveState];
 }
 // Serial reads,3s ticks for at most60s (including hidden time); no mutation/retry.
 export function pollPayment(read: (signal: AbortSignal) => Promise<AttemptStatus>, receive: (a: AttemptStatus) => void,

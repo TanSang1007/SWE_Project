@@ -29,6 +29,7 @@ export class PaymentConfigController {
         DATABASE_URL: this.config.get('DATABASE_URL'), TEST_DATABASE_URL: this.config.get('TEST_DATABASE_URL'),
         VNPAY_INITIATION_TEST_ONLY: this.config.get('VNPAY_INITIATION_TEST_ONLY'),
         VNPAY_SANDBOX_ENABLED: this.config.get('VNPAY_SANDBOX_ENABLED'),
+        VNPAY_DEPLOY_SANDBOX: this.config.get('VNPAY_DEPLOY_SANDBOX'),
         VNPAY_ACCEPT_NEW_PAYMENTS: this.config.get('VNPAY_ACCEPT_NEW_PAYMENTS'),
         FRONTEND_ORIGIN: this.config.get('FRONTEND_ORIGIN'), VNPAY_RESULT_URL: this.config.get('VNPAY_RESULT_URL'),
         VNPAY_ENV: c.environment, VNPAY_VERSION: c.version, VNPAY_TMN_CODE: c.merchantCode,

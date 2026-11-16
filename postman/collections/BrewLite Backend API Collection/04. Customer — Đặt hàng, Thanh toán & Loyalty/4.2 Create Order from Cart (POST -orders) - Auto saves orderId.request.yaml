@@ -1,0 +1,35 @@
+$kind: http-request
+name: 4.2 Create Order from Cart (POST /orders) -> Auto saves orderId
+url: "{{baseUrl}}/orders"
+method: POST
+headers:
+  Authorization: Bearer {{customerToken}}
+  Idempotency-Key: order-{{$guid}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "items": [
+        {
+          "productId": "{{cappuccinoId}}",
+          "size": "M",
+          "qty": 2,
+          "toppingIds": ["{{kemToppingId}}"]
+        }
+      ],
+      "promotionCode": "{{promotionCode}}",
+      "redeemedPoints": 0
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Created 201', function () {
+          pm.response.to.have.status(201);
+      });
+      const json = pm.response.json();
+      if (json.id) {
+          pm.environment.set('orderId', json.id);
+      }
+    language: text/javascript
+order: 2000
