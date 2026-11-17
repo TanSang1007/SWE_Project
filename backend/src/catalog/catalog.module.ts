@@ -7,8 +7,7 @@ import { AdminProductService } from './admin-product.service';
 import { AuthModule } from '../auth/auth.module';
 import { AdminOptionService } from './admin-option.service';
 import { AdminProductOptionController, AdminToppingController } from './admin-option.controller';
-import { AdminInventoryService } from './admin-inventory.service';
-import { AdminInventoryController } from './admin-inventory.controller';
-
-@Module({ imports: [DatabaseModule, AuthModule], controllers: [CatalogController, AdminProductController, AdminProductOptionController, AdminToppingController, AdminInventoryController], providers: [CatalogService, AdminProductService, AdminOptionService, AdminInventoryService] })
+// Manual Product.stock adjustments are retired. Keep historical columns/audit;
+// new sales use recipes and ingredient reservations, configured in ingredients/.
+@Module({ imports: [DatabaseModule, AuthModule], controllers: [CatalogController, AdminProductController, AdminProductOptionController, AdminToppingController], providers: [CatalogService, AdminProductService, AdminOptionService] })
 export class CatalogModule {}

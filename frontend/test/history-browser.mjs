@@ -52,7 +52,7 @@ export async function verifyHistoryBrowser(ctx) {
       const layout = await evaluate(`({overflow:document.documentElement.scrollWidth>innerWidth,actionHeight:document.querySelector('[data-order-read-retry]').getBoundingClientRect().height})`);
       assert(!layout.overflow); assert(layout.actionHeight >= 44); result.push({ width, height, ...layout });
       await command('Page.bringToFront'); const shot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
-      writeFileSync(join(root, `Docs/${evidencePrefix}-${kind}-${width}.png`), Buffer.from(shot.data, 'base64'));
+      writeFileSync(join(root, `.tmp/browser-evidence/${evidencePrefix}-${kind}-${width}.png`), Buffer.from(shot.data, 'base64'));
     }
     report.historyLayouts ??= {}; report.historyLayouts[kind] = result;
     return result;

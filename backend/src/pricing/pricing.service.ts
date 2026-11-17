@@ -1,17 +1,20 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, UnauthorizedException, UnprocessableEntityException } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
+import { assertRecipeAmounts } from '../catalog/product-ingredients';
+import { recipeAmountKey, inventoryRecipeForDrink, sumRecipeAmounts, type DrinkSize, type RecipeAmount } from '../catalog/drink-recipes';
 
 type PricingProduct = Prisma.ProductGetPayload<{
   include: { sizes: true; toppings: { include: { topping: true } } };
 }>;
 
 // B10 supplies its transaction and JWT-derived identity. No transaction or write is started here.
-export type PricingReader = Pick<Prisma.TransactionClient, 'user' | 'cart' | 'product' | 'promotion'>;
+export type PricingReader = Pick<Prisma.TransactionClient, 'user' | 'cart' | 'product' | 'promotion' | 'ingredient'>;
 export interface ValidatedItem {
   cartItemId: string; productId: string; productName: string; size: string; qty: number;
   basePrice: Prisma.Decimal; sizeExtraPrice: Prisma.Decimal;
   toppings: { id: string; name: string; price: Prisma.Decimal }[];
   unitPrice: Prisma.Decimal; lineTotal: Prisma.Decimal;
+  ingredientKeysSnapshot: string[]; recipeAmounts: RecipeAmount[];
 }
 const invalid = () => new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Invalid cart or monetary bounds' });
 const optionsInvalid = () => new BadRequestException({ code: 'INVALID_ITEM_OPTIONS', message: 'Options do not belong to product' });
@@ -37,7 +40,7 @@ export class PricingService {
     const products = await db.product.findMany({ where: { id: { in: [...new Set(cart.items.map((item) => item.productId))] } },
       include: { sizes: true, toppings: { include: { topping: true } } } });
     const byId = new Map(products.map((product) => [product.id, product]));
-    const demand = new Map<string, { productId: string; qty: number; stock: number; version: number }>();
+    const demand = new Map<string, { productId: string; qty: number; version: number }>();
     const configurations = new Set<string>();
     let subtotal = new Prisma.Decimal(0);
     const items: ValidatedItem[] = cart.items.map((item) => {
@@ -49,21 +52,22 @@ export class PricingService {
       const product = byId.get(item.productId);
       if (!product) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
       if (!product.isActive) throw new ConflictException({ code: 'PRODUCT_UNAVAILABLE', message: 'Product is no longer sold; adjust or remove the cart item' });
-      if (!Number.isInteger(product.stock) || product.stock < 0 || product.stock > 2147483647) throw invalid();
-      if (product.stock === 0) throw new ConflictException({ code: 'OUT_OF_STOCK', message: 'Product unavailable' });
       const price = this.calculateItemPrice(product, item.size, ids, item.qty);
+      const recipeAmounts = inventoryRecipeForDrink(product.name, item.size as DrinkSize, price.toppings.map(t => t.name));
+      if (!recipeAmounts?.length) throw new ConflictException({code:'OUT_OF_STOCK',message:'Món chưa có công thức nguyên liệu theo size để bán.'});
       subtotal = money(subtotal.plus(price.lineTotal));
       const current = demand.get(product.id);
-      demand.set(product.id, { productId: product.id, qty: (current?.qty ?? 0) + item.qty, stock: product.stock, version: product.version });
+      demand.set(product.id, { productId: product.id, qty: (current?.qty ?? 0) + item.qty, version: product.version });
       return { cartItemId: item.id, productId: product.id, productName: product.name, size: item.size, qty: item.qty,
-        ...price };
+        ...price, recipeAmounts, ingredientKeysSnapshot:recipeAmounts.map(a => 'i07:'+recipeAmountKey(a)) };
     });
     const stockRequirements = [...demand.values()].sort((a, b) => a.productId.localeCompare(b.productId));
-    if (stockRequirements.some((entry) => entry.qty > entry.stock)) throw new ConflictException({ code: 'OUT_OF_STOCK', message: 'Product quantity exceeds current stock' });
+    const ingredientRequirements = sumRecipeAmounts(items.map(item => ({amounts:item.recipeAmounts,qty:item.qty})));
+    await assertRecipeAmounts(db, ingredientRequirements);
     const configuredDiscount = await this.getConfiguredDiscount(db, promotionId, subtotal, now);
     const discountAmount = Prisma.Decimal.min(subtotal, configuredDiscount);
     const finalAmount = subtotal.minus(discountAmount);
-    return { cartId: cart.id, items, stockRequirements, subtotal, configuredDiscount, discountAmount, finalAmount, currency: 'VND' as const };
+    return { cartId: cart.id, items, stockRequirements, ingredientRequirements, subtotal, configuredDiscount, discountAmount, finalAmount, currency: 'VND' as const };
   }
 
   // Compute one configured drink from catalog prices, without changing stock.

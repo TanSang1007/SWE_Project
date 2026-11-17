@@ -1,4 +1,6 @@
 import { clearPurchasedCart } from './cart-cleanup';
+import { changeOrderIngredients, assertHeldOrderIngredients } from '../ingredients/order-ingredients';
+import { productStockDemand } from '../catalog/product-ingredients';
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
@@ -241,10 +243,10 @@ export class IpnService {
                 if (result === 'SUCCEEDED' && o.redeemedPoints > 0 && account.debt > 0n)
                     throw new Review('LOYALTY_DEBT');
                 const now = new Date(), success = result === 'SUCCEEDED';
+                  if (success && o.items.some(i => i.ingredientKeysSnapshot?.length) && !await assertHeldOrderIngredients(tx,o.id)) throw new Review('STOCK_INVARIANT');
                 if (!success) {
-                    const demand = new Map<string, number>();
-                    for (const i of o.items)
-                        demand.set(i.productId, (demand.get(i.productId) ?? 0) + i.qty);
+                      await changeOrderIngredients(tx,o.id,'RELEASE',o.userId);
+                      const demand = new Map(productStockDemand(o.items));
                     for (const [productId, qty] of [...demand].sort(([x], [y]) => x.localeCompare(y))) {
                         const p = await tx.product.findUnique({ where: { id: productId } });
                         if (!p || p.stock > maxInt - qty || p.version >= maxInt)

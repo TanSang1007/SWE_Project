@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import type { Prisma } from '../generated/prisma/client';
 import { normalizeCatalogId, type CatalogProductDto, type ProductDetailDto, type ProductListDto } from './dto/catalog.dto';
+import { configurationIngredientStates, productIngredientStates } from './product-ingredients';
 
 function compareIds(a: string, b: string) {
   const ma = /^BR(\d+)$/i.exec(a);
@@ -25,7 +26,12 @@ export class CatalogService {
   async listProducts(): Promise<ProductListDto> {
     const products = await this.prisma.product.findMany({ where: { isActive: true }, select: productSelect });
     products.sort((a, b) => compareIds(a.id, b.id));
-    return { items: products.map(toProductDto), currency: 'VND' };
+    const states = await productIngredientStates(this.prisma, products.map(p => p.name));
+    return { items: products.map(p => {
+      const sizes = states.get(p.name)?.sizes.filter(s => p.sizes.some(active => active.size === s.size)) ?? [];
+      return { ...toProductDto(p, Math.max(0, ...sizes.map(s => s.cups))),
+        sizeAvailability: sizes.map(s => ({ size: s.size, maxQuantity: s.cups, available: s.available })) };
+    }), currency: 'VND' };
   }
 
   async getProduct(id: string): Promise<ProductDetailDto> {
@@ -45,26 +51,31 @@ export class CatalogService {
     // Nếu sản phẩm không tồn tại hoặc đã ngừng bán (isActive = false) -> ném 404
     if (!product || !product.isActive) throw new NotFoundException('Product not found');
     const sizeOrder = ['S', 'M', 'L'];
+    const state = (await productIngredientStates(this.prisma, [product.name])).get(product.name);
+    const sizes = product.sizes.sort((a, b) => sizeOrder.indexOf(a.size) - sizeOrder.indexOf(b.size));
+    const toppings = [...product.toppings].sort((a,b) => compareIds(a.topping.id,b.topping.id));
+    const configurations = toppings.flatMap(({topping}) => sizes.map(s => ({name:product.name,size:s.size,toppings:[topping.name]})));
+    const capacities = await configurationIngredientStates(this.prisma, configurations);
     return {
-      ...toProductDto(product),
-      sizes: product.sizes.sort((a, b) => sizeOrder.indexOf(a.size) - sizeOrder.indexOf(b.size))
-        .map(({ size, extraPrice }) => ({ size, extraPrice: extraPrice.toFixed(0) })),
-      toppings: [...product.toppings]
-        .sort((a, b) => compareIds(a.topping.id, b.topping.id))
-        .map(({ topping }) => ({
+      ...toProductDto(product, Math.max(0, ...sizes.map(s => state?.sizes.find(a => a.size === s.size)?.cups ?? 0))),
+      sizes: sizes.map(({size,extraPrice}) => ({size,extraPrice:extraPrice.toFixed(0),
+        available:state?.sizes.find(s => s.size === size)?.available ?? false,
+        maxQuantity:state?.sizes.find(s => s.size === size)?.cups ?? 0})),
+      toppings: toppings.map(({ topping }, index) => ({
           id: topping.id, name: topping.name, price: topping.price.toFixed(0),
+          availableSizes:sizes.filter((_s,offset) => capacities[index*sizes.length+offset]?.available).map(s => s.size),
         })),
     };
   }
 }
 
-function toProductDto(product: CatalogRow): CatalogProductDto {
+function toProductDto(product: CatalogRow, capacity: number): CatalogProductDto {
   return {
     id: product.id,
     name: product.name,
     price: product.price.toFixed(0),
     imageUrl: product.imageUrl,
-    // Khả dụng: Đang kinh doanh (isActive), còn hàng (stock > 0) và có ít nhất 1 size hợp lệ
-    available: product.isActive && product.stock > 0 && product.sizes.some(s => ['S', 'M', 'L'].includes(s.size)),
+    // Chỉ dựa công thức và nguyên liệu khả dụng, không dùng Product.stock.
+    available: product.isActive && capacity > 0 && product.sizes.some(s => ['S', 'M', 'L'].includes(s.size)),
   };
 }

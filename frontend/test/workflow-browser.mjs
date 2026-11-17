@@ -44,7 +44,7 @@ export async function verifyWorkflowBrowser({evaluate,command,waitText,navigate,
     const staffToken=await login(staff,'Phiên bản hiện tại','/operator/orders/'+a.id);await waitStatus('PAID');assert(!await evaluate("!!document.querySelector('[data-workflow-cancel]')"));
     const layouts=[];for(const [width,height]of [[390,844],[768,1024],[1366,768]]){await command('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});
       const layout=await evaluate("({overflow:document.documentElement.scrollWidth>innerWidth,actionHeight:document.querySelector('[data-workflow-target]').getBoundingClientRect().height})");assert(!layout.overflow&&layout.actionHeight>=44);layouts.push({width,height,...layout});
-      const shot=await command('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});writeFileSync(join(root,`Docs/${evidencePrefix}-staff-workflow-${width}.png`),Buffer.from(shot.data,'base64'));}
+      const shot=await command('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});writeFileSync(join(root,`.tmp/browser-evidence/${evidencePrefix}-staff-workflow-${width}.png`),Buffer.from(shot.data,'base64'));}
     const aBefore=await readOrder(a.id);const invariant=await immutable(a.id);let count=posts();
     setMutationMode('block');await enter('[data-workflow-target="PREPARING"]');await waitText('Đơn vẫn ở trạng thái và phiên bản đã đọc');assert.equal((await readOrder(a.id)).version,aBefore.version);assert.equal(posts(),count+1);
     assert(await evaluate("!!document.querySelector('[data-workflow-original-retry]')&&!document.querySelector('[data-workflow-target]:not(:disabled)')"));
@@ -76,7 +76,7 @@ export async function verifyWorkflowBrowser({evaluate,command,waitText,navigate,
     await evaluate("[...document.querySelectorAll('button')].find(e=>e.innerText==='Giữ đơn').click()");assert.equal(posts(),count);
     await evaluate("document.querySelector('[data-workflow-cancel]').click()");await waitText('Xác nhận hủy đơn đã thanh toán');
     for(const [width,height]of [[390,844],[768,1024],[1366,768]]){await command('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});assert(!await evaluate('document.documentElement.scrollWidth>innerWidth'));
-      const shot=await command('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});writeFileSync(join(root,`Docs/${evidencePrefix}-admin-cancel-${width}.png`),Buffer.from(shot.data,'base64'));}
+      const shot=await command('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});writeFileSync(join(root,`.tmp/browser-evidence/${evidencePrefix}-admin-cancel-${width}.png`),Buffer.from(shot.data,'base64'));}
     setMutationMode('hold');count=posts();await clickTwice('[data-confirm-paid-cancel]');await waitText('Đang xử lý thao tác');const cancelHeld=await holdReady();assert.equal(posts(),count+1);setMutationMode('real');await command('Fetch.continueResponse',{requestId:cancelHeld});await waitStatus('CANCELLED');
     const stocksAfter=(await database.query('SELECT id,stock,version FROM products WHERE id=ANY($1::uuid[]) ORDER BY id',[demand.map(x=>x.product_id)])).rows;
     for(let n=0;n<stocksAfter.length;n++){assert.equal(stocksAfter[n].stock,stocksBefore[n].stock+demand[n].qty);assert.equal(stocksAfter[n].version,stocksBefore[n].version+1);}

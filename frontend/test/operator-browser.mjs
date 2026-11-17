@@ -57,11 +57,11 @@ export async function verifyOperatorBrowser({ evaluate, command, waitText, navig
     for (const [width, height] of [[390,844],[768,1024],[1366,768]]) {
       await command('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor:1, mobile:false });
       assert(!await evaluate('document.documentElement.scrollWidth>innerWidth'));
-      const shot = await command('Page.captureScreenshot', { format:'png',captureBeyondViewport:true }); writeFileSync(join(root,`Docs/${evidencePrefix}-operator-detail-${width}.png`),Buffer.from(shot.data,'base64'));
+      const shot = await command('Page.captureScreenshot', { format:'png',captureBeyondViewport:true }); writeFileSync(join(root,`.tmp/browser-evidence/${evidencePrefix}-operator-detail-${width}.png`),Buffer.from(shot.data,'base64'));
       await evaluate("document.querySelector('a[href=\"/operator/orders\"].back-link').click()"); await waitText(chosen.order_code);
       const layout = await evaluate("({overflow:document.documentElement.scrollWidth>innerWidth,selectHeight:document.getElementById('operator-status').getBoundingClientRect().height,retryHeight:document.querySelector('[data-operator-retry]').getBoundingClientRect().height})");
       assert(!layout.overflow); assert(layout.selectHeight>=44); assert(layout.retryHeight>=44); layouts.push({width,height,...layout});
-      const listShot = await command('Page.captureScreenshot', {format:'png',captureBeyondViewport:true}); writeFileSync(join(root,`Docs/${evidencePrefix}-operator-list-${width}.png`),Buffer.from(listShot.data,'base64'));
+      const listShot = await command('Page.captureScreenshot', {format:'png',captureBeyondViewport:true}); writeFileSync(join(root,`.tmp/browser-evidence/${evidencePrefix}-operator-list-${width}.png`),Buffer.from(listShot.data,'base64'));
       await evaluate(`document.querySelector('[data-operator-order="${chosen.id}"] a').click()`); await waitText('Phiên bản hiện tại');
     }
     await retry(); await waitText('Phiên bản hiện tại');

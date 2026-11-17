@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, HttpException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
+import { productIngredientStates } from './product-ingredients';
 import type { ProductCreateDto, ProductUpdateDto } from './admin-product.dto';
 
 function compareIds(a: string, b: string) {
@@ -21,8 +22,10 @@ const conflict = () => new ConflictException({ code: 'CONCURRENT_UPDATE', messag
 const inUse = () => new ConflictException({ code: 'RESOURCE_IN_USE', message: 'Product is referenced or lacks required configuration; stop selling instead of deleting' });
 const missing = () => new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
 const unavailable = () => new ServiceUnavailableException({ code: 'SERVICE_UNAVAILABLE', message: 'Product management unavailable' });
-function response(row: Row) {
-  return { id: row.id, name: row.name, price: row.price.toFixed(0), imageUrl: row.imageUrl, stock: row.stock, isActive: row.isActive, version: row.version,
+async function response(db: PrismaService | Prisma.TransactionClient, row: Row) {
+  const state=(await productIngredientStates(db,[row.name])).get(row.name);
+  const availableSizes=state?.sizes.filter(s => s.available && row.sizes.some(active => active.size===s.size && active.isActive)).map(s=>s.size) ?? [];
+  return { id: row.id, name: row.name, price: row.price.toFixed(0), imageUrl: row.imageUrl, stock: row.stock, available:row.isActive && availableSizes.length>0, recipeConfigured:!!state, availableSizes, isActive: row.isActive, version: row.version,
     createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(),
     sizes: row.sizes.sort((a, b) => ['S', 'M', 'L'].indexOf(a.size) - ['S', 'M', 'L'].indexOf(b.size)).map(s => ({ size: s.size, extraPrice: s.extraPrice.toFixed(0) })),
     toppings: [...row.toppings].sort((a, b) => compareIds(a.topping.id, b.topping.id)).map(({ topping: t }) => ({ id: t.id, name: t.name, price: t.price.toFixed(0), createdAt: t.createdAt.toISOString(), updatedAt: t.updatedAt.toISOString() })) };
@@ -54,15 +57,15 @@ export class AdminProductService {
     return this.safely(async () => {
       const rows = await this.db.product.findMany({ select });
       rows.sort((a, b) => compareIds(a.id, b.id));
-      return { items: rows.map(response) };
+      return { items: await Promise.all(rows.map(row=>response(this.db,row))) };
     });
   }
-  get(id: string) { return this.safely(async () => { const row = await this.db.product.findUnique({ where: { id }, select }); if (!row) throw missing(); return response(row); }); }
+  get(id: string) { return this.safely(async () => { const row = await this.db.product.findUnique({ where: { id }, select }); if (!row) throw missing(); return response(this.db,row); }); }
   create(input: ProductCreateDto) {
     return this.safely(() => this.transaction(async tx => {
       const ids = input.toppingIds;
       if (ids.length && await tx.topping.count({ where: { id: { in: ids } } }) !== ids.length) throw new NotFoundException({ code: 'TOPPING_NOT_FOUND', message: 'Topping not found' });
-      return response(await tx.product.create({ select, data: { name: input.name, price: new Prisma.Decimal(input.price), imageUrl: input.imageUrl, stock: 0,
+      return response(tx,await tx.product.create({ select, data: { name: input.name, price: new Prisma.Decimal(input.price), imageUrl: input.imageUrl, stock: 0,
         sizes: { create: input.sizes.map(s => ({ size: s.size, extraPrice: new Prisma.Decimal(s.extraPrice) })) },
         toppings: { create: ids.map(toppingId => ({ toppingId })) } } }));
     }));
@@ -87,7 +90,7 @@ export class AdminProductService {
         ...(input.imageUrl === undefined ? {} : { imageUrl: input.imageUrl }), ...(input.isActive === undefined ? {} : { isActive: input.isActive }),
         version: { increment: 1 }, updatedAt: new Date() } });
       if (changed.count !== 1) throw conflict();
-      return response(await tx.product.findUniqueOrThrow({ where: { id }, select }));
+      return response(tx, await tx.product.findUniqueOrThrow({ where: { id }, select }));
     }));
   }
   remove(id: string, expectedVersion: number) {

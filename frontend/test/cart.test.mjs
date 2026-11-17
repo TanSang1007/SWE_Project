@@ -111,9 +111,9 @@ test('delete in progress disables both actions and product names are escaped', (
   assert.doesNotMatch(html, /<script>/); assert.match(html, /&lt;script&gt;/);
 });
 
-test('stock warning uses combined demand across all configurations and still permits reducing quantity', () => {
+test('stock warning describes recipe capacity for the selected size and permits reducing quantity', () => {
   const html = renderItems({...cart, items: [{...item, stock: 3, requestedQuantity: 5}]});
-  for (const text of ['5', '3', 'qua các size/topping', 'Hãy giảm số lượng']) assert(html.includes(text));
+  for (const text of ['size', '3', 'nguyên liệu hiện đủ', 'Hãy giảm số lượng']) assert(html.includes(text));
   assert.doesNotMatch(html, /aria-label="Giảm Latte" disabled/);
 });
 

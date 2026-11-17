@@ -1,0 +1,9 @@
+# Match the LF bytes recorded in the database for these restored migrations.
+backend/prisma/migrations/20261107090000_inventory_bottle_unit/migration.sql text eol=lf
+backend/prisma/migrations/20261107100000_inventory_bag_unit/migration.sql text eol=lf
+backend/prisma/migrations/20261107110000_product_ingredient_availability/migration.sql text eol=lf
+backend/prisma/migrations/20261107120000_ingredient_warning_thresholds/migration.sql text eol=lf
+backend/prisma/migrations/20261112150000_size_recipe_reservations/migration.sql text eol=lf
+backend/prisma/migrations/20261113140000_inventory_control/migration.sql text eol=lf
+backend/prisma/migrations/20261115100000_order_aftercare/migration.sql text eol=lf
+backend/prisma/migrations/20261117000000_ingredient_unit_warning_thresholds/migration.sql text eol=lf

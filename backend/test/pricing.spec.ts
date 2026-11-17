@@ -3,17 +3,18 @@ import { PricingService, type PricingReader } from '../src/pricing/pricing.servi
 
 const decimal = (value: string) => new Prisma.Decimal(value);
 function fixture() {
-  const product = { id: 'p', name: 'Drink', price: decimal('40000'), stock: 5, version: 0, isActive: true,
+  const product = { id: 'p', name: 'Latte', price: decimal('40000'), stock: 0, version: 0, isActive: true,
     sizes: [{ productId: 'p', size: 'M', extraPrice: decimal('5000'), isActive: true }, { productId: 'p', size: 'L', extraPrice: decimal('10000'), isActive: true }],
-    toppings: [{ productId: 'p', toppingId: 't', topping: { id: 't', name: 'Cream', price: decimal('7000'), isActive: true } }] };
+    toppings: [{ productId: 'p', toppingId: 't', topping: { id: 't', name: 'Kem', price: decimal('7000'), isActive: true } }] };
   const cart = { id: 'c', userId: 'u', items: [{ id: 'i', cartId: 'c', productId: 'p', size: 'M', qty: 2,
     configurationKey: 'p:M:t', toppings: [{ toppingId: 't' }] }] };
   const promotion = { discountAmount: decimal('10000'), minimumSubtotal: decimal('0'), isActive: true,
     startsAt: new Date('2020-01-01'), endsAt: new Date('2100-01-01') };
-  const reader = { user: { findUnique: jest.fn().mockResolvedValue({ id: 'u' }) }, cart: { findUnique: jest.fn().mockResolvedValue(cart) },
+  const ingredients = ['Cà phê hạt rang', 'Sữa tươi không đường', 'Syrup đường', 'Kem tươi'].map((name, index) => ({ normalizedName: (name+' (công thức)').toLocaleLowerCase('vi'), unit: index===0?'KG':'L', quantity:decimal('100'), reservedQuantity:decimal('0') }));
+  const reader = { ingredient: {findMany:jest.fn().mockResolvedValue(ingredients)}, user: { findUnique: jest.fn().mockResolvedValue({ id: 'u' }) }, cart: { findUnique: jest.fn().mockResolvedValue(cart) },
     product: { findMany: jest.fn().mockResolvedValue([product]) }, promotion: { findUnique: jest.fn().mockResolvedValue(promotion) } };
   const run = (promotionId?: string) => new PricingService().validateCart(reader as unknown as PricingReader, 'u', promotionId);
-  return { product, cart, promotion, reader, run };
+  return { product, cart, promotion, reader, ingredients, run };
 }
 test('valid cart recomputes exact unit, line, subtotal and has zero default discount', async () => {
   const f = fixture(); const result = await f.run();
@@ -27,11 +28,11 @@ test.each([0, -1, 100, 1.5, NaN])('rejects quantity %p', async (qty) => {
 test('empty cart rejected', async () => { const f = fixture(); f.cart.items = []; await expect(f.run()).rejects.toThrow(); });
 test('absent cart rejected', async () => { const f = fixture(); f.reader.cart.findUnique.mockResolvedValue(null); await expect(f.run()).rejects.toThrow(); });
 test('missing product rejected', async () => { const f = fixture(); f.reader.product.findMany.mockResolvedValue([]); await expect(f.run()).rejects.toThrow('Product not found'); });
-test.each([0, 1])('unavailable/insufficient stock %p rejected', async (stock) => { const f = fixture(); f.product.stock = stock; await expect(f.run()).rejects.toThrow(); });
-test('exact stock accepted', async () => { const f = fixture(); f.product.stock = 2; await expect(f.run()).resolves.toBeDefined(); });
-test('aggregate stock across sizes: 2+3 exceeds 4, fits 5', async () => {
+test.each(['0', '0.439'])('insufficient available milk %s rejected even with high product stock', async quantity => { const f=fixture(); f.product.stock=999; f.ingredients[1].quantity=decimal(quantity); await expect(f.run()).rejects.toMatchObject({status:409,response:{code:'OUT_OF_STOCK'}}); });
+test('exact available ingredients accepted despite zero product stock', async () => { const f=fixture(); f.ingredients[1].quantity=decimal('0.640'); f.ingredients[1].reservedQuantity=decimal('0.200'); await expect(f.run()).resolves.toBeDefined(); });
+test('shared milk demand across sizes is summed exactly before validation', async () => {
   const f = fixture(); f.cart.items.push({ ...f.cart.items[0], id: 'j', size: 'L', qty: 3, configurationKey: 'p:L:t' });
-  f.product.stock = 4; await expect(f.run()).rejects.toThrow(); f.product.stock = 5;
+  f.ingredients[1].quantity = decimal('1.339'); await expect(f.run()).rejects.toThrow(); f.ingredients[1].quantity = decimal('1.340');
   const result = await f.run(); expect(result.stockRequirements[0].qty).toBe(5); expect(result.subtotal.toFixed(0)).toBe('275000');
 });
 test('invalid size association rejected', async () => { const f = fixture(); f.product.sizes = []; await expect(f.run()).rejects.toThrow(); });

@@ -5,6 +5,23 @@ import * as catalog from '../src/ingredients/ingredient-catalog';
 
 afterEach(() => jest.restoreAllMocks());
 
+test('active catalog restores the approved 18 identities and excludes historical water', () => {
+  const expected = [
+    'Ly sứ|PIECE', 'Ly thủy tinh lùn|PIECE', 'Ly thủy tinh cao|PIECE',
+    'Muỗng inox|PIECE', 'Muỗng khuấy|PIECE', 'Đĩa lót ly sứ|PIECE',
+    'Cà phê hạt rang|KG', 'Cà phê bột pha phin|KG', 'Cà phê xay thô Cold Brew|KG',
+    'Bột matcha|KG', 'Bột cacao nguyên chất|KG', 'Sữa tươi không đường|L',
+    'Sữa đặc|KG', 'Đường cát|KG', 'Syrup đường|L', 'Syrup caramel|L',
+    'Kem tươi|L', 'Đá viên|KG',
+  ];
+  const entries = catalog.readIngredientCatalog();
+  expect(entries.map(entry => entry.displayName+'|'+entry.unit).sort()).toEqual(expected.sort());
+  expect(entries.every(entry => entry.name.endsWith(' (công thức)'))).toBe(true);
+  expect(entries.filter(entry => entry.unit === 'PIECE')).toHaveLength(6);
+  expect(entries.filter(entry => entry.unit !== 'PIECE')).toHaveLength(12);
+  expect(entries.some(entry=>entry.displayName==='Nước lọc')).toBe(false);
+});
+
 test('catalog normalizes identity, supports display labels, and accepts an empty list', () => {
   expect(catalog.readIngredientCatalog([{ name: '  Ly   nhựa  ', label: 'Ly kèm nắp', unit: 'PIECE' }]))
     .toEqual([{ name: 'Ly nhựa', normalizedName: 'ly nhựa', displayName: 'Ly kèm nắp', unit: 'PIECE' }]);
@@ -18,6 +35,9 @@ test('invalid or duplicate catalog definitions fail before creating any item', (
     [{ name: 'Sữa', unit: 'ML' as const }],
     [{ name: 'Sữa', unit: 'L' as const }, { name: ' SỮA ', unit: 'KG' as const }],
     [{ name: 'a'.repeat(121), unit: 'KG' as const }],
+    [{ name: 'Bột', unit: 'KG' as const, lowStockThreshold: '0.0001' }],
+    [{ name: 'Bột', unit: 'KG' as const, lowStockThreshold: '-1' }],
+    [{ name: 'Chai', unit: 'BOTTLE' as const, lowStockThreshold: '1.5' }],
   ]) expect(() => catalog.readIngredientCatalog(entries)).toThrow();
 });
 
@@ -44,7 +64,7 @@ test('removing, relabeling and restoring an entry changes listing without alteri
 });
 
 test('same name with a different unit is not offered as the configured item', async () => {
-  const db = { ingredient: { findMany: jest.fn().mockResolvedValue([stockRow('Ly nhựa', 'L')]) } };
+  const db = { ingredient: { findMany: jest.fn().mockResolvedValue([stockRow('Ly thủy tinh cao', 'L')]) } };
   const result = await new IngredientService(db as unknown as PrismaService).ingredients();
   expect(result.items[0].isListed).toBe(false);
 });

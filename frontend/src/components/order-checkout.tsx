@@ -16,6 +16,7 @@ import { paymentConfiguration, type ProviderMode } from '../lib/api/gateway-paym
 import { GatewayCheckout } from './gateway-checkout';
 import { PaymentAdmissionNotice } from './payment-admission-notice';
 import { notifyToast } from '../lib/notification-store';
+import { OrderTracking } from './order-tracking';
 export { OrderSummary } from './order-summary';
 export function OrderCheckout({ cart, disabled, onLock, resumeOrderId }: { cart: Cart | null; disabled: boolean; onLock: (locked: boolean) => void; resumeOrderId?: string }) {
   const token = useAuthStore((s) => s.accessToken); const userId = useAuthStore((s) => s.user?.id);
@@ -204,6 +205,17 @@ export function OrderCheckout({ cart, disabled, onLock, resumeOrderId }: { cart:
     }
     finally { finish(); }
   }
+  async function refreshTrackedOrder() {
+    if (!order) return;
+    try {
+      const updated = await orderRequest('/orders/' + order.id);
+      if (!isCurrent()) return;
+      // Keep paid cancellations visible so the customer can follow the refund.
+      setOrder(updated);
+      clearOrderContext(); clearGatewayContext(); setContext(null);
+      await refreshCart();
+    } catch (e) { if (isCurrent()) setError(checkoutErrorMessage(e, 'refresh')); }
+  }
   return <section className="order-checkout" aria-labelledby="checkout-heading" aria-busy={waiting}>
     <div className="checkout-card-header">
       <h2 id="checkout-heading">{order && active ? 'Xác nhận & Thanh toán' : 'Chi tiết đơn hàng & Thanh toán'}</h2>
@@ -230,6 +242,7 @@ export function OrderCheckout({ cart, disabled, onLock, resumeOrderId }: { cart:
       </section>
     )}
     {order?.status === 'PAID' && cartSynced && <p role="status" className="form-success">Đơn hàng đã thanh toán thành công.</p>}
+    {order && ['PAID', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED'].includes(order.status) && <OrderTracking key={order.id} id={order.id} role="CUSTOMER" allowUnpaidCancel={false} onChanged={() => void refreshTrackedOrder()} />}
     {order && active && previewSubtotal && previewSubtotal !== order.subtotal && <p role="status">Tổng tiền đã được cập nhật theo đơn hiện tại.</p>}
     {!mode && !configError && <p role="status">Đang tải cấu hình thanh toán…</p>}
     {configError && <p role="alert">{configError} <button type="button" className="brew-btn brew-btn-secondary" onClick={() => setConfigVersion(v => v + 1)}>Tải lại cấu hình</button></p>}

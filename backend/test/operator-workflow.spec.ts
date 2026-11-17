@@ -26,16 +26,16 @@ describe('A03 authorized workflow wrappers', () => {
   afterAll(async () => { await app.close(); });
   it.each(['STAFF', 'ADMIN'])('%s calls exact B16 signature with original expectedVersion, response unchanged/no version', async (value) => {
     role = value; const r = await post(paths[0].replace(id, id.toUpperCase())).set('Origin', 'http://localhost:3000').send(body).expect(200);
-    expect(transitionOrder).toHaveBeenCalledTimes(1); expect(transitionOrder).toHaveBeenCalledWith(id, 3, 'PREPARING');
+    expect(transitionOrder).toHaveBeenCalledTimes(1); expect(transitionOrder).toHaveBeenCalledWith(id, 3, 'PREPARING', actor);
     expect(r.body).toEqual({ id, status: 'PREPARING', total: '120000' }); expect(r.headers['cache-control']).toContain('no-store'); expect(r.headers.vary).toMatch(/Authorization/); expect(r.headers.vary).toMatch(/Origin/);
   });
   it.each(['PREPARING', 'READY', 'COMPLETED'])('valid DTO target %s delegates B16 graph enforcement', async (targetStatus) => {
-    await post().send({ expectedVersion: 0, targetStatus }).expect(200); expect(transitionOrder).toHaveBeenCalledWith(id, 0, targetStatus);
+    await post().send({ expectedVersion: 0, targetStatus }).expect(200); expect(transitionOrder).toHaveBeenCalledWith(id, 0, targetStatus, actor);
   });
   it('ADMIN cancellation passes only CANCELLED and original version, even repeated CANCELLED', async () => {
     role = 'ADMIN'; transitionOrder.mockResolvedValue({ id, status: 'CANCELLED', paymentStatus: 'SUCCEEDED', earnedPoints: 0 });
     for (let n = 0; n < 2; n++) await post(paths[1]).send({ expectedVersion: 3 }).expect(200);
-    expect(transitionOrder).toHaveBeenNthCalledWith(1, id, 3, 'CANCELLED'); expect(transitionOrder).toHaveBeenNthCalledWith(2, id, 3, 'CANCELLED');
+    expect(transitionOrder).toHaveBeenNthCalledWith(1, id, 3, 'CANCELLED', actor); expect(transitionOrder).toHaveBeenNthCalledWith(2, id, 3, 'CANCELLED', actor);
   });
   it.each(paths)('auth required for %s', async (path) => {
     await request(app.getHttpServer()).post(path).send(body).expect(401);

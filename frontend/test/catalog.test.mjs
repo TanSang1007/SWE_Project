@@ -17,6 +17,7 @@ const api = require('../src/lib/api/products.ts');
 const { formatVnd } = require('../src/lib/money.ts');
 const { ProductListView } = require('../src/components/menu.tsx');
 const { ProductDetailView } = require('../src/components/product-detail.tsx');
+const { CartOptions } = require('../src/components/cart-options.tsx');
 const { CatalogState, CatalogLoading } = require('../src/components/catalog-state.tsx');
 const item = { id: '11111111-1111-4111-8111-111111111111', name: 'Fixture', price: '45000', imageUrl: '/images/fixture.jpg', available: true };
 const detail = { ...item, sizes: [{ size: 'M', extraPrice: '5000' }], toppings: [{ id: '22222222-2222-4222-8222-222222222221', name: 'Kem', price: '7000' }] };
@@ -28,6 +29,25 @@ const render = (component, props) => renderToStaticMarkup(React.createElement(co
 test('parses list/detail contract and strips fields outside UI representation', () => {
   assert.deepEqual(api.parseProducts({ items: [{ ...item, stock: 20 }], currency: 'VND' }), { items: [item], currency: 'VND' });
   assert.deepEqual(api.parseProduct(detail), detail);
+});
+
+test('recipe availability survives parsing and malformed capacities are rejected', () => {
+  const sizes=[{size:'S',available:true,maxQuantity:1},{size:'M',available:false,maxQuantity:0}];
+  assert.deepEqual(api.parseProducts({items:[{...item,sizeAvailability:sizes}],currency:'VND'}).items[0].sizeAvailability,sizes);
+  const configured={...detail,sizes:sizes.map(s=>({...s,extraPrice:'0'})),toppings:[{...detail.toppings[0],availableSizes:['S']}]};
+  assert.deepEqual(api.parseProduct(configured),configured);
+  for(const maxQuantity of [-1,1.5,Infinity,'1']) assert.throws(()=>api.parseProduct({...configured,sizes:[{size:'S',extraPrice:'0',available:true,maxQuantity}]}));
+  assert.throws(()=>api.parseProduct({...configured,sizes:[{size:'S',extraPrice:'0',available:true,maxQuantity:0}]}));
+});
+
+test('options disable exhausted sizes/toppings and select the first available size',()=>{
+  const product={...detail,sizes:[{size:'S',extraPrice:'0',available:false,maxQuantity:0},{size:'M',extraPrice:'0',available:true,maxQuantity:2}],toppings:[{...detail.toppings[0],availableSizes:[]}]};
+  const html=render(CartOptions,{product,busy:false,onConfirm(){},label:'Thêm vào giỏ'});
+  assert.match(html,/<input(?=[^>]*value="S")(?=[^>]*disabled)[^>]*>/); assert.match(html,/<input(?=[^>]*value="M")(?=[^>]*checked)[^>]*>/);
+  assert.match(html,/type="checkbox"[^>]*disabled/); assert.match(html,/max="2"/);
+  assert.match(html,/Hết nguyên liệu/);
+  const oversized=render(CartOptions,{product,initial:{size:'M',qty:3,toppingIds:[]},busy:false,onConfirm(){},label:'Thêm vào giỏ'});
+  assert.match(oversized,/Không đủ nguyên liệu/); assert.match(oversized,/class="button cart-confirm" disabled/);
 });
 test('rejects malformed list/detail and numeric/negative/overflow money', () => {
   for (const price of [45000, '-1', '1.5', '1000000000000']) assert.throws(() => api.parseProduct({ ...detail, price }));

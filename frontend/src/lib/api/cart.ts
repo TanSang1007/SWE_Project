@@ -34,7 +34,8 @@ export function parseCart(value: unknown): Cart {
   for (const item of data.items) {
     if (!item || typeof item.id !== 'string' || typeof item.productId !== 'string' || typeof item.productName !== 'string'
       || typeof item.size !== 'string' || typeof item.imageUrl !== 'string' || typeof item.available !== 'boolean'
-      || (item.stock !== undefined && (!Number.isInteger(item.stock) || item.stock < 0 || item.stock > 2147483647))
+      // stock is the recipe capacity for this configuration, not Product.stock.
+      || (item.stock !== undefined && (!Number.isSafeInteger(item.stock) || item.stock < 0))
       || (item.requestedQuantity !== undefined && (!Number.isInteger(item.requestedQuantity) || item.requestedQuantity < item.qty || item.requestedQuantity > 4950))
       || !Number.isInteger(item.qty) || item.qty < 1 || item.qty > 99 || !validMoney(item.unitPrice) || !validMoney(item.lineTotal)
       || !Array.isArray(item.toppings) || item.toppings.some((t) => !t || typeof t.id !== 'string' || typeof t.name !== 'string' || !validMoney(t.price))) throw new CartError('UNAVAILABLE');

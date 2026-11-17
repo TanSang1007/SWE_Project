@@ -16,7 +16,9 @@ export function parseAdminProduct(value: unknown): AdminProduct {
   const toppings = p.toppings.map(t => { if (!t || typeof t.id !== 'string' || !isProductId(t.id) || typeof t.name !== 'string' || !money(t.price) || !date(t.createdAt) || !date(t.updatedAt)) throw fail();
     return { id: t.id, name: t.name, price: t.price, createdAt: t.createdAt, updatedAt: t.updatedAt }; });
   if (new Set(sizes.map(s => s.size)).size !== sizes.length || new Set(toppings.map(t => t.id)).size !== toppings.length) throw fail();
-  return { id: p.id, name: p.name, price: p.price, imageUrl: p.imageUrl, stock: p.stock, isActive: p.isActive, version: p.version, createdAt: p.createdAt, updatedAt: p.updatedAt, sizes, toppings };
+  if (p.available!==undefined&&typeof p.available!=='boolean'||p.recipeConfigured!==undefined&&typeof p.recipeConfigured!=='boolean'||p.availableSizes!==undefined&&(!Array.isArray(p.availableSizes)||p.availableSizes.some(s=>!['S','M','L'].includes(s)))) throw fail();
+  return { id: p.id, name: p.name, price: p.price, imageUrl: p.imageUrl, stock: p.stock, isActive: p.isActive, version: p.version, createdAt: p.createdAt, updatedAt: p.updatedAt, sizes, toppings,
+    ...(p.available===undefined?{}:{available:p.available}),...(p.recipeConfigured===undefined?{}:{recipeConfigured:p.recipeConfigured}),...(p.availableSizes===undefined?{}:{availableSizes:p.availableSizes}) };
 }
 export function parseAdminProducts(value: unknown): AdminProduct[] {
   const list = value as { items?: unknown }; if (!list || !Array.isArray(list.items)) throw fail();

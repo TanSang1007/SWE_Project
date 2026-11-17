@@ -9,6 +9,7 @@ import { lockUser } from '../orders/order-policy';
 import { customerOrderCode } from '../orders/customer-order-code';
 import { effect, lockOrder, persistEffects, reconcileAccount, reservationGate, type Effect } from '../loyalty/loyalty-accounting';
 import { assertGatewayClear, gatewayBlocks, lockAttempts } from './gateway-policy';
+import { assertHeldOrderIngredients } from '../ingredients/order-ingredients';
 
 const unavailable = () => new ServiceUnavailableException({ code: 'PAYMENT_UNAVAILABLE', message: 'Confirmation was not committed; retry the same request' });
 const invalidState = () => new ConflictException({ code: 'INVALID_ORDER_STATE', message: 'Order does not permit zero-total confirmation' });
@@ -71,6 +72,7 @@ export class ZeroConfirmationService {
         if (o.status !== 'PENDING' || o.paidAt || o.payments.length || o.loyaltyAward) throw invalidState();
         assertPaymentWindow(o);
         validateZeroSnapshot(o);
+        if (o.items.some(i => i.ingredientKeysSnapshot?.length) && !await assertHeldOrderIngredients(tx,orderId)) throw unavailable();
         if (o.version >= 2147483647) throw unavailable();
         const before = await reconcileAccount(tx, userId), account = { ...before };
         reservationGate(account, o.redeemedPoints);

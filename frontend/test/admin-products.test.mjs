@@ -37,10 +37,10 @@ test('create form requires explicit sizes, no isActive/stock inputs, label/field
   const busy = html(ProductForm, { toppings: [], busy: true }); assert(busy.includes('aria-busy="true"')); assert(busy.includes('disabled'));
 });
 test('edit form shows flag/current metadata, no mutable inline sizes/stock', () => { const value = html(ProductForm, { product: p, toppings: [], busy: false }); assert(value.includes('name="isActive"')); assert(!value.includes('name="sizes"')); assert(!value.includes('name="stock"')); });
-test('Product list/empty/status/delete actions format exact VND, stock read-only', () => {
+test('Product list shows recipe availability instead of manual drink stock', () => {
   assert.match(html(ProductList, { items: [], busy: false }), /Chưa có sản phẩm/);
-  const value = html(ProductList, { items: [p, { ...p, id: randomUUID(), isActive: false, stock: 0 }], busy: true });
-  for (const text of ['999.999.999.999', 'Đang kinh doanh', 'Ngừng kinh doanh', 'Hết hàng', 'Xóa', 'Bật bán lại', 'disabled']) assert(value.includes(text)); assert(!value.includes('<input'));
+  const value = html(ProductList, { items: [{...p,stock:0,available:true,recipeConfigured:true,availableSizes:['S']}, { ...p, id: randomUUID(), isActive: false, stock: 999, available:false,recipeConfigured:false,availableSizes:[] }], busy: true });
+  for (const text of ['999.999.999.999', 'Đang kinh doanh', 'Ngừng kinh doanh', 'Còn món', 'Chưa có công thức', 'Xóa', 'Bật bán lại', 'disabled']) assert(value.includes(text)); assert(!value.includes('<input')); assert(!value.includes('Tồn kho'));
 });
 test('form validation rejects invalid name/money/path/missing-size and allows Decimal VND boundaries', () => {
   assert.equal(validateProductForm(' Drink ', '0', '/images/drink.svg', p.sizes), '');

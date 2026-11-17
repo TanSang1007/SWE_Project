@@ -124,7 +124,7 @@ export function CartItems({ cart, locked, onQuantity, onEdit, onRemove }: {
     <div className="cart-item-content"><h2>{item.productName}</h2><p className="cart-item-options">Size {item.size} · {item.toppings.map((t) => t.name).join(', ') || 'Không topping'}</p>
       <p className="cart-unit-price">Đơn giá: {formatVnd(item.unitPrice)}</p>
       {!item.available && <p className="cart-item-warning" role="alert">Món hoặc tùy chọn hiện chưa thể đặt hàng. Vui lòng chỉnh sửa hoặc xóa món.</p>}
-      {item.stock !== undefined && (item.requestedQuantity ?? item.qty) > item.stock && <p className="cart-item-warning" role="alert">Bạn đã chọn tổng cộng {item.requestedQuantity ?? item.qty} ly {item.productName} qua các size/topping, hiện còn {item.stock} ly. Hãy giảm số lượng hoặc xóa bớt món.</p>}
+      {item.stock !== undefined && (item.requestedQuantity ?? item.qty) > item.stock && <p className="cart-item-warning" role="alert">Bạn đã chọn {item.qty} ly {item.productName} size {item.size}; nguyên liệu hiện đủ cho {item.stock} ly với tùy chọn này. Hãy giảm số lượng hoặc xóa bớt món.</p>}
       <div className="cart-actions"><div className="cart-quantity" role="group" aria-label={`Số lượng ${item.productName}`}>
         <button
           aria-label={`Giảm ${item.productName}`}

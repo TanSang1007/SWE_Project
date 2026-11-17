@@ -59,7 +59,7 @@ export async function verifyRbacBrowser({ evaluate, command, waitText, navigate,
       const layout = await evaluate("({overflow:document.documentElement.scrollWidth>innerWidth,links:[...document.querySelectorAll('.operator-navigation a')].map(a=>a.getBoundingClientRect().height)})");
       assert(!layout.overflow); assert(layout.links.every((h) => h >= 44)); layouts.push({ width, height, ...layout });
       const shot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
-      writeFileSync(join(root, `Docs/${evidencePrefix}-admin-shell-${width}.png`), Buffer.from(shot.data, 'base64'));
+      writeFileSync(join(root, `.tmp/browser-evidence/${evidencePrefix}-admin-shell-${width}.png`), Buffer.from(shot.data, 'base64'));
     }
     let focused = false;
     for (let i = 0; i < 20 && !focused; i++) {

@@ -14,6 +14,7 @@ import { clearGatewayContext } from '../lib/gateway-context';
 import { useCartStore } from '../lib/cart-store';
 import { checkoutErrorMessage } from '../lib/checkout-policy';
 import { notifyToast } from '../lib/notification-store';
+import { OrderTracking } from './order-tracking';
 export type OrderReadState = { status: 'loading' } | { status: 'error'; notFound: boolean }
   | { status: 'history'; items: OrderHistoryItem[] } | { status: 'detail'; order: OrderDetail; attempt?: AttemptStatus | null; attemptUnavailable?: boolean };
 export function OrderHistoryView({ id }: { id?: string }) {
@@ -28,15 +29,24 @@ function OrderReadSession({ id }: { id?: string }) {
   const [state, setState] = useState<OrderReadState>({ status: 'loading' }); const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
-    const load = id ? getOrderDetail(id, controller.signal).then(async (order): Promise<OrderReadState> => {
+    let pending = false;
+    const load = () => id ? getOrderDetail(id, controller.signal).then(async (order): Promise<OrderReadState> => {
       if (order.total === '0') return { status: 'detail', order };
       try { return { status: 'detail', order, attempt: await currentAttempt(order.id, controller.signal) }; }
       catch { return { status: 'detail', order, attemptUnavailable: true }; }
     })
       : getOrderHistory(controller.signal).then((items): OrderReadState => ({ status: 'history', items }));
-    void load.then((result) => { if (!controller.signal.aborted) setState(result); })
-      .catch((error: unknown) => { if (!controller.signal.aborted) setState({ status: 'error', notFound: error instanceof OrderError && error.code === 'ORDER_NOT_FOUND' }); });
-    return () => controller.abort();
+    async function refresh() {
+      if (pending || controller.signal.aborted || document.visibilityState === 'hidden') return;
+      pending = true;
+      try { const result = await load(); if (!controller.signal.aborted) setState(result); }
+      catch (error) { if (!controller.signal.aborted) setState(previous => previous.status === 'detail' ? previous : { status: 'error', notFound: error instanceof OrderError && error.code === 'ORDER_NOT_FOUND' }); }
+      finally { pending = false; }
+    }
+    void refresh();
+    const timer = id ? window.setInterval(() => void refresh(), 5000) : undefined;
+    const focus = () => void refresh(); window.addEventListener('focus', focus);
+    return () => { controller.abort(); if (timer !== undefined) window.clearInterval(timer); window.removeEventListener('focus', focus); };
   }, [id, attempt]);
   function retry() { setState({ status: 'loading' }); setAttempt((value) => value + 1); }
   return <OrderReadContent state={state} retry={retry} />;
@@ -92,6 +102,7 @@ export function OrderDetailContent({ order, attempt, attemptUnavailable, onCance
       <div><dt>Điểm từ đơn này</dt><dd>{order.earnedPoints === null ? 'Chưa phát sinh' : order.earnedPoints.toLocaleString('vi-VN') + ' điểm'}</dd></div></dl>
     {attemptUnavailable && <p role="alert">Chưa đọc được trạng thái giao dịch hiện tại.</p>}
     {cancelError && <p role="alert" className="checkout-error">{cancelError}</p>}
+    <OrderTracking key={order.id} id={order.id} role="CUSTOMER" allowUnpaidCancel={false} onChanged={onCancelled} />
     <div className="checkout-action-group" style={{ marginTop: 18 }}>
       {['PENDING', 'PAYMENT_FAILED'].includes(order.status) && (
         <>

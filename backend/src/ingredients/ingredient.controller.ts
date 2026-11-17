@@ -4,9 +4,14 @@ import type { UserRole } from '../generated/prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/roles.decorator';
-import { CountCreateDto, CountReviewDto, IngredientCreateDto, IngredientEmptyDto, IngredientPageDto, IngredientParamsDto, IngredientVersionDto, ReceiptCreateDto } from './ingredient.dto';
+import { CountCreateDto, CountReviewDto, IngredientControlDto, IngredientCreateDto, IngredientEmptyDto, IngredientPageDto, IngredientParamsDto, IngredientVersionDto, ReceiptCreateDto } from './ingredient.dto';
 import { IngredientService } from './ingredient.service';
 type ActorRequest = Request & { user: { id: string; role: UserRole } };
+// API kho: JWT/role từ server, response private/no-store, DTO từ ingredient.dto.
+// ADMIN: nhập hàng, lịch sử biến động, cấu hình và duyệt kiểm kê.
+// STAFF: đọc tồn/summary và tạo/gửi/đọc phiếu của mình; không đọc nháp Staff khác.
+// Ghi dùng key/replay và expectedVersion; đọc lịch sử giữ pagination.
+// Lỗi kỹ thuật -> 503 SERVICE_UNAVAILABLE; chỉ contention -> 409 CONCURRENT_UPDATE.
 @Controller('ingredient-inventory') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('ADMIN', 'STAFF')
 export class IngredientController {
   constructor(private readonly inventory: IngredientService) {}
@@ -18,6 +23,8 @@ export class IngredientController {
   ingredients(@Query() query: IngredientEmptyDto, @Body() body: IngredientEmptyDto) { void query; void body; return this.inventory.ingredients(); }
   @Post('ingredients') @Roles('ADMIN') @Header('Cache-Control','private, no-store, max-age=0') @Header('Vary','Authorization, Origin')
   createIngredient(@Req() req: ActorRequest, @Headers('idempotency-key') key: string | undefined, @Body() body: IngredientCreateDto, @Query() query: IngredientEmptyDto) { void query; return this.inventory.createIngredient(req.user.id,key,body); }
+  @Post('ingredients/:id/control') @Roles('ADMIN') @HttpCode(200) @Header('Cache-Control','private, no-store, max-age=0') @Header('Vary','Authorization, Origin')
+  control(@Req() req: ActorRequest, @Param() params: IngredientParamsDto, @Body() body: IngredientControlDto, @Query() query: IngredientEmptyDto) { void query; return this.inventory.configureControl(req.user.id, params.id.toLowerCase(), body); }
   @Get('receipts') @Roles('ADMIN') @Header('Cache-Control','private, no-store, max-age=0') @Header('Vary','Authorization, Origin')
   receipts(@Query() query: IngredientPageDto, @Body() body: IngredientEmptyDto) { void body; return this.inventory.receipts(query.cursor); }
   @Post('receipts') @Roles('ADMIN') @Header('Cache-Control','private, no-store, max-age=0') @Header('Vary','Authorization, Origin')
@@ -28,6 +35,8 @@ export class IngredientController {
   counts(@Req() req: ActorRequest, @Query() query: IngredientPageDto, @Body() body: IngredientEmptyDto) { void body; return this.inventory.counts(req.user.id,req.user.role,query.cursor); }
   @Post('counts') @Roles('STAFF') @Header('Cache-Control','private, no-store, max-age=0') @Header('Vary','Authorization, Origin')
   createCount(@Req() req: ActorRequest, @Headers('idempotency-key') key: string | undefined, @Body() body: CountCreateDto, @Query() query: IngredientEmptyDto) { void query; return this.inventory.createCount(req.user.id,key,body); }
+  @Post('counts/:id/submit') @Roles('STAFF') @HttpCode(200) @Header('Cache-Control','private, no-store, max-age=0') @Header('Vary','Authorization, Origin')
+  submitCount(@Req() req: ActorRequest, @Param() params: IngredientParamsDto, @Body() body: IngredientVersionDto, @Query() query: IngredientEmptyDto) { void query; return this.inventory.submitCount(req.user.id, params.id.toLowerCase(), body.expectedVersion); }
   @Post('counts/:id/review') @Roles('ADMIN') @HttpCode(200) @Header('Cache-Control','private, no-store, max-age=0') @Header('Vary','Authorization, Origin')
   review(@Req() req: ActorRequest, @Param() params: IngredientParamsDto, @Body() body: CountReviewDto, @Query() query: IngredientEmptyDto) { void query; return this.inventory.reviewCount(req.user.id,params.id.toLowerCase(),body); }
   @Get('movements') @Roles('ADMIN') @Header('Cache-Control','private, no-store, max-age=0') @Header('Vary','Authorization, Origin')

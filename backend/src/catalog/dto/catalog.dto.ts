@@ -14,7 +14,7 @@ export class ProductParamsDto {
   id!: string;
 }
 
-// No query options exist in API_DESIGN §3. Global whitelist rejects extras.
+// No query options are supported. Global whitelist rejects extras.
 export class CatalogQueryDto {}
 
 export interface CatalogProductDto {
@@ -22,7 +22,9 @@ export interface CatalogProductDto {
   name: string;
   price: string;
   imageUrl: string;
+  // Requires an active size with enough unreserved ingredients for one serving.
   available: boolean;
+  sizeAvailability?: { size: string; maxQuantity: number; available: boolean }[];
 }
 
 export interface ProductListDto {
@@ -31,6 +33,7 @@ export interface ProductListDto {
 }
 
 export interface ProductDetailDto extends CatalogProductDto {
-  sizes: { size: string; extraPrice: string }[];
-  toppings: { id: string; name: string; price: string }[];
+  // maxQuantity is computed from the S/M/L recipe; no manual drink balance.
+  sizes: { size: string; extraPrice: string; available: boolean; maxQuantity: number }[];
+  toppings: { id: string; name: string; price: string; availableSizes: string[] }[];
 }

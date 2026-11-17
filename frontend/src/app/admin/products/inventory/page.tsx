@@ -1,2 +1,3 @@
-import { AdminInventory } from '../../../../components/admin-inventory';
-export default function ProductInventoryPage(){return <AdminInventory/>;}
+import { redirect } from 'next/navigation';
+// Old bookmarks lead to products; drink stock is determined by recipe ingredients.
+export default function ProductInventoryPage(){redirect('/admin/products');}

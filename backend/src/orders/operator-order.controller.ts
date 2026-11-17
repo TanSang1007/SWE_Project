@@ -25,9 +25,9 @@ export class OperatorOrderController {
   @HttpCode(200)
   @Header('Cache-Control', 'private, no-store, max-age=0')
   transition(@Param() params: OrderParamsDto, @Body() body: OrderTransitionDto, @Query() query: OrderEmptyDto,
-    @Res({ passthrough: true }) res: Response) {
+    @Res({ passthrough: true }) res: Response, @Req() req: { user: { id: string } }) {
     void query; res.vary('Authorization');
-    return this.orders.transitionOrder(params.id.toLowerCase(), body.expectedVersion, body.targetStatus);
+    return this.orders.transitionOrder(params.id.toLowerCase(), body.expectedVersion, body.targetStatus, req.user.id);
   }
 
   @Get()

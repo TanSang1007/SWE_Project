@@ -4,14 +4,16 @@ import { CartService } from '../src/cart/cart.service';
 import { jest, test, expect } from '@jest/globals';
 
 const decimal = (value: string) => new Prisma.Decimal(value);
+const ingredient = {findMany:jest.fn(() => Promise.resolve(['Cà phê hạt rang','Sữa tươi không đường','Syrup đường','Kem tươi'].map((name,index) => ({normalizedName:(name+' (công thức)').toLocaleLowerCase('vi'),unit:index===0?'KG':'L',quantity:decimal('100'),reservedQuantity:decimal('0')}))))};
 function fixture() {
   const row = {
     id: 'item', productId: 'product', size: 'M', qty: 2,
-    product: { name: 'Coffee', imageUrl: '/coffee.jpg', price: decimal('40000'), isActive: true, stock: 1, toppings: [{ toppingId: 'topping' }] },
+    product: { name: 'Latte', imageUrl: '/coffee.jpg', price: decimal('40000'), isActive: true, stock: 1, toppings: [{ toppingId: 'topping' }] },
     productSize: { size: 'M', extraPrice: decimal('5000'), isActive: true },
-    toppings: [{ toppingId: 'topping', topping: { id: 'topping', name: 'Cream', price: decimal('7000'), isActive: true } }],
+    toppings: [{ toppingId: 'topping', topping: { id: 'topping', name: 'Kem', price: decimal('7000'), isActive: true } }],
   };
   const tx = {
+  ingredient,
   cartItem: {
     findMany: jest.fn(() => Promise.resolve([row])),
     },
@@ -65,24 +67,25 @@ test('service rejects more than ten toppings before accessing catalog', async ()
   await expect(service.add('owner', { productId: 'product', size: 'M', toppingIds: Array(11).fill('topping') as string[], qty: 1 })).rejects.toMatchObject({ status: 400 });
 });
 
-test('stock warning aggregates demand across sizes without reserving or changing prices', async () => {
+test('cart reports each size capacity from available ingredients without reserving them', async () => {
   const row = { id: 'one', productId: 'product', size: 'M', qty: 2,
-    product: {name: 'Coffee', imageUrl: '', price: decimal('10000'), isActive: true, stock: 3, toppings: []},
+    product: {name: 'Latte', imageUrl: '', price: decimal('10000'), isActive: true, stock: 3, toppings: []},
     productSize: {size: 'M', extraPrice: decimal('0'), isActive: true}, toppings: [] };
-  const tx = {cartItem: {findMany: jest.fn(() => Promise.resolve([row, {...row, id: 'two', size: 'L'}]))}};
+  const tx = {ingredient:{findMany:()=>Promise.resolve([{normalizedName:'cà phê hạt rang (công thức)',unit:'KG',quantity:decimal('1'),reservedQuantity:decimal('0')},{normalizedName:'sữa tươi không đường (công thức)',unit:'L',quantity:decimal('1.100'),reservedQuantity:decimal('0.200')},{normalizedName:'syrup đường (công thức)',unit:'L',quantity:decimal('1'),reservedQuantity:decimal('0')}])},cartItem: {findMany: jest.fn(() => Promise.resolve([row, {...row, id: 'two', size: 'L'}]))}};
   const prisma = {$transaction: async (run: (client: typeof tx) => Promise<unknown>) => run(tx)};
   const service = new CartService(prisma as unknown as PrismaService);
   expect(await service.get('owner')).toMatchObject({subtotal: '40000', items: [
-    {stock: 3, requestedQuantity: 4, available: true}, {stock: 3, requestedQuantity: 4, available: true},
+    {stock: 4, requestedQuantity: 2, available: true}, {stock: 3, requestedQuantity: 2, available: true},
   ]});
 });
 
 function optionsFixture(mergedQty?: number) {
   const item = {id: 'old', cartId: 'cart', productId: 'product', qty: 2, size: 'M', configurationKey: 'product:M', toppings: []};
   const tx = {
+    ingredient,
     $queryRaw: jest.fn(() => Promise.resolve([])),
     order: {findFirst: jest.fn(() => Promise.resolve(null))},
-    product: {findUnique: jest.fn(() => Promise.resolve({isActive: true, stock: 10, sizes: [{size: 'L', isActive: true}], toppings: []}))},
+    product: {findUnique: jest.fn(() => Promise.resolve({name:'Latte',isActive: true, stock: 10, sizes: [{size: 'L', isActive: true}], toppings: []}))},
     cartItem: {
       findFirst: jest.fn(() => Promise.resolve(item)),
       findUnique: jest.fn(() => Promise.resolve(mergedQty === undefined ? null : {id: 'target', qty: mergedQty})),

@@ -1,7 +1,7 @@
 // Local verification only. Creates and cleans up only its own UUID schema.
 const { Client } = require('pg');
 const { randomUUID, createHash } = require('node:crypto');
-const { readFileSync, readdirSync, writeFileSync } = require('node:fs');
+const { mkdirSync, readFileSync, readdirSync, writeFileSync } = require('node:fs');
 const { resolve } = require('node:path');
 const { spawnSync } = require('node:child_process');
 const assert = require('node:assert/strict');
@@ -73,7 +73,8 @@ async function main() {
     report.developmentApplied = true;
   }
   report.publicRowsPreserved = true;
-  writeFileSync(resolve(__dirname, '../../Docs/A06_MIGRATION_EVIDENCE.json'), JSON.stringify(report, null, 2) + '\n');
+  mkdirSync(resolve(__dirname, '../../.tmp/browser-evidence'), { recursive: true });
+  writeFileSync(resolve(__dirname, '../../.tmp/browser-evidence/A06_MIGRATION_EVIDENCE.json'), JSON.stringify(report, null, 2) + '\n');
   console.log(JSON.stringify(report));
 }
 main().catch(e => { console.error('A06 migration verification failed', e.code ?? e.name); process.exitCode = 1; }).finally(() => db.end());

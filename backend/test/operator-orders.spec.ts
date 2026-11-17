@@ -93,7 +93,7 @@ describe('A02 operator read contract and authorization', () => {
       unitPrice: '105000', lineTotal: '105000', toppings: [{ name: 'Cream', price: '5000' }] }], subtotal: '105000', discountAmount: '10000', total: '95000',
       redeemedPoints: 0, loyaltyDiscountAmount: '0', redemptionState: 'NONE', estimatedEarnedPoints: 9, promotionCode: 'SNAPSHOT', createdAt: '2026-10-07T00:00:00.000Z', paymentStartedAt: null, expiresAt: null, paymentExpiredAt: null, cancellationReason: null, serverNow: (r.body as { serverNow: string }).serverNow, paidAt: '2026-10-07T00:01:00.000Z', earnedPoints: 9, paymentStatus: 'SUCCEEDED',
       version: 7, updatedAt: '2026-10-09T00:01:00.000Z' });
-    expect(order.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: value === 'ADMIN' ? { id } : { id, status: { in: ['PAID', 'PREPARING', 'READY', 'COMPLETED'] } } }));
+    expect(order.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: value === 'ADMIN' ? { id } : { id, OR: [{ status: { in: ['PAID', 'PREPARING', 'READY', 'COMPLETED'] } }, { status: 'CANCELLED', paidAt: { not: null } }] } }));
     expect(r.text).not.toMatch(/userId|email|passwordHash|idempotencyKey|payments|loyaltyAward/);
   });
   it('missing order uses ORDER_NOT_FOUND, after authorization', async () => {
@@ -122,7 +122,7 @@ describe('A02 operator read contract and authorization', () => {
     order.findFirst.mockResolvedValue(null);
     const r = await get(`/operator/orders/${id}`, jwt.sign({ sub: actor, role: 'ADMIN' })).set('X-Role', 'ADMIN').expect(404);
     expect(r.body).toMatchObject({ error: { code: 'ORDER_NOT_FOUND' } });
-    expect(order.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id, status: { in: ['PAID', 'PREPARING', 'READY', 'COMPLETED'] } } }));
+    expect(order.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id, OR: [{ status: { in: ['PAID', 'PREPARING', 'READY', 'COMPLETED'] } }, { status: 'CANCELLED', paidAt: { not: null } }] } }));
   });
   it.each(['PENDING', 'PAYMENT_FAILED', 'PAID', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED'])('ADMIN detail reads %s', async status => {
     role = 'ADMIN'; order.findFirst.mockResolvedValue(row(status)); await get(`/operator/orders/${id}`).expect(200);

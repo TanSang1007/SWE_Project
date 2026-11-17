@@ -40,10 +40,10 @@ export function ProductList({ items, busy, onEdit, onToggle, onDelete }: {
   items: AdminProduct[]; busy: boolean; onEdit: (p: AdminProduct) => void; onToggle: (p: AdminProduct) => void; onDelete: (p: AdminProduct) => void;
 }) {
   if (!items.length) return <p>Chưa có sản phẩm.</p>;
-  return <table className="product-management-table"><caption>Danh mục sản phẩm</caption><thead><tr><th scope="col">Sản phẩm</th><th scope="col">Giá cơ bản</th><th scope="col">Tồn kho</th><th scope="col">Trạng thái</th><th scope="col">Thao tác</th></tr></thead>
+  return <table className="product-management-table"><caption>Danh mục sản phẩm</caption><thead><tr><th scope="col">Sản phẩm</th><th scope="col">Giá cơ bản</th><th scope="col">Nguyên liệu</th><th scope="col">Trạng thái</th><th scope="col">Thao tác</th></tr></thead>
     <tbody className="admin-product-list">{items.map(p => <tr className="admin-product-card" key={p.id} data-product-id={p.id}>
       <td data-label="Sản phẩm"><h3>{p.name} <small>({p.id})</small></h3><p>Kích cỡ: {p.sizes.map(s => `${s.size} (+${formatVnd(s.extraPrice)})`).join(', ') || 'Chưa cấu hình'}</p><p>Topping: {p.toppings.map(t => t.name).join(', ') || 'Không topping'}</p></td>
-      <td data-label="Giá cơ bản">{formatVnd(p.price)}</td><td data-label="Tồn kho">{p.stock} · {p.stock > 0 ? 'Còn hàng' : 'Hết hàng'}</td>
+      <td data-label="Giá cơ bản">{formatVnd(p.price)}</td><td data-label="Nguyên liệu">{p.recipeConfigured===false?'Chưa có công thức':p.available?'Còn món':'Tạm hết'}{p.availableSizes?.length? <p>Size còn: {p.availableSizes.join(', ')}</p>:null}</td>
       <td data-label="Trạng thái"><span className="role-badge">{p.isActive ? 'Đang kinh doanh' : 'Ngừng kinh doanh'}</span>
         {!p.sizes.length && <p role="status">Chưa có kích cỡ mở bán</p>}</td>
       <td data-label="Thao tác"><div className="product-actions"><Link className="button" data-product-options href={`/admin/products/${p.id}/options`}>Size & Topping</Link><button disabled={busy} onClick={() => onEdit(p)}>Chỉnh sửa</button><button disabled={busy} onClick={() => onToggle(p)}>{p.isActive ? 'Ngừng bán' : 'Bật bán lại'}</button><button className="product-danger" disabled={busy} onClick={() => onDelete(p)}>Xóa</button></div></td>
@@ -69,6 +69,22 @@ function ProductSession() {
       .finally(() => { if (!abort.signal.aborted) { gate.current = false; setBusy(false); } });
     return () => { alive.current = false; abort.abort(); };
   }, [token]);
+  useEffect(() => {
+    if (busy || form || deleting || review) return;
+    const abort = new AbortController(); let reading = false;
+    async function updateAvailability() {
+      if (reading || gate.current || document.visibilityState !== 'visible') return;
+      reading = true;
+      try {
+        const rows = await adminProductRequest('GET', undefined, undefined, abort.signal) as AdminProduct[];
+        if (!abort.signal.aborted && !gate.current && useAuthStore.getState().accessToken === token) setItems(rows);
+      } catch { /* retain the last view on a background connection failure */ }
+      finally { reading = false; }
+    }
+    const timer = window.setInterval(() => void updateAvailability(), 20_000);
+    window.addEventListener('focus', updateAvailability);
+    return () => { abort.abort(); window.clearInterval(timer); window.removeEventListener('focus', updateAvailability); };
+  }, [token, busy, form, deleting, review]);
   async function refresh() {
     if (gate.current) return; gate.current = true; setBusy(true); setError('');
     try { await read(); } catch (e) { if (current()) { setItems(null); setForm(null); setDeleting(null); setError(productManagementMessage(e instanceof ProductManagementError ? e.code : 'UNAVAILABLE')); } }
@@ -98,7 +114,7 @@ function ProductSession() {
   return <section className="admin-products" aria-busy={busy}><h2 ref={heading} tabIndex={-1}>Quản lý sản phẩm</h2>
     <div className="product-actions"><button onClick={() => void refresh()} disabled={busy}>Làm mới</button><button className="button" data-product-create disabled={busy || review || !items} onClick={() => { setForm('create'); setDeleting(null); setSuccess(''); setTimeout(() => document.getElementById('product-name')?.focus(), 0); }}>Tạo sản phẩm mới</button></div>
     {busy && <p role="status">Đang tải sản phẩm…</p>}{error && <p role="alert">{error}</p>}{success && <p role="status">{success}</p>}
-    {created && <aside role="status"><p>Đã tạo sản phẩm {created.name} ({created.id}).</p><Link className="button" data-product-inventory href={`/admin/products/inventory?productId=${created.id}`}>Nhập tồn kho</Link></aside>}
+    {created && <aside role="status"><p>Đã tạo sản phẩm {created.name} ({created.id}). Món được mở bán khi có công thức và đủ nguyên liệu cho kích cỡ tương ứng.</p></aside>}
     {review && <aside role="alert"><p>Dữ liệu đã thay đổi, vui lòng kiểm tra lại.</p><button disabled={busy || !items} onClick={() => { setReview(false); setForm(null); setDeleting(null); setError(''); }}>Tiếp tục</button></aside>}
     {form && <ProductForm key={form === 'create' ? 'create' : `${form.id}:${form.version}`} product={form === 'create' ? undefined : form} toppings={toppings} busy={busy || review}
       onCancel={() => { setForm(null); heading.current?.focus(); }} onSave={body => void mutate(form === 'create' ? 'POST' : 'PATCH', form === 'create' ? undefined : form.id, body)} />}

@@ -63,8 +63,8 @@ function fixture() {
     orderItem: { createMany: jest.fn().mockResolvedValue({ count: 1 }) },
     product: {
       findUniqueOrThrow: jest.fn(() => Promise.resolve({ id: productId, stock, version: 0 })),
-      updateMany: jest.fn((args: { data: { stock: { increment?: number; decrement?: number } } }) => {
-        stock += (args.data.stock.increment ?? 0) - (args.data.stock.decrement ?? 0);
+      updateMany: jest.fn((args: { data: { stock?: { increment?: number; decrement?: number } } }) => {
+        stock += (args.data.stock?.increment ?? 0) - (args.data.stock?.decrement ?? 0);
         return Promise.resolve({ count: 1 });
       }),
     },
@@ -75,8 +75,8 @@ function fixture() {
   };
   const db = { $transaction: jest.fn((work: (client: typeof tx) => Promise<unknown>) => work(tx)) } as unknown as PrismaService;
   const pricing = { validateCart: jest.fn().mockResolvedValue({ items: [{ ...row.items[0],
-    cartItemId: cartItems[0].id, productName: 'Latte', basePrice: decimal(5000), sizeExtraPrice: decimal(0),
-  }], stockRequirements: [{ productId, qty: 2, stock: 10, version: 0 }],
+    ingredientKeysSnapshot:[], recipeAmounts:[], cartItemId: cartItems[0].id, productName: 'Latte', basePrice: decimal(5000), sizeExtraPrice: decimal(0),
+  }], ingredientRequirements:[], stockRequirements: [{ productId, qty: 2, stock: 10, version: 0 }],
   subtotal: decimal(10000), discountAmount: decimal(0), finalAmount: decimal(10000) }) } as unknown as PricingService;
   const config = new ConfigService({
     PAYMENT_PROVIDER_MODE: 'VNPAY_SANDBOX',
@@ -101,7 +101,7 @@ afterEach(() => jest.restoreAllMocks());
 test('real create keeps original Cart and does not duplicate quantities before settlement', async () => {
   const f = fixture(); const before = structuredClone(f.cartItems);
   const order = await f.orders.create(f.userId, randomUUID(), { items: [f.selection] });
-  expect(order.body).toMatchObject({ status: 'PENDING' }); expect(f.stock()).toBe(8);
+  expect(order.body).toMatchObject({ status: 'PENDING' }); expect(f.stock()).toBe(10);
   expect(f.cartItems).toEqual(before);
   expect(f.tx.cartItem.deleteMany).not.toHaveBeenCalled();
   expect(f.tx.loyaltyAward.create).not.toHaveBeenCalled();

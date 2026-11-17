@@ -14,6 +14,9 @@ import { assertVnpayMinimum, effectivePaymentProvider } from '../payments/minimu
 import { assertPaymentAdmission } from '../payments/payment-admission';
 import { PAYMENT_WINDOW_MS } from '../payments/payment-deadline';
 import { customerOrderCode, customerOrderCodes } from './customer-order-code';
+import { assertPaidCancellation, assertPreparationReady, cancellationWindow } from './cancellation-window';
+import type { RefundUpdateDto, SupportReviewDto } from './order-aftercare.dto';
+import { changeOrderIngredients, reserveOrderIngredients } from '../ingredients/order-ingredients';
 
 export function normalizeItems(items: OrderItemDto[]) {
   if (!Array.isArray(items) || items.length === 0) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Cart must not be empty' });
@@ -108,8 +111,9 @@ export class OrderService {
         const effects = r > 0 ? [effect(account, 'RESERVE', r, { orderId: id, cycle: 1 })] : [];
         for (const demand of priced.stockRequirements) {
           if (demand.version >= 2147483647) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Stock version bounds exceeded' });
-          const updated = await tx.product.updateMany({ where: { id: demand.productId, version: demand.version, stock: { gte: demand.qty } },
-            data: { stock: { decrement: demand.qty }, version: { increment: 1 }, updatedAt: new Date() } });
+          // Serialize catalog changes without decrementing a fictional drink stock.
+          const updated = await tx.product.updateMany({ where: { id: demand.productId, version: demand.version, isActive:true },
+            data: { version: { increment: 1 }, updatedAt: new Date() } });
           if (updated.count !== 1) throw conflict();
         }
         // VNPAY timestamps have whole-second precision; retain exactly 600s.
@@ -125,7 +129,9 @@ export class OrderService {
         const snapshots = priced.items.map((item, idx) => ({ id: itemIds[idx].id, item }));
         await tx.orderItem.createMany({ data: snapshots.map(({ id: itemId, item }) => ({ id: itemId, orderId: id,
           productId: item.productId, productNameSnapshot: item.productName, size: item.size,
-          basePrice: item.basePrice, sizeExtraPrice: item.sizeExtraPrice, unitPrice: item.unitPrice, qty: item.qty, lineTotal: item.lineTotal })) });
+          basePrice: item.basePrice, sizeExtraPrice: item.sizeExtraPrice, unitPrice: item.unitPrice, qty: item.qty, lineTotal: item.lineTotal,
+          ingredientKeysSnapshot:item.ingredientKeysSnapshot })) });
+        await reserveOrderIngredients(tx,id,priced.ingredientRequirements,userId);
         const toppings = snapshots.flatMap(({ id: itemId, item }) => item.toppings.map(t => ({ orderItemId: itemId,
           toppingId: t.id, toppingNameSnapshot: t.name, priceSnapshot: t.price })));
         if (toppings.length) await tx.orderItemTopping.createMany({ data: toppings });
@@ -208,12 +214,18 @@ export class OrderService {
         await lockUser(tx, userId);
         // Exclude another owner's row before PostgreSQL tries to lock it.
         // Its existence/lock state must not change the customer's404 contract.
-        const owned = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM orders WHERE id=${id} AND user_id=${userId} FOR UPDATE`;
+        const owned = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM orders WHERE id::text=${id} AND user_id::text=${userId} FOR UPDATE`;
         if (!owned.length) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
         const order = await tx.order.findFirst({ where: { id, userId }, include });
         if (!order) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
         const code = await customerOrderCode(tx, id, order.orderCode);
         if (order.status === 'CANCELLED') return detail(order, code);
+        await tx.$executeRaw`SELECT set_config('brewlite.actor_id',${timeout ? '' : userId},true)`;
+        if (!timeout && order.status === 'PAID') {
+          assertPaidCancellation(order);
+          await this.cancelPaid(tx, order, userId, 'Khách hủy trong thời hạn 120 giây');
+          return detail(await tx.order.findUniqueOrThrow({ where: { id }, include }), code);
+        }
         if (timeout && (!order.paymentExpiresAt || order.paymentExpiresAt > new Date() || !['PENDING', 'PAYMENT_FAILED'].includes(order.status))) return detail(order, code);
         if (!['PENDING', 'PAYMENT_FAILED'].includes(order.status)) throw new ConflictException({ code: 'INVALID_ORDER_STATE', message: 'Only unpaid orders can be cancelled' });
         await lockAttempts(tx, id);
@@ -262,14 +274,15 @@ export class OrderService {
   async operatorGet(role: UserRole, id: string) {
     try {
       operatorScope(role);
-      const order = await this.db.order.findFirst({ where: { id, ...(role === 'STAFF' ? { status: { in: staffReadable } } : {}) }, include });
+      const order = await this.db.order.findFirst({ where: { id, ...(role === 'STAFF' ? { OR: [{ status: { in: staffReadable } }, { status: 'CANCELLED' as const, paidAt: { not: null } }] } : {}) }, include });
       if (!order) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
       return { ...detail(order, await customerOrderCode(this.db, order.id, order.orderCode)), version: order.version, updatedAt: order.updatedAt.toISOString() };
     } catch (error) { if (error instanceof HttpException) throw error; throw new ServiceUnavailableException(); }
   }
-  private async restoreStock(tx: Prisma.TransactionClient, order: OrderRow) {
+  private async restoreStock(tx: Prisma.TransactionClient, order: OrderRow, actorId = order.userId) {
     const demand = new Map<string, number>();
-    for (const item of order.items) demand.set(item.productId, (demand.get(item.productId) ?? 0) + item.qty);
+    for (const item of order.items) if (!item.ingredientKeysSnapshot?.length) demand.set(item.productId, (demand.get(item.productId) ?? 0) + item.qty);
+    await changeOrderIngredients(tx, order.id, 'RELEASE', actorId);
     for (const [productId, qty] of [...demand].sort(([a], [b]) => a.localeCompare(b))) {
       const product = await tx.product.findUniqueOrThrow({ where: { id: productId } });
       if (product.stock > 2147483647 - qty || product.version >= 2147483647) throw workflowUnavailable();
@@ -280,7 +293,7 @@ export class OrderService {
   }
 
   // A03 authorized controllers and trusted test harness share this single write path.
-  async transitionOrder(id: string, expectedVersion: number, targetStatus: OrderStatus) {
+  async transitionOrder(id: string, expectedVersion: number, targetStatus: OrderStatus, actorId?: string) {
     if (!Number.isInteger(expectedVersion) || expectedVersion < 0 || expectedVersion > 2147483647) {
       throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Expected version must be a nonnegative INTEGER' });
     }
@@ -295,8 +308,7 @@ export class OrderService {
         await lockUser(tx, owner.userId);
         await lockOrder(tx, id);
         const order = await tx.order.findUniqueOrThrow({ where: { id }, include });
-        const code = await customerOrderCode(tx, id, order.orderCode);
-        if (targetStatus === 'CANCELLED' && order.status === 'CANCELLED') return detail(order, code);
+        if (targetStatus === 'CANCELLED' && order.status === 'CANCELLED') return detail(order, await customerOrderCode(tx, id, order.orderCode));
         // Unpaid cancellation retains its existing customer/ownership write path.
         if (targetStatus === 'CANCELLED' && order.status !== 'PAID') {
           throw new ConflictException({ code: 'INVALID_ORDER_STATE', message: 'Internal cancellation requires a paid order' });
@@ -304,31 +316,163 @@ export class OrderService {
         assertTransition(order.status, targetStatus);
         if (order.version !== expectedVersion) throw conflict();
         if (order.version >= 2147483647) throw workflowUnavailable();
-        const account = targetStatus === 'CANCELLED' ? await reconcileAccount(tx, order.userId) : null;
-        const before = account ? { ...account } : null;
+        if (targetStatus === 'PREPARING') assertPreparationReady(order);
+        await tx.$executeRaw`SELECT set_config('brewlite.actor_id',${actorId ?? order.userId},true)`;
+        if (targetStatus === 'CANCELLED') {
+          await this.cancelPaid(tx, order, actorId ?? order.userId, 'Admin hủy đơn trước pha chế', actorId);
+          return detail(await tx.order.findUniqueOrThrow({ where: { id }, include }), await customerOrderCode(tx, id, order.orderCode));
+        }
         const now = new Date();
         const changed = await tx.order.updateMany({ where: { id, userId: order.userId, status: order.status, version: expectedVersion },
-          data: { status: targetStatus, ...(targetStatus === 'CANCELLED' && order.redeemedPoints > 0 ? { redemptionState: 'REFUNDED' } : {}), version: { increment: 1 }, updatedAt: now } });
+          data: { status: targetStatus, version: { increment: 1 }, updatedAt: now } });
         if (changed.count !== 1) throw conflict();
-        if (targetStatus === 'CANCELLED') {
-          await this.restoreStock(tx, order);
-          const award = order.loyaltyAward;
-          if (!award || award.userId !== order.userId || award.reversedAt !== null) throw workflowUnavailable();
-          const reversed = await tx.loyaltyAward.updateMany({ where: { id: award.id, orderId: id, userId: order.userId, reversedAt: null },
-            data: { reversedAt: now } });
-          if (reversed.count !== 1) throw workflowUnavailable();
-          if (!account || !before) throw workflowUnavailable();
-          const effects = [];
-          if (order.redeemedPoints > 0) effects.push(effect(account, 'REFUND', order.redeemedPoints, { orderId: id }));
-          effects.push(effect(account, 'REVERSE', award.points, { orderId: id }));
-          await persistEffects(tx, before, account, effects);
-        }
-        return detail(await tx.order.findUniqueOrThrow({ where: { id }, include }), code);
+        if (targetStatus === 'PREPARING') await changeOrderIngredients(tx, id, 'CONSUME', actorId ?? order.userId);
+        return detail(await tx.order.findUniqueOrThrow({ where: { id }, include }), await customerOrderCode(tx, id, order.orderCode));
       });
     } catch (error) {
       if (error instanceof HttpException) throw error;
       if (isConcurrencyError(error)) throw conflict();
       throw workflowUnavailable();
     }
+  }
+
+  // O01: hủy, hoàn phần giữ/tồn, thu hồi điểm và tạo refund cùng transaction.
+  // Khóa User/Order + version/CAS và unique refund ngăn hoàn hai lần. Đơn 0 VND
+  // không tạo cash refund; Payment thu thành công vẫn giữ SUCCEEDED.
+  // Tạo đơn/giá/VNPAY và customerOrderCode giữ contract của clone hiện tại.
+  private async cancelPaid(tx: Prisma.TransactionClient, order: OrderRow, actorId: string, reason: string, approvedById?: string) {
+    if (order.status !== 'PAID' || order.version >= 2147483647) throw workflowUnavailable();
+    const account = await reconcileAccount(tx, order.userId), before = { ...account }, now = new Date();
+    const changed = await tx.order.updateMany({ where: { id: order.id, status: 'PAID', version: order.version }, data: {
+      status: 'CANCELLED', cancellationReason: 'PAID_CANCELLATION',
+      ...(order.redeemedPoints > 0 ? { redemptionState: 'REFUNDED' } : {}), version: { increment: 1 }, updatedAt: now } });
+    if (changed.count !== 1) throw conflict();
+    await this.restoreStock(tx, order, actorId);
+    const award = order.loyaltyAward;
+    if (!award || award.userId !== order.userId || award.reversedAt !== null) throw workflowUnavailable();
+    const reversed = await tx.loyaltyAward.updateMany({ where: { id: award.id, orderId: order.id, userId: order.userId, reversedAt: null }, data: { reversedAt: now } });
+    if (reversed.count !== 1) throw workflowUnavailable();
+    const effects = [];
+    if (order.redeemedPoints > 0) effects.push(effect(account, 'REFUND', order.redeemedPoints, { orderId: order.id }));
+    effects.push(effect(account, 'REVERSE', award.points, { orderId: order.id }));
+    await persistEffects(tx, before, account, effects);
+    await this.requestCashRefund(tx, order, actorId, reason, approvedById);
+  }
+  private async event(tx: Prisma.TransactionClient, orderId: string, actorId: string, kind: 'REFUND'|'SUPPORT', status: string, note: string) {
+    const actor = await tx.user.findUniqueOrThrow({ where: { id: actorId }, select: { role: true } });
+    await tx.orderTrackingEvent.create({ data: { orderId, actorId, actorRole: actor.role, kind, status, note } });
+  }
+  private async requestCashRefund(tx: Prisma.TransactionClient, order: OrderRow, actorId: string, reason: string, approvedById?: string) {
+    if (order.total.isZero()) return null;
+    const existing = await tx.orderRefund.findUnique({ where: { orderId: order.id } });
+    if (existing) {
+      if (approvedById && !existing.approvedAt && existing.status === 'PENDING') {
+        await this.event(tx, order.id, actorId, 'REFUND', 'APPROVED', 'Admin phê duyệt yêu cầu hoàn tiền');
+        return tx.orderRefund.update({ where: { id: existing.id }, data: { approvedById, approvedAt: new Date(), version: { increment: 1 }, updatedAt: new Date() } });
+      }
+      return existing;
+    }
+    const payment = await tx.payment.findFirst({ where: { orderId: order.id, userId: order.userId, status: 'SUCCEEDED' } });
+    if (!payment || !payment.amount.equals(order.total) || !order.paidAt) throw new UnprocessableEntityException({ code: 'REFUND_NOT_AVAILABLE', message: 'Chưa có giao dịch thu tiền hợp lệ để hoàn.' });
+    const refund = await tx.orderRefund.create({ data: { orderId: order.id, paymentId: payment.id, amount: payment.amount, reason, requestedById: actorId,
+      ...(approvedById ? { approvedById, approvedAt: new Date() } : {}) } });
+    await this.event(tx, order.id, actorId, 'REFUND', 'PENDING', 'Đã tạo yêu cầu hoàn tiền');
+    return refund;
+  }
+  private async aftercare<T>(work: (tx: Prisma.TransactionClient) => Promise<T>) {
+    try { return await this.transaction(work); }
+    catch (error) {
+      if (error instanceof HttpException) throw error;
+      if (isConcurrencyError(error) || error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw conflict();
+      throw workflowUnavailable();
+    }
+  }
+  private async aftercareOrder(tx: Prisma.TransactionClient, actorId: string, role: UserRole, id: string, lock = false) {
+    const order = await tx.order.findFirst({ where: { id, ...(role === 'CUSTOMER' ? { userId: actorId } : role === 'STAFF' ? { paidAt: { not: null } } : {}) }, include });
+    if (!order) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Không tìm thấy đơn hàng' });
+    if (!lock) return order;
+    await lockUser(tx, order.userId); await lockOrder(tx, id);
+    await tx.$executeRaw`SELECT set_config('brewlite.actor_id',${actorId},true)`;
+    return tx.order.findUniqueOrThrow({ where: { id }, include });
+  }
+  // Owner-only cho Customer; Staff chỉ đơn đã trả tiền, gồm CANCELLED đã trả.
+  // Không tạo lịch sử ngược: STATUS do trigger ghi, SUPPORT/REFUND append-only.
+  // Customer không nhận actorId; chỉ Admin nhận mã giao dịch/bằng chứng hoàn tiền.
+  async tracking(actorId: string, role: UserRole, id: string) {
+    return this.aftercare(async tx => {
+      const order = await this.aftercareOrder(tx, actorId, role, id);
+      const refund = await tx.orderRefund.findUnique({ where: { orderId: id } });
+      const supports = await tx.orderSupportRequest.findMany({ where: { orderId: id }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
+      const events = await tx.orderTrackingEvent.findMany({ where: { orderId: id }, orderBy: { sequence: 'asc' } });
+      return { orderId: id, status: order.status, serverNow: new Date().toISOString(), ...cancellationWindow(order),
+        refund: refund ? { id: refund.id, status: refund.status, amount: refund.amount.toFixed(0), approved: !!refund.approvedAt, version: refund.version,
+          createdAt: refund.createdAt.toISOString(), processedAt: refund.processedAt?.toISOString() ?? null, failureReason: refund.failureReason,
+          ...(role === 'ADMIN' ? { transactionReference: refund.transactionReference, evidenceReference: refund.evidenceReference } : {}) } : null,
+        supportRequests: supports.map(s => ({ id: s.id, reason: s.reason, status: s.status, version: s.version, reviewNote: s.reviewNote, createdAt: s.createdAt.toISOString() })),
+        events: events.map(e => ({ id: e.id, kind: e.kind, fromStatus: e.fromStatus, status: e.status, actorRole: e.actorRole,
+          ...(role !== 'CUSTOMER' ? { actorId: e.actorId } : {}), note: e.note, at: e.occurredAt.toISOString() })) };
+    });
+  }
+  async supportRequest(actorId: string, role: UserRole, id: string, key: string | undefined, reason: string) {
+    requireIdempotencyKey(key);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(key)) {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Mã yêu cầu hỗ trợ phải là UUID.' });
+    }
+    return this.aftercare(async tx => {
+      const order = await this.aftercareOrder(tx, actorId, role, id, true);
+      const where = { orderId_requestedById_requestKey: { orderId: id, requestedById: actorId, requestKey: key } };
+      const existing = await tx.orderSupportRequest.findUnique({ where });
+      if (existing) {
+        if (existing.reason !== reason) throw new ConflictException({ code: 'IDEMPOTENCY_KEY_REUSED', message: 'Yêu cầu cũ có nội dung khác' });
+        return { id: existing.id, status: existing.status, version: existing.version };
+      }
+      if (!order.paidAt) throw new ConflictException({ code: 'INVALID_ORDER_STATE', message: 'Hỗ trợ ngoại lệ dành cho đơn đã thanh toán' });
+      const support = await tx.orderSupportRequest.create({ data: { orderId: id, requestedById: actorId, requestKey: key, reason } });
+      await this.event(tx, id, actorId, 'SUPPORT', 'OPEN', reason);
+      return { id: support.id, status: support.status, version: support.version };
+    });
+  }
+  async reviewSupport(actorId: string, id: string, requestId: string, input: SupportReviewDto) {
+    return this.aftercare(async tx => {
+      const order = await this.aftercareOrder(tx, actorId, 'ADMIN', id, true);
+      const request = await tx.orderSupportRequest.findFirst({ where: { id: requestId, orderId: id } });
+      if (!request) throw new NotFoundException({ code: 'REQUEST_NOT_FOUND', message: 'Không tìm thấy yêu cầu' });
+      const status = input.action === 'APPROVE' ? 'APPROVED' : 'REJECTED';
+      if (request.status === status && request.reviewNote === input.note) return { id: request.id, status, version: request.version };
+      if (request.status !== 'OPEN' || request.version !== input.expectedVersion) throw conflict();
+      if (input.action === 'APPROVE') {
+        if (!order.paidAt) throw new ConflictException({ code: 'INVALID_ORDER_STATE', message: 'Đơn chưa thanh toán' });
+        if (order.status === 'PAID') await this.cancelPaid(tx, order, actorId, input.note, actorId);
+        else await this.requestCashRefund(tx, order, actorId, input.note, actorId);
+      }
+      const result = await tx.orderSupportRequest.update({ where: { id: requestId }, data: { status, version: { increment: 1 }, reviewedById: actorId, reviewedAt: new Date(), reviewNote: input.note } });
+      await this.event(tx, id, actorId, 'SUPPORT', status, input.note);
+      return { id: result.id, status: result.status, version: result.version };
+    });
+  }
+  // Ghi nhận hoàn tiền thủ công, không gọi API chuyển tiền. SUCCEEDED cần đã
+  // duyệt + transactionReference + evidenceReference; FAILED cần lý do.
+  // RETRY chỉ mở lại FAILED; bản SUCCEEDED được trigger bảo vệ khỏi sửa/xóa.
+  async updateRefund(actorId: string, id: string, input: RefundUpdateDto) {
+    return this.aftercare(async tx => {
+      await this.aftercareOrder(tx, actorId, 'ADMIN', id, true);
+      const refund = await tx.orderRefund.findUnique({ where: { orderId: id } });
+      if (!refund) throw new UnprocessableEntityException({ code: 'REFUND_NOT_AVAILABLE', message: 'Chưa có yêu cầu hoàn tiền' });
+      if (input.action === 'SUCCEEDED' && refund.status === 'SUCCEEDED' && refund.transactionReference === input.transactionReference && refund.evidenceReference === input.evidenceReference
+        || input.action === 'APPROVE' && !!refund.approvedAt
+        || input.action === 'FAILED' && refund.status === 'FAILED' && refund.failureReason === input.note) return { id: refund.id, status: refund.status, version: refund.version };
+      if (refund.version !== input.expectedVersion || refund.status === 'SUCCEEDED') throw conflict();
+      const now = new Date(); let data: Prisma.OrderRefundUncheckedUpdateInput;
+      if (input.action === 'APPROVE' && refund.status === 'PENDING') data = { approvedById: actorId, approvedAt: now };
+      else if (input.action === 'RETRY' && refund.status === 'FAILED') data = { status: 'PENDING', failureReason: null, processedById: null, processedAt: null };
+      else if (input.action === 'SUCCEEDED' && refund.status === 'PENDING' && refund.approvedAt && input.transactionReference && input.evidenceReference)
+        data = { status: 'SUCCEEDED', processedById: actorId, processedAt: now, transactionReference: input.transactionReference, evidenceReference: input.evidenceReference };
+      else if (input.action === 'FAILED' && refund.status === 'PENDING' && refund.approvedAt && input.note)
+        data = { status: 'FAILED', processedById: actorId, processedAt: now, failureReason: input.note };
+      else throw new UnprocessableEntityException({ code: 'REFUND_EVIDENCE_REQUIRED', message: 'Cần phê duyệt và thông tin xác nhận hợp lệ trước khi cập nhật hoàn tiền.' });
+      const result = await tx.orderRefund.update({ where: { id: refund.id }, data: { ...data, version: { increment: 1 }, updatedAt: now } });
+      await this.event(tx, id, actorId, 'REFUND', input.action === 'APPROVE' ? 'APPROVED' : result.status, input.action === 'FAILED' ? input.note! : 'Cập nhật xử lý yêu cầu hoàn tiền');
+      return { id: result.id, status: result.status, version: result.version };
+    });
   }
 }

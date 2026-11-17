@@ -14,6 +14,8 @@ import { decodeAttemptCursor, encodeAttemptCursor } from './attempt-cursor';
 import { assertVnpayMinimum, belowVnpayMinimum } from './minimum-payment-policy';
 import { acceptsNewPayments, assertPaymentAdmission } from './payment-admission';
 import { assertPaymentWindow } from './payment-deadline';
+import { assertHeldOrderIngredients, canReserveOrderIngredients, changeOrderIngredients } from '../ingredients/order-ingredients';
+import { productStockDemand } from '../catalog/product-ingredients';
 const unavailable = () => new ServiceUnavailableException({ code: 'PAYMENT_UNAVAILABLE', message: 'Payment initiation unavailable' });
 const stateError = () => new ConflictException({ code: 'INVALID_ORDER_STATE', message: 'Order does not permit this payment action' });
 const conflict = () => new ConflictException({ code: 'CONCURRENT_UPDATE', message: 'Data changed; read the current order and try again' });
@@ -64,9 +66,9 @@ export class AttemptService {
             && o.version < maxInt && (o.redeemedPoints === 0 || o.reservationCycle < maxInt);
     }
     private async reserveStock(tx: Prisma.TransactionClient, o: Order) {
-        const demand = new Map<string, number>();
-        for (const item of o.items)
-            demand.set(item.productId, (demand.get(item.productId) ?? 0) + item.qty);
+        const reserved = await changeOrderIngredients(tx,o.id,'RESERVE',o.userId);
+        if (!reserved && o.items.some(i => i.ingredientKeysSnapshot?.length)) throw unavailable();
+        const demand = new Map(productStockDemand(o.items));
         for (const [id, qty] of [...demand].sort(([a], [b]) => a.localeCompare(b))) {
             const p = await tx.product.findUniqueOrThrow({ where: { id } });
             if (p.stock < qty)
@@ -101,6 +103,8 @@ export class AttemptService {
                     throw new ConflictException({ code: 'ORDER_ALREADY_PAID', message: 'Order already paid' });
                 if (!['PENDING', 'PAYMENT_FAILED'].includes(o.status))
                     throw stateError();
+                // The last serving already held by this order remains payable.
+                if (o.status === 'PENDING' && o.items.some(i => i.ingredientKeysSnapshot?.length) && !await assertHeldOrderIngredients(tx,o.id)) throw unavailable();
                 const latest = await this.latest(tx, orderId);
                 if (!this.retryEligible(o, latest))
                     throw stateError();
@@ -180,9 +184,9 @@ export class AttemptService {
         const account = await reconcileAccount(tx, o.userId);
         if (o.redeemedPoints > 0 && (account.debt > 0n || account.available < BigInt(o.redeemedPoints)))
             return false;
-        const demand = new Map<string, number>();
-        for (const i of o.items)
-            demand.set(i.productId, (demand.get(i.productId) ?? 0) + i.qty);
+        const canReserve = await canReserveOrderIngredients(tx,o.id);
+        if (canReserve === false || canReserve === undefined && o.items.some(i => i.ingredientKeysSnapshot?.length)) return false;
+        const demand = new Map(productStockDemand(o.items));
         const products = await tx.product.findMany({ where: { id: { in: [...demand.keys()] } }, select: { id: true, stock: true, version: true } });
         return products.length === demand.size && products.every(p => p.stock >= demand.get(p.id)! && p.version < maxInt);
     }

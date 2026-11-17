@@ -7,12 +7,14 @@ import { OrderError } from '../lib/api/orders';
 import { paymentMessage, pollPayment, resultPath } from '../lib/payment-result';
 import { formatVnd } from '../lib/money';
 import { notifyCenterPopup } from '../lib/notification-store';
+import { OrderTracking } from './order-tracking';
 
 export function PaymentResultContent({ status }: { status: AttemptStatus }) {
   return <div className="payment-result-card">
     <p role="status" className={`gateway-status-pill gateway-status-${status.effectiveState.toLowerCase()}`}>{paymentMessage(status)}</p>
     <p className="payment-result-amount">Số tiền: <strong>{formatVnd(status.amount)}</strong></p>
     {status.orderStatus === 'CANCELLED' && status.effectiveState === 'SUCCEEDED' && <p>Đơn hàng đã hủy. Thanh toán đã được ghi nhận.</p>}
+    {status.effectiveState === 'SUCCEEDED' && ['PAID', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED'].includes(status.orderStatus) && <OrderTracking key={status.orderId} id={status.orderId} role="CUSTOMER" />}
     <div className="checkout-action-group">
       <Link className="brew-btn brew-btn-primary" href={`/orders/${status.orderId}/confirmation`}>Xem chi tiết đơn</Link>
       {status.effectiveState === 'FAILED' && status.canRetry && !status.requiresReview && (
@@ -51,6 +53,7 @@ export function PaymentResult({ attemptId }: { attemptId?: string }) {
         total: formatVnd(status.amount),
         actions: [
           { label: 'Xem chi tiết đơn', href: `/orders/${status.orderId}/confirmation`, variant: 'primary' },
+          { label: 'Hủy đơn hàng', href: `/orders/${status.orderId}/confirmation#order-tracking`, variant: 'danger' },
           { label: 'Về thực đơn', href: '/', variant: 'secondary' },
         ],
       });

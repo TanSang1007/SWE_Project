@@ -68,6 +68,7 @@ export function GatewayCheckout({ order, disabled, acceptingNewPayments = true, 
         total: formatVnd(order.total),
         actions: [
           { label: 'Xem chi tiết đơn', href: `/orders/${order.id}/confirmation`, variant: 'primary' },
+          { label: 'Hủy đơn hàng', href: `/orders/${order.id}/confirmation#order-tracking`, variant: 'danger' },
           { label: 'Đóng', variant: 'secondary' },
         ],
       });
@@ -103,6 +104,7 @@ export function GatewayCheckout({ order, disabled, acceptingNewPayments = true, 
           total: formatVnd(order.total),
           actions: [
             { label: 'Xem chi tiết đơn', href: `/orders/${order.id}/confirmation`, variant: 'primary' },
+            { label: 'Hủy đơn hàng', href: `/orders/${order.id}/confirmation#order-tracking`, variant: 'danger' },
             { label: 'Về thực đơn', href: '/', variant: 'secondary' },
           ],
         });

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join, sep } from 'node:path';
 import net from 'node:net';
@@ -20,6 +20,8 @@ import { verifyInventoryBrowser } from './inventory-browser.mjs';
 import { buildWorkflowFrontend, workflowFrontendDirectory } from './workflow-build.mjs';
 const require = createRequire(import.meta.url);
 const root = resolve(import.meta.dirname, '../..');
+// Generated evidence is temporary; the application does not require a Docs directory.
+mkdirSync(join(root, '.tmp/browser-evidence'), { recursive: true });
 require('dotenv').config({ path: join(root, '.env'), quiet: true });
 const { Client } = require('pg');
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -225,7 +227,7 @@ try {
     report.viewports.push({ width, height, ...layout });
     if (!verifyAuth) {
       const menuScreenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
-      writeFileSync(join(root, `Docs/B06-menu-${width}.png`), Buffer.from(menuScreenshot.data, 'base64'));
+      writeFileSync(join(root, `.tmp/browser-evidence/B06-menu-${width}.png`), Buffer.from(menuScreenshot.data, 'base64'));
     }
     await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
     await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
@@ -236,7 +238,7 @@ try {
     await command('Page.reload', { ignoreCache: true }); await waitText('Giá cơ bản'); await waitText('Size L');
     if (!verifyAuth) {
       const screenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
-      writeFileSync(join(root, `Docs/B06-detail-${width}.png`), Buffer.from(screenshot.data, 'base64'));
+      writeFileSync(join(root, `.tmp/browser-evidence/B06-detail-${width}.png`), Buffer.from(screenshot.data, 'base64'));
     }
   }
   report.checks.push('seed menu, prices, detail click, sizes/toppings, direct refresh, 3 viewports no overflow, image alt, keyboard link focus');
@@ -452,7 +454,7 @@ try {
             const layout = await evaluate(`({overflow:document.documentElement.scrollWidth>innerWidth,labeled:[...document.querySelectorAll('.order-checkout input,.order-checkout select')].every(e=>e.labels.length>0),minActionHeight:Math.min(...[...document.querySelectorAll('.order-checkout button')].map(e=>e.getBoundingClientRect().height))})`);
             assert(!layout.overflow); assert(layout.labeled); assert(layout.minActionHeight >= 44);
             layouts.push({ width, height, ...layout });
-            if (!verifyLoyalty) { const shot = await command('Page.captureScreenshot', { format:'png',captureBeyondViewport:true }); writeFileSync(join(root, `Docs/${checkoutEvidencePrefix}-${state}-${width}.png`), Buffer.from(shot.data,'base64')); }
+            if (!verifyLoyalty) { const shot = await command('Page.captureScreenshot', { format:'png',captureBeyondViewport:true }); writeFileSync(join(root, `.tmp/browser-evidence/${checkoutEvidencePrefix}-${state}-${width}.png`), Buffer.from(shot.data,'base64')); }
           }
           report.checkoutLayouts ??= {}; report.checkoutLayouts[state] = layouts;
         }
@@ -486,7 +488,7 @@ try {
         await clickButton('Mở / tải lại đơn hiện tại'); await waitText('186.003');
         if (!verifyLoyalty) {
           const screenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
-          writeFileSync(join(root, verifyCheckout ? `Docs/${checkoutEvidencePrefix}-order-pending.png` : verifyPayments ? 'Docs/B11-order-pending.png' : 'Docs/B10-order-pending.png'), Buffer.from(screenshot.data, 'base64'));
+          writeFileSync(join(root, verifyCheckout ? `.tmp/browser-evidence/${checkoutEvidencePrefix}-order-pending.png` : verifyPayments ? '.tmp/browser-evidence/B11-order-pending.png' : '.tmp/browser-evidence/B10-order-pending.png'), Buffer.from(screenshot.data, 'base64'));
         }
         await captureCheckout('pending');
         await command('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: false });
@@ -649,7 +651,7 @@ try {
           report.checks.push('B11 lost response after real committed success: UI retains key/payload, reload/login reads current PAID, same-key replay causes no duplicate Payment/award/balance/stock, Cart remains empty');
           for (const width of [390, 1366]) { await command('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: false }); assert(!(await evaluate('document.documentElement.scrollWidth>innerWidth'))); }
           await captureCheckout('paid');
-          if (!verifyLoyalty) { const paidScreenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true }); writeFileSync(join(root, verifyCheckout ? `Docs/${checkoutEvidencePrefix}-order-paid.png` : 'Docs/B11-order-paid.png'), Buffer.from(paidScreenshot.data, 'base64')); }
+          if (!verifyLoyalty) { const paidScreenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true }); writeFileSync(join(root, verifyCheckout ? `.tmp/browser-evidence/${checkoutEvidencePrefix}-order-paid.png` : '.tmp/browser-evidence/B11-order-paid.png'), Buffer.from(paidScreenshot.data, 'base64')); }
           report.paymentVerification = { success: true, failure: true, retryFailure: true, retrySuccess: true, failedCancel: true, lostResponseReplay: true, postgres: await counts(), humanManualQA: false };
           if (verifyCheckout) {
             report.checkoutAcceptance = { repeatedHandlersSinglePost:true, lostOrderResponse:true, orderReadOutage:true, paymentReadOutage:true, cartReadOutage:true, keyboardPayment:true, snapshotPriceDrift:true, staleCart:true, promotionInputRetained:true, retryStockExhaustion:true, noFakePaid:true };
@@ -726,7 +728,7 @@ try {
               const layout=await evaluate(`({overflow:document.documentElement.scrollWidth>innerWidth,buttonHeight:document.querySelector('.loyalty-panel button').getBoundingClientRect().height})`);
               assert(!layout.overflow); assert(layout.buttonHeight>=44); layouts.push({width,height,...layout});
               await command('Page.bringToFront');
-              const shot=await command('Page.captureScreenshot',{format:'png',captureBeyondViewport:false}); writeFileSync(join(root,`Docs/${checkoutEvidencePrefix}-loyalty-${width}.png`),Buffer.from(shot.data,'base64'));
+              const shot=await command('Page.captureScreenshot',{format:'png',captureBeyondViewport:false}); writeFileSync(join(root,`.tmp/browser-evidence/${checkoutEvidencePrefix}-loyalty-${width}.png`),Buffer.from(shot.data,'base64'));
             }
             const readsBefore=loyaltyReads;
             await evaluate(`document.querySelector('.auth-nav a[href="/"]').click()`); await waitText('Cappuccino'); await showLoyalty(40); assert(loyaltyReads>readsBefore);
@@ -832,7 +834,7 @@ try {
   report.frontendMode = reuseFrontend ? 'existing local frontend reused; never stopped by harness' : 'owned compiled frontend process';
   report.backendMode = reuseBackend ? 'existing backend3001 reused; guard probe on owned separate verification port' : `owned compiled backend${new URL(backendUrl).port} (NODE_ENV=${process.env.NODE_ENV}); guard probe on separate verification port`;
   if(verifyWorkflow)report.testEnvironment={frontendUrl,backendUrl,frontend:'compiled byte-identical source snapshot in owned .tmp directory',developmentServersPreserved:true};
-  writeFileSync(join(root, evidencePrefix && verifyHistory ? `Docs/${evidencePrefix}_CUSTOMER_REGRESSION_BROWSER_EVIDENCE.json` : verifyHistory ? 'Docs/B15_ORDER_HISTORY_BROWSER_EVIDENCE.json' : verifyLoyalty ? 'Docs/B14_LOYALTY_BROWSER_EVIDENCE.json' : verifyPromotions ? 'Docs/B13_PROMOTION_BROWSER_EVIDENCE.json' : verifyCheckout ? 'Docs/B12_CHECKOUT_BROWSER_EVIDENCE.json' : verifyPayments ? 'Docs/B11_PAYMENT_BROWSER_EVIDENCE.json' : verifyOrders ? 'Docs/B10_ORDER_BROWSER_EVIDENCE.json' : verifyCart ? 'Docs/B08_CART_BROWSER_EVIDENCE.json' : verifyAuth ? 'Docs/B07_AUTH_BROWSER_EVIDENCE.json' : 'Docs/B06_BROWSER_EVIDENCE.json'), JSON.stringify(report, null, 2) + '\n');
+  writeFileSync(join(root, evidencePrefix && verifyHistory ? `.tmp/browser-evidence/${evidencePrefix}_CUSTOMER_REGRESSION_BROWSER_EVIDENCE.json` : verifyHistory ? '.tmp/browser-evidence/B15_ORDER_HISTORY_BROWSER_EVIDENCE.json' : verifyLoyalty ? '.tmp/browser-evidence/B14_LOYALTY_BROWSER_EVIDENCE.json' : verifyPromotions ? '.tmp/browser-evidence/B13_PROMOTION_BROWSER_EVIDENCE.json' : verifyCheckout ? '.tmp/browser-evidence/B12_CHECKOUT_BROWSER_EVIDENCE.json' : verifyPayments ? '.tmp/browser-evidence/B11_PAYMENT_BROWSER_EVIDENCE.json' : verifyOrders ? '.tmp/browser-evidence/B10_ORDER_BROWSER_EVIDENCE.json' : verifyCart ? '.tmp/browser-evidence/B08_CART_BROWSER_EVIDENCE.json' : verifyAuth ? '.tmp/browser-evidence/B07_AUTH_BROWSER_EVIDENCE.json' : '.tmp/browser-evidence/B06_BROWSER_EVIDENCE.json'), JSON.stringify(report, null, 2) + '\n');
   console.log(JSON.stringify(report));
 } finally {
   socket?.close(); for (const process of processes.reverse()) process.kill();
@@ -861,7 +863,7 @@ try {
     await browserAdmin.query('SET search_path TO public');await browserAdmin.query(`DROP SCHEMA "${browserSchema}" CASCADE`);
     assert.equal(await publicFingerprint(),originalPublicFingerprint,'A03 browser must preserve all public development tables');
     report.databaseIsolation={schema:'owned UUID schema',cleanup:true,publicFingerprintUnchanged:true,productionDataUsed:false};
-    if(report.verifiedAt)writeFileSync(join(root,`Docs/${evidencePrefix}_CUSTOMER_REGRESSION_BROWSER_EVIDENCE.json`),JSON.stringify(report,null,2)+'\n');
+    if(report.verifiedAt)writeFileSync(join(root,`.tmp/browser-evidence/${evidencePrefix}_CUSTOMER_REGRESSION_BROWSER_EVIDENCE.json`),JSON.stringify(report,null,2)+'\n');
     console.log('A03 isolated schema cleaned; all public development table fingerprints unchanged');
   }
   if(browserAdminConnected)await browserAdmin.end();

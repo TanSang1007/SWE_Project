@@ -16,6 +16,12 @@ function money(value: unknown): string {
   if (typeof value !== 'string' || !/^(0|[1-9]\d{0,11})$/.test(value)) throw new CatalogError('unavailable');
   return value;
 }
+function availability(value: unknown) {
+  const data = record(value);
+  if (typeof data.available !== 'boolean' || !Number.isSafeInteger(data.maxQuantity) || (data.maxQuantity as number) < 0
+    || data.available !== ((data.maxQuantity as number) > 0)) throw new CatalogError('unavailable');
+  return { available: data.available, maxQuantity: data.maxQuantity as number };
+}
 export function isProductId(value: string): boolean {
   return /^[A-Za-z0-9_-]{1,64}$/.test(value);
 }
@@ -24,7 +30,14 @@ function product(value: unknown): Product {
   if (!isProductId(id) || typeof data.available !== 'boolean') throw new CatalogError('unavailable');
   const imageUrl = text(data.imageUrl);
   if (!imageUrl.startsWith('/images/') || imageUrl.includes('..')) throw new CatalogError('unavailable');
-  return { id, name: text(data.name), price: money(data.price), imageUrl, available: data.available };
+  const sizes = data.sizeAvailability;
+  if (sizes !== undefined && !Array.isArray(sizes)) throw new CatalogError('unavailable');
+  return { id, name: text(data.name), price: money(data.price), imageUrl, available: data.available,
+    ...(Array.isArray(sizes) ? { sizeAvailability: sizes.map(value => {
+      const row = record(value); const size = text(row.size);
+      if (!['S', 'M', 'L'].includes(size)) throw new CatalogError('unavailable');
+      return { size, ...availability(row) };
+    }) } : {}) };
 }
 export function parseProducts(value: unknown): ProductList {
   const data = record(value);
@@ -37,11 +50,15 @@ export function parseProduct(value: unknown): ProductDetail {
   return { ...product(data), sizes: data.sizes.map((value: unknown) => {
     const size = record(value); const name = text(size.size);
     if (!['S', 'M', 'L'].includes(name)) throw new CatalogError('unavailable');
-    return { size: name, extraPrice: money(size.extraPrice) };
+    return { size: name, extraPrice: money(size.extraPrice),
+      ...(size.available !== undefined || size.maxQuantity !== undefined ? availability(size) : {}) };
   }), toppings: data.toppings.map((value: unknown) => {
     const topping = record(value); const id = text(topping.id);
     if (!isProductId(id)) throw new CatalogError('unavailable');
-    return { id, name: text(topping.name), price: money(topping.price) };
+    if (topping.availableSizes !== undefined && (!Array.isArray(topping.availableSizes)
+      || topping.availableSizes.some(size => !['S', 'M', 'L'].includes(size)))) throw new CatalogError('unavailable');
+    return { id, name: text(topping.name), price: money(topping.price),
+      ...(Array.isArray(topping.availableSizes) ? { availableSizes: topping.availableSizes as string[] } : {}) };
   }) };
 }
 async function read(path: string, signal?: AbortSignal): Promise<unknown> {

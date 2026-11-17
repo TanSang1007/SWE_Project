@@ -41,6 +41,10 @@ function useManagement<T>(load: (signal?: AbortSignal) => Promise<T>) {
       const res = await optionRequest(method, path, body, abort.current.signal); if (!current()) return false;
       if (apply) {
         setData(prev => prev ? apply(res, prev) : prev);
+        // Size activation can change recipe availability; refresh that computed
+        // state together with the saved configuration before enabling actions.
+        try { const value = await load(abort.current.signal); if (current()) setData(value); }
+        catch { if (current()) setError('Đã lưu thay đổi nhưng chưa tải lại được trạng thái nguyên liệu.'); }
         setSuccess(successMessage);
         return true;
       }
@@ -139,8 +143,8 @@ function ProductOptionSession({ id }: { id: string }) {
   };
   return <section className="admin-products product-options"><div className="operations-page-header"><p className="eyebrow">Cấu hình đồ uống</p><h1>Size & Topping</h1></div><Link href="/admin/products">← Danh sách sản phẩm</Link> · <Link href="/admin/toppings">Quản lý danh mục topping</Link>
     <Feedback {...m} canReview={!!data} refresh={() => void m.refresh()} acknowledge={() => { m.acknowledge(); setForm(null); setConfirming(null); setSelected(''); }} />
-    {data && <><h2>{data.product.name} ({data.product.id})</h2><p>Giá cơ bản: {formatVnd(data.product.price)} · Tồn kho: {data.product.stock}</p>
-      <p data-option-availability>{!data.product.isActive ? 'Ngừng kinh doanh' : data.product.stock <= 0 ? 'Hết hàng' : data.sizes.items.some(s => s.isActive) ? 'Đang mở bán' : 'Chưa có kích cỡ mở bán'}</p>
+    {data && <><h2>{data.product.name} ({data.product.id})</h2><p>Giá cơ bản: {formatVnd(data.product.price)}</p>
+      <p data-option-availability>{!data.product.isActive ? 'Ngừng kinh doanh' : data.product.recipeConfigured===false?'Chưa có công thức':!data.sizes.items.some(s=>s.isActive)?'Chưa có kích cỡ mở bán':data.product.available?'Còn món theo nguyên liệu':'Tạm hết nguyên liệu'}</p>
       <section aria-label="Kích cỡ"><h2>Kích cỡ</h2><button className="button" data-size-create disabled={busy || !missing.length} onClick={() => { setForm({ version: data.sizes.productVersion }); setConfirming(null); setTimeout(() => document.getElementById('size-extra')?.focus(), 0); }}>Thêm kích cỡ</button>
         {!data.sizes.items.length && <p role="status">Chưa cấu hình kích cỡ.</p>}
         <ul className="option-cards">{data.sizes.items.map(s => <li key={s.size} data-size={s.size}><h3>Size {s.size}</h3><p>{formatVnd(s.extraPrice)} · {s.isActive ? 'Đang cung cấp' : 'Ngừng cung cấp'}</p><div className="product-actions">

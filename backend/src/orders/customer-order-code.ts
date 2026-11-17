@@ -14,9 +14,9 @@ export async function customerOrderCodes(db: RawReader, ids: readonly string[]):
   const codes = new Map<string, string>();
   if (!unique.length) return codes;
   const rows = await db.$queryRaw<{ id: string; seq: number | bigint }[]>`
-    SELECT o.id, (SELECT count(*) FROM orders p WHERE p.user_id = o.user_id
-      AND (length(p.id), p.id) <= (length(o.id), o.id))::int AS seq
-    FROM orders o WHERE o.id = ANY(${unique}::text[])`;
+    SELECT o.id::text AS id, (SELECT count(*) FROM orders p WHERE p.user_id = o.user_id
+      AND (length(p.id::text), p.id::text) <= (length(o.id::text), o.id::text))::int AS seq
+    FROM orders o WHERE o.id::text = ANY(${unique}::text[])`;
   for (const row of rows) codes.set(row.id, formatOrderCode(Number(row.seq)));
   return codes;
 }

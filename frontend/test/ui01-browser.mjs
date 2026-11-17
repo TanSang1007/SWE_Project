@@ -109,7 +109,7 @@ export async function verifyUi01Browser({evaluate,command,waitText,navigate,dela
       await command('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});
       const layout=await evaluate("({overflow:document.documentElement.scrollWidth>innerWidth,links:[...document.querySelectorAll('.operator-navigation a')].map(a=>a.getBoundingClientRect().height)})");
       assert(!layout.overflow&&layout.links.every(h=>h>=44));layouts.push({width,height,...layout});
-      const shot=await command('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});writeFileSync(join(root,`Docs/${evidencePrefix}-admin-orders-${width}.png`),Buffer.from(shot.data,'base64'));
+      const shot=await command('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});writeFileSync(join(root,`.tmp/browser-evidence/${evidencePrefix}-admin-orders-${width}.png`),Buffer.from(shot.data,'base64'));
     }
     const paid=orders.get('PAID');await login(staff,'Phiên bản hiện tại','/operator/orders/'+paid.id); await loaded('[data-workflow-target]');
     const version=(await api('GET','/operator/orders/'+paid.id,adminToken)).body.version;

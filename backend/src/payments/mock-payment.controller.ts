@@ -31,6 +31,8 @@ import { assertGatewayClear, gatewayBlocks, lockAttempts } from './gateway-polic
 import { assertPaymentWindow } from './payment-deadline';
 import { clearPurchasedCart } from './cart-cleanup';
 import { customerOrderCode } from '../orders/customer-order-code';
+import { assertHeldOrderIngredients, changeOrderIngredients } from '../ingredients/order-ingredients';
+import { productStockDemand } from '../catalog/product-ingredients';
 
 const trimLower = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().toLowerCase() : value);
 const trimUpper = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().toUpperCase() : value);
@@ -97,6 +99,8 @@ export class MockPaymentService {
           throw new ConflictException({ code: 'INVALID_ORDER_STATE', message: 'Order does not permit payment' });
         }
         assertPaymentWindow(o);
+        if (o.status === 'PENDING' && o.items.some(i => i.ingredientKeysSnapshot?.length)
+          && !await assertHeldOrderIngredients(tx, orderId)) throw new ServiceUnavailableException({code:'PAYMENT_UNAVAILABLE',message:'Ingredient reservation is missing'});
         if (o.version >= 2147483647) {
           throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Order version bounds exceeded' });
         }
@@ -116,8 +120,9 @@ export class MockPaymentService {
           if (o.redeemedPoints > 0 && account.available < BigInt(o.redeemedPoints)) {
             throw new ConflictException({ code: 'LOYALTY_INSUFFICIENT_POINTS', message: 'Insufficient points for reservation' });
           }
-          const demand = new Map<string, number>();
-          for (const item of o.items) demand.set(item.productId, (demand.get(item.productId) ?? 0) + item.qty);
+          const reserved = await changeOrderIngredients(tx, orderId, 'RESERVE', userId);
+          if (!reserved && o.items.some(i => i.ingredientKeysSnapshot?.length)) throw new ServiceUnavailableException({code:'PAYMENT_UNAVAILABLE',message:'Ingredient reservation is missing'});
+          const demand = new Map(productStockDemand(o.items));
           for (const [productId, qty] of [...demand].sort(([a], [b]) => a.localeCompare(b))) {
             const p = await tx.product.findUniqueOrThrow({ where: { id: productId } });
             if (p.stock < qty) throw new ConflictException({ code: 'OUT_OF_STOCK', message: 'Insufficient stock for payment retry' });
@@ -130,9 +135,9 @@ export class MockPaymentService {
           if (o.redeemedPoints > 0) cycle = o.reservationCycle + 1;
         }
 
-        if (!success && o.status === 'PENDING') {
-          const demand = new Map<string, number>();
-          for (const item of o.items) demand.set(item.productId, (demand.get(item.productId) ?? 0) + item.qty);
+        if (!success) {
+          await changeOrderIngredients(tx, orderId, 'RELEASE', userId);
+          const demand = new Map(productStockDemand(o.items));
           for (const [productId, qty] of [...demand].sort(([a], [b]) => a.localeCompare(b))) {
             const p = await tx.product.findUniqueOrThrow({ where: { id: productId } });
             const updated = await tx.product.updateMany({
