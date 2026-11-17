@@ -52,4 +52,11 @@ export class OrderController {
     void body; void query; res.status(200); res.vary('Authorization');
     return this.orders.cancel(req.user.id, params.id);
   }
+  @Post(':id/confirm-no-cancel')
+  @Header('Cache-Control', 'private, no-store, max-age=0')
+  async confirmNoCancel(@Req() req: AuthRequest, @Param() params: OrderParamsDto, @Body() body: OrderEmptyDto, @Query() query: OrderEmptyDto,
+    @Res({ passthrough: true }) res: Response) {
+    void body; void query; res.status(200); res.vary('Authorization');
+    return this.orders.confirmNoCancel(req.user.id, params.id);
+  }
 }

@@ -6,7 +6,6 @@ import { OrderError } from '../lib/api/orders';
 import type { OperatorOrderDetail } from '../types/operator-order';
 import type { UserRole } from '../types/auth';
 import { notifyToast } from '../lib/notification-store';
-import { PreparationGate } from './order-tracking';
 
 export type WorkflowPhase = 'idle' | 'confirm' | 'pending' | 'conflict' | 'unresolved' | 'retry' | 'confirmed';
 const actions = { PAID: { target: 'PREPARING', label: 'Bắt đầu pha chế' }, PREPARING: { target: 'READY', label: 'Đánh dấu sẵn sàng' },
@@ -20,7 +19,7 @@ export function WorkflowControls({ order, role, phase, message, act, confirm, di
   return <section className="operator-workflow" aria-label="Xử lý đơn hàng" aria-busy={phase === 'pending'}>
     {message && <p role={['conflict', 'unresolved', 'retry', 'confirmed'].includes(phase) ? 'alert' : 'status'}>{message}</p>}
     {phase === 'pending' && <p role="status">Đang xử lý thao tác…</p>}
-    <div className="workflow-actions">{action && (action.target === 'PREPARING' ? <PreparationGate key={order.serverNow} paidAt={order.paidAt} serverNow={order.serverNow} disabled={phase !== 'idle'} act={() => act(action.target)} /> : <button type="button" className="button" data-workflow-target={action.target} disabled={phase !== 'idle'} onClick={() => act(action.target)}>{action.label}</button>)}
+    <div className="workflow-actions">{action && <button type="button" className="button" data-workflow-target={action.target} disabled={phase !== 'idle'} onClick={() => act(action.target)}>{action.label}</button>}
       {role === 'ADMIN' && order.status === 'PAID' && <button type="button" className="button workflow-danger" data-workflow-cancel disabled={phase !== 'idle'} onClick={() => act('CANCELLED')}>Hủy đơn đã thanh toán</button>}</div>
     {phase === 'confirm' && role === 'ADMIN' && order.status === 'PAID' && <fieldset data-paid-cancel-confirm><legend>Xác nhận hủy đơn đã thanh toán</legend>
       <p>Thao tác sẽ hoàn tồn theo số lượng trong đơn và thu hồi điểm tích lũy của đơn. Hủy đơn không đồng nghĩa hoàn tiền; Payment đã thành công vẫn được giữ nguyên.</p>

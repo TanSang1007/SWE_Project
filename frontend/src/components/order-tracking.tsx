@@ -109,7 +109,7 @@ export function OrderTracking({id,role,onChanged,allowUnpaidCancel=true}:{id:str
             })}
           </ol>
         )}
-        <TrackingPhase key={data.serverNow} data={data} customer={role==='CUSTOMER'} allowUnpaidCancel={allowUnpaidCancel} disabled={busy||!!error} confirm={confirmCancel} setConfirm={setConfirmCancel} cancel={()=>void mutate(`/orders/${id}/cancel`,{})}/>
+        <TrackingPhase key={data.serverNow} data={data} customer={role==='CUSTOMER'} allowUnpaidCancel={allowUnpaidCancel} disabled={busy||!!error} confirm={confirmCancel} setConfirm={setConfirmCancel} cancel={()=>void mutate(`/orders/${id}/cancel`,{})} confirmNoCancel={()=>void mutate(`/orders/${id}/confirm-no-cancel`,{})}/>
       </div>
 
       <div className="tracking-panel">
@@ -188,18 +188,23 @@ export function OrderTracking({id,role,onChanged,allowUnpaidCancel=true}:{id:str
     </div>
   </section>;
 }
-export function TrackingPhase({data,customer,disabled,cancel,confirm,setConfirm,allowUnpaidCancel=true}:{data:Tracking;customer:boolean;disabled:boolean;cancel:()=>void;confirm:boolean;setConfirm:(value:boolean)=>void;allowUnpaidCancel?:boolean}){
+export function TrackingPhase({data,customer,disabled,cancel,confirmNoCancel,confirm,setConfirm,allowUnpaidCancel=true}:{data:Tracking;customer:boolean;disabled:boolean;cancel:()=>void;confirmNoCancel?:()=>void;confirm:boolean;setConfirm:(value:boolean)=>void;allowUnpaidCancel?:boolean}){
   const elapsed=useElapsed();
   const remaining=data.cancelUntil?Math.max(0,Math.ceil((Date.parse(data.cancelUntil)-Date.parse(data.serverNow)-elapsed)/1000)):0;
-  const allowed=customer&&(allowUnpaidCancel&&['PENDING','PAYMENT_FAILED'].includes(data.status)||data.status==='PAID'&&data.canCancelPaid&&remaining>0);
+  const noCancelConfirmed=data.status==='PAID'&&!!data.noCancelConfirmedAt;
+  const canConfirmNoCancel=customer&&data.status==='PAID'&&data.canCancelPaid&&remaining>0&&!noCancelConfirmed;
+  const allowed=customer&&(allowUnpaidCancel&&['PENDING','PAYMENT_FAILED'].includes(data.status)||data.status==='PAID'&&data.canCancelPaid&&remaining>0&&!noCancelConfirmed);
   const paidCancellation=customer&&['PAID','PREPARING','READY','COMPLETED'].includes(data.status);
-  const blockedReason=!allowed&&paidCancellation?(data.status==='PAID'?(data.cancelUntil===null?'Chưa xác định được thời hạn hủy từ máy chủ. Hãy tải lại tiến độ trước khi hủy.':'Đã hết thời hạn hủy 120 giây sau thanh toán. Bạn có thể gửi yêu cầu hỗ trợ bên dưới.'):'Đơn đã bắt đầu được xử lý nên không thể tự hủy. Bạn có thể gửi yêu cầu hỗ trợ bên dưới.'):null;
+  const blockedReason=!allowed&&paidCancellation?(data.status==='PAID'?(noCancelConfirmed?'Bạn đã xác nhận không hủy đơn để nhân viên pha chế ngay. Bạn có thể gửi yêu cầu hỗ trợ bên dưới.':data.cancelUntil===null?'Chưa xác định được thời hạn hủy từ máy chủ. Hãy tải lại tiến độ trước khi hủy.':'Đã hết thời hạn hủy 120 giây sau thanh toán. Bạn có thể gửi yêu cầu hỗ trợ bên dưới.'):'Đơn đã bắt đầu được xử lý nên không thể tự hủy. Bạn có thể gửi yêu cầu hỗ trợ bên dưới.'):null;
   return <div className="tracking-phase">
     <div className="tracking-phase-row">
-      <p role="status" className="tracking-phase-status" data-tracking-phase={data.status==='PAID'?(remaining>0?'CANCEL_WINDOW':'WAITING_STAFF'):data.status}>
-        {data.status==='PAID'?(remaining>0?`Chờ pha chế — có thể hủy trong ${remaining} giây`:'Chờ nhân viên bắt đầu'):orderStatusLabels[data.status as keyof typeof orderStatusLabels]}
+      <p role="status" className="tracking-phase-status" data-tracking-phase={data.status==='PAID'?(noCancelConfirmed?'NO_CANCEL_CONFIRMED':remaining>0?'CANCEL_WINDOW':'WAITING_STAFF'):data.status}>
+        {data.status==='PAID'?(noCancelConfirmed?'Đã xác nhận không hủy — chờ nhân viên bắt đầu pha chế':remaining>0?`Chờ pha chế — có thể hủy trong ${remaining} giây`:'Chờ nhân viên bắt đầu'):orderStatusLabels[data.status as keyof typeof orderStatusLabels]}
       </p>
-      {(allowed||paidCancellation)&&(!confirm||!allowed)&&<button className="brew-btn brew-btn-danger tracking-cancel-btn" type="button" data-paid-cancel={paidCancellation||undefined} disabled={disabled||!allowed} aria-describedby={blockedReason?'paid-cancel-reason':undefined} onClick={()=>setConfirm(true)}>Hủy đơn hàng</button>}
+      <div className="tracking-form-actions">
+        {canConfirmNoCancel&&confirmNoCancel&&!confirm&&<button className="brew-btn brew-btn-primary" type="button" data-confirm-no-cancel disabled={disabled} onClick={confirmNoCancel}>Xác nhận không hủy đơn</button>}
+        {(allowed||paidCancellation)&&(!confirm||!allowed)&&<button className="brew-btn brew-btn-danger tracking-cancel-btn" type="button" data-paid-cancel={paidCancellation||undefined} disabled={disabled||!allowed} aria-describedby={blockedReason?'paid-cancel-reason':undefined} onClick={()=>setConfirm(true)}>Hủy đơn hàng</button>}
+      </div>
     </div>
     {blockedReason&&<p id="paid-cancel-reason" className="tracking-blocked-reason">{blockedReason}</p>}
     {confirm&&allowed&&<fieldset disabled={disabled} className="tracking-confirm-box"><legend>Xác nhận hủy đơn</legend><p>Hủy đơn sẽ giải phóng phần nguyên liệu chưa dùng. Nếu đã thu tiền, hệ thống tạo yêu cầu hoàn tiền và theo dõi riêng.</p>

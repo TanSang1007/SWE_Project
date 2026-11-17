@@ -502,6 +502,8 @@ model Order {
   createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime               @default(now()) @map("updated_at") @db.Timestamptz(6)
   paidAt                DateTime?              @map("paid_at") @db.Timestamptz(6)
+  /// O01: khách xác nhận không hủy trong cửa sổ 120s để khóa tự hủy và báo nhân viên pha chế ngay.
+  noCancelConfirmedAt   DateTime?              @map("no_cancel_confirmed_at") @db.Timestamptz(6)
 
   user                User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
   promotion           Promotion?           @relation(fields: [promotionId], references: [id], onDelete: Restrict)

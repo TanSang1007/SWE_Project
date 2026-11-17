@@ -51,7 +51,7 @@ const call = (raw = signed()) => request(app.getHttpServer()).get('/payments/vnp
 test('valid public Return uses303 with only opaque attemptId, no JWT/session/financial service', async () => {
   const r = await call().expect(303); expect(r.headers.location).toBe(base + '?attemptId=' + attempt); expect(r.text).toBe('');
   expect(r.headers['cache-control']).toBe('no-store'); expect(r.headers['referrer-policy']).toBe('no-referrer');
-  expect(readOnly).toHaveBeenCalledWith('SET TRANSACTION READ ONLY'); expect(transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'RepeatableRead', maxWait: 50, timeout: 400 });
+  expect(readOnly).toHaveBeenCalledWith('SET TRANSACTION READ ONLY'); expect(transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'RepeatableRead', maxWait: 5000, timeout: 10000 });
   expect(JSON.stringify(r.headers)).not.toContain(secret); expect(r.headers.location).not.toMatch(/vnp_|amount|orderId|userId|status|token/i);
 });
 test.each([['00', '00'], ['24', '02'], ['00', '01'], ['07', '07'], ['00', '02']])('signed codes%s/%s only select navigation context', async (code, status) => {

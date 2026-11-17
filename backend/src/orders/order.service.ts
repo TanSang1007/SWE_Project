@@ -14,7 +14,7 @@ import { assertVnpayMinimum, effectivePaymentProvider } from '../payments/minimu
 import { assertPaymentAdmission } from '../payments/payment-admission';
 import { PAYMENT_WINDOW_MS } from '../payments/payment-deadline';
 import { customerOrderCode, customerOrderCodes } from './customer-order-code';
-import { assertPaidCancellation, assertPreparationReady, cancellationWindow } from './cancellation-window';
+import { assertPaidCancellation, cancellationWindow } from './cancellation-window';
 import type { RefundUpdateDto, SupportReviewDto } from './order-aftercare.dto';
 import { changeOrderIngredients, reserveOrderIngredients } from '../ingredients/order-ingredients';
 
@@ -257,6 +257,34 @@ export class OrderService {
       throw new ServiceUnavailableException();
     }
   }
+  async confirmNoCancel(userId: string, id: string) {
+    try {
+      return await this.transaction(async (tx) => {
+        await lockUser(tx, userId);
+        const owned = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM orders WHERE id::text=${id} AND user_id::text=${userId} FOR UPDATE`;
+        if (!owned.length) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
+        const order = await tx.order.findFirst({ where: { id, userId }, include });
+        if (!order) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
+        const code = await customerOrderCode(tx, id, order.orderCode);
+        if (order.status === 'PAID' && order.noCancelConfirmedAt) return detail(order, code);
+        if (order.status !== 'PAID' || !order.paidAt) {
+          throw new ConflictException({ code: 'INVALID_ORDER_STATE', message: 'Chỉ có thể xác nhận không hủy khi đơn đang ở trạng thái đã thanh toán.' });
+        }
+        if (order.version >= 2147483647) throw workflowUnavailable();
+        const now = new Date();
+        const changed = await tx.order.updateMany({
+          where: { id, userId, status: 'PAID', version: order.version },
+          data: { noCancelConfirmedAt: now, version: { increment: 1 }, updatedAt: now },
+        });
+        if (changed.count !== 1) throw conflict();
+        return detail(await tx.order.findUniqueOrThrow({ where: { id }, include }), code);
+      });
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      if (isConcurrencyError(error)) throw conflict();
+      throw new ServiceUnavailableException();
+    }
+  }
   // Cross-owner reads are exposed only by the STAFF/ADMIN guarded controller.
   // Keep the customer-owned methods above and the B16 write path separate.
   async operatorHistory(role: UserRole, status?: OrderStatus) {
@@ -316,7 +344,6 @@ export class OrderService {
         assertTransition(order.status, targetStatus);
         if (order.version !== expectedVersion) throw conflict();
         if (order.version >= 2147483647) throw workflowUnavailable();
-        if (targetStatus === 'PREPARING') assertPreparationReady(order);
         await tx.$executeRaw`SELECT set_config('brewlite.actor_id',${actorId ?? order.userId},true)`;
         if (targetStatus === 'CANCELLED') {
           await this.cancelPaid(tx, order, actorId ?? order.userId, 'Admin hủy đơn trước pha chế', actorId);

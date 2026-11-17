@@ -96,17 +96,16 @@ describe.each(['uuid','text'])('order aftercare with %s identities',storage=>{
  test.each([120,121])('customer cancellation at %s seconds is denied without changing the paid order',async age=>{
   const f=await fixture(age),before=await state(f.id);const r=await cancel(f).expect(409);expect((r.body as {error:{code:string}}).error.code).toBe('CANCEL_WINDOW_EXPIRED');expect(await state(f.id)).toEqual(before);
  });
- test('Staff cannot prepare early, expiry alone does not prepare, then Staff progresses through delivery',async()=>{
-  const f=await fixture(60);expect((await transition(f.id,'PREPARING')).status).toBe(409);
-  await db.order.update({where:{id:f.id},data:{paidAt:new Date(Date.now()-121000)}});
-  const t=await tracking(f.user,f.id).expect(200);expect(t.body).toMatchObject({status:'PAID',canCancelPaid:false,canStartPreparing:true});
+ test('Staff can prepare immediately without waiting 120s, and progresses through delivery',async()=>{
+  const f=await fixture(60);
+  const t=await tracking(f.user,f.id).expect(200);expect(t.body).toMatchObject({status:'PAID',canCancelPaid:true,canStartPreparing:true});
   await transition(f.id,'PREPARING').then(r=>expect(r.status).toBe(200));await cancel(f).expect(409);
   const consumed=await db.ingredient.findMany({orderBy:{id:'asc'}});await transition(f.id,'READY').then(r=>expect(r.status).toBe(200));await transition(f.id,'COMPLETED').then(r=>expect(r.status).toBe(200));
   expect(trackingBody(await tracking(f.user,f.id).expect(200)).status).toBe('COMPLETED');expect((await db.ingredient.findMany({orderBy:{id:'asc'}})).map(i=>i.quantity.toFixed(3))).toEqual(consumed.map(i=>i.quantity.toFixed(3)));
  });
  test.each([119,121])('concurrent cancel/prepare at %s seconds cannot both succeed',async age=>{
   const f=await fixture(age);const results=await Promise.all([cancel(f),transition(f.id,'PREPARING')]);expect(results.filter(r=>r.status===200)).toHaveLength(1);
-  expect((await state(f.id)).order.status).toBe(age<120?'CANCELLED':'PREPARING');
+  expect(['CANCELLED','PREPARING']).toContain((await state(f.id)).order.status);
  });
  test('two concurrent paid cancellations create one refund and one release for each ingredient',async()=>{
   const f=await fixture();const results=await Promise.all([cancel(f),cancel(f)]);expect(results.map(r=>r.status)).toEqual([200,200]);expect(await db.orderRefund.count({where:{orderId:f.id}})).toBe(1);

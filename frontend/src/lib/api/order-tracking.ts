@@ -3,7 +3,7 @@ import { getAccessToken, useAuthStore } from '../auth-store';
 import { validOrderId } from '../order-display';
 import { OrderError } from './orders';
 export type Tracking = {
-  orderId: string; status: string; serverNow: string; cancelUntil: string|null; canCancelPaid: boolean; canStartPreparing: boolean;
+  orderId: string; status: string; serverNow: string; cancelUntil: string|null; noCancelConfirmedAt?: string|null; canCancelPaid: boolean; canStartPreparing: boolean;
   refund: null | {id:string;status:'PENDING'|'SUCCEEDED'|'FAILED';amount:string;approved:boolean;version:number;createdAt:string;processedAt:string|null;failureReason:string|null;transactionReference?:string|null;evidenceReference?:string|null};
   supportRequests: {id:string;reason:string;status:'OPEN'|'APPROVED'|'REJECTED';version:number;reviewNote:string|null;createdAt:string}[];
   events:{id:string;kind:'STATUS'|'SUPPORT'|'REFUND';fromStatus:string|null;status:string;actorRole:string;note:string|null;at:string}[];
@@ -14,7 +14,7 @@ export function parseTracking(value:unknown):Tracking {
   if(!value||typeof value!=='object')throw new OrderError('UNAVAILABLE');
   const t=value as Tracking;
   if(!validOrderId(t.orderId)||!['PENDING','PAYMENT_FAILED','PAID','PREPARING','READY','COMPLETED','CANCELLED'].includes(t.status)||!date(t.serverNow)
-    ||!(t.cancelUntil===null||date(t.cancelUntil))||typeof t.canCancelPaid!=='boolean'||typeof t.canStartPreparing!=='boolean'
+    ||!(t.cancelUntil===null||date(t.cancelUntil))||!(t.noCancelConfirmedAt===undefined||t.noCancelConfirmedAt===null||date(t.noCancelConfirmedAt))||typeof t.canCancelPaid!=='boolean'||typeof t.canStartPreparing!=='boolean'
     ||!Array.isArray(t.supportRequests)||!Array.isArray(t.events))throw new OrderError('UNAVAILABLE');
   const r=t.refund;
   if(r!==null&&(!r||!validOrderId(r.id)||!['PENDING','SUCCEEDED','FAILED'].includes(r.status)||typeof r.amount!=='string'||!/^([1-9]\d{0,11})$/.test(r.amount)
@@ -29,7 +29,9 @@ export function parseTracking(value:unknown):Tracking {
       ||!(e.fromStatus===null||typeof e.fromStatus==='string')||!(e.note===null||typeof e.note==='string'))throw new OrderError('UNAVAILABLE');
     return {id:e.id,kind:e.kind,fromStatus:e.fromStatus,status:e.status,actorRole:e.actorRole,note:e.note,at:e.at};
   });
-  return {orderId:t.orderId,status:t.status,serverNow:t.serverNow,cancelUntil:t.cancelUntil,canCancelPaid:t.canCancelPaid,canStartPreparing:t.canStartPreparing,
+  return {orderId:t.orderId,status:t.status,serverNow:t.serverNow,cancelUntil:t.cancelUntil,
+    ...(t.noCancelConfirmedAt!==undefined?{noCancelConfirmedAt:t.noCancelConfirmedAt}:{}),
+    canCancelPaid:t.canCancelPaid,canStartPreparing:t.canStartPreparing,
     refund:r?{id:r.id,status:r.status,amount:r.amount,approved:r.approved,version:r.version,createdAt:r.createdAt,processedAt:r.processedAt,failureReason:r.failureReason,
       ...(typeof r.transactionReference==='string'||r.transactionReference===null?{transactionReference:r.transactionReference}:{}),
       ...(typeof r.evidenceReference==='string'||r.evidenceReference===null?{evidenceReference:r.evidenceReference}:{})}:null,supportRequests:supports,events};
@@ -58,7 +60,9 @@ export function remainingPaidWindow(paidAt:string|null|undefined,serverNow:strin
 }
 export function trackingError(error:unknown){
   const code=error instanceof OrderError?error.code:'';
+  if(code==='CANCEL_CONFIRMED')return 'Bạn đã xác nhận không hủy đơn. Đơn đang chờ nhân viên pha chế.';
   if(code==='CANCEL_WINDOW_EXPIRED')return 'Đã hết 120 giây. Bạn có thể gửi yêu cầu hỗ trợ.';
+  if(code==='INVALID_ORDER_STATE')return 'Trạng thái đơn hàng đã thay đổi. Vui lòng tải lại tiến độ.';
   if(code==='PREPARATION_LOCKED')return 'Chưa hết thời hạn hủy. Hãy chờ đồng hồ kết thúc và tải lại đơn.';
   if(code==='REFUND_EVIDENCE_REQUIRED')return 'Cần phê duyệt, mã giao dịch và bằng chứng xác nhận hoàn tiền hợp lệ.';
   if(code==='CONCURRENT_UPDATE')return 'Dữ liệu đã thay đổi. Tải lại trước khi xử lý tiếp.';

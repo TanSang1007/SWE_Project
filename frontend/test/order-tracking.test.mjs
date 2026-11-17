@@ -7,7 +7,8 @@ const require=createRequire(import.meta.url),ts=require('typescript');
 for(const ext of ['.ts','.tsx'])require.extensions[ext]=(module,filename)=>module._compile(ts.transpileModule(readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true},fileName:filename}).outputText,filename);
 const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
 const {parseTracking,remainingPaidWindow,trackingRequest,getTracking}=require('../src/lib/api/order-tracking.ts');
-const {PreparationGate,TrackingPhase}=require('../src/components/order-tracking.tsx');
+const {TrackingPhase}=require('../src/components/order-tracking.tsx');
+const {WorkflowControls}=require('../src/components/operator-workflow.tsx');
 const {useAuthStore}=require('../src/lib/auth-store.ts');
 const id=randomUUID(),originalFetch=globalThis.fetch;
 const base={orderId:id,status:'PAID',serverNow:'2026-11-15T00:00:30Z',cancelUntil:'2026-11-15T00:02:00Z',canCancelPaid:true,canStartPreparing:false,refund:null,supportRequests:[],events:[]};
@@ -28,9 +29,13 @@ test('server time governs the 119/120/121 second boundary regardless of browser 
  assert.equal(remainingPaidWindow(paid,'2026-11-15T00:01:59Z'),1);assert.equal(remainingPaidWindow(paid,'2026-11-15T00:02:00Z'),0);
  assert.equal(remainingPaidWindow(paid,'2026-11-15T00:02:01Z'),0);assert.equal(remainingPaidWindow(paid,base.serverNow,90000),0);assert.equal(remainingPaidWindow(null,base.serverNow),null);
 });
-test('customer can confirm cancellation during the window, then sees waiting Staff rather than preparing',()=>{
- const props={data:base,customer:true,disabled:false,confirm:false,setConfirm:()=>{},cancel:()=>{}};
- assert(html(TrackingPhase,props).includes('Hủy đơn hàng'));assert(html(TrackingPhase,{...props,confirm:true}).includes('Xác nhận hủy đơn hàng'));
+test('customer can confirm cancellation or confirm no cancellation during the window, then sees waiting Staff rather than preparing',()=>{
+ const props={data:base,customer:true,disabled:false,confirm:false,setConfirm:()=>{},cancel:()=>{},confirmNoCancel:()=>{}};
+ const active=html(TrackingPhase,props);
+ assert(active.includes('Hủy đơn hàng'));assert(active.includes('Xác nhận không hủy đơn'));assert(active.includes('data-confirm-no-cancel'));
+ assert(html(TrackingPhase,{...props,confirm:true}).includes('Xác nhận hủy đơn hàng'));
+ const noCancel=html(TrackingPhase,{...props,data:{...base,canCancelPaid:false,noCancelConfirmedAt:'2026-11-15T00:00:45Z'}});
+ assert(noCancel.includes('Đã xác nhận không hủy'));assert(noCancel.includes('disabled'));assert(!noCancel.includes('data-confirm-no-cancel'));
  const expired=html(TrackingPhase,{...props,data:{...base,serverNow:'2026-11-15T00:02:01Z',canCancelPaid:false,canStartPreparing:true}});
  assert(expired.includes('Chờ nhân viên bắt đầu'));assert(!expired.includes('Đang pha chế'));assert(expired.includes('Hủy đơn hàng'));assert(expired.includes('disabled'));assert(expired.includes('Đã hết thời hạn hủy 120 giây'));
  assert(!html(TrackingPhase,{...props,customer:false}).includes('Hủy đơn hàng'));
@@ -44,10 +49,10 @@ test('paid cancellation stays visible with an explanation after preparation; can
  assert(missingDeadline.includes('Hủy đơn hàng'));assert(missingDeadline.includes('disabled'));assert(missingDeadline.includes('Chưa xác định được thời hạn hủy từ máy chủ'));
  assert(!html(TrackingPhase,{...props,data:{...props.data,status:'CANCELLED'}}).includes('Hủy đơn hàng'));
 });
-test('Staff preparation remains disabled before the deadline and enabled after it',()=>{
- const props={paidAt:'2026-11-15T00:00:00Z',serverNow:base.serverNow,disabled:false,act:()=>{}};
- assert(html(PreparationGate,props).includes('disabled'));assert(!html(PreparationGate,{...props,serverNow:'2026-11-15T00:02:00Z'}).includes('disabled'));
- assert(html(PreparationGate,{...props,paidAt:null}).includes('disabled'));
+test('Staff preparation is enabled immediately on PAID orders without waiting 120s',()=>{
+ const paidOrder={id,orderCode:'BL-test',status:'PAID',currency:'VND',subtotal:'10000',discountAmount:'0',total:'10000',promotionCode:null,createdAt:'2026-11-15T00:00:00Z',paidAt:'2026-11-15T00:00:00Z',serverNow:'2026-11-15T00:00:10Z',updatedAt:'2026-11-15T00:00:00Z',version:1,earnedPoints:1,paymentStatus:'SUCCEEDED',items:[]};
+ const markup=html(WorkflowControls,{order:paidOrder,role:'STAFF',phase:'idle',message:'',act:()=>{},confirm:()=>{},dismiss:()=>{},reload:()=>{},retry:()=>{}});
+ assert(markup.includes('data-workflow-target="PREPARING"'));assert(!markup.includes('disabled'));
 });
 test('tracking transport uses current auth/no-store; a lost response never retries a mutation automatically',async()=>{
  process.env.NEXT_PUBLIC_API_BASE_URL='http://localhost:3001';session();let count=0;
