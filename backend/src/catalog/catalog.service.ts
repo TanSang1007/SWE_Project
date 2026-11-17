@@ -3,6 +3,7 @@ import { PrismaService } from '../database/prisma.service';
 import type { Prisma } from '../generated/prisma/client';
 import { normalizeCatalogId, type CatalogProductDto, type ProductDetailDto, type ProductListDto } from './dto/catalog.dto';
 import { configurationIngredientStates, productIngredientStates } from './product-ingredients';
+import { recipeIngredientSelect } from './product-recipes';
 
 function compareIds(a: string, b: string) {
   const ma = /^BR(\d+)$/i.exec(a);
@@ -15,6 +16,7 @@ function compareIds(a: string, b: string) {
 
 const productSelect = {
   id: true, name: true, price: true, imageUrl: true, stock: true, isActive: true,
+  hasCustomRecipe: true, recipeIngredients: { select: recipeIngredientSelect },
   sizes: { where: { isActive: true }, select: { size: true } },
 } satisfies Prisma.ProductSelect;
 type CatalogRow = Prisma.ProductGetPayload<{ select: typeof productSelect }>;
@@ -26,9 +28,9 @@ export class CatalogService {
   async listProducts(): Promise<ProductListDto> {
     const products = await this.prisma.product.findMany({ where: { isActive: true }, select: productSelect });
     products.sort((a, b) => compareIds(a.id, b.id));
-    const states = await productIngredientStates(this.prisma, products.map(p => p.name));
+    const states = await productIngredientStates(this.prisma, products);
     return { items: products.map(p => {
-      const sizes = states.get(p.name)?.sizes.filter(s => p.sizes.some(active => active.size === s.size)) ?? [];
+      const sizes = states.get(p.id)?.sizes.filter(s => p.sizes.some(active => active.size === s.size)) ?? [];
       return { ...toProductDto(p, Math.max(0, ...sizes.map(s => s.cups))),
         sizeAvailability: sizes.map(s => ({ size: s.size, maxQuantity: s.cups, available: s.available })) };
     }), currency: 'VND' };
@@ -51,10 +53,10 @@ export class CatalogService {
     // Nếu sản phẩm không tồn tại hoặc đã ngừng bán (isActive = false) -> ném 404
     if (!product || !product.isActive) throw new NotFoundException('Product not found');
     const sizeOrder = ['S', 'M', 'L'];
-    const state = (await productIngredientStates(this.prisma, [product.name])).get(product.name);
+    const state = (await productIngredientStates(this.prisma, [product])).get(product.id);
     const sizes = product.sizes.sort((a, b) => sizeOrder.indexOf(a.size) - sizeOrder.indexOf(b.size));
     const toppings = [...product.toppings].sort((a,b) => compareIds(a.topping.id,b.topping.id));
-    const configurations = toppings.flatMap(({topping}) => sizes.map(s => ({name:product.name,size:s.size,toppings:[topping.name]})));
+    const configurations = toppings.flatMap(({topping}) => sizes.map(s => ({name:product.name,product,size:s.size,toppings:[topping.name]})));
     const capacities = await configurationIngredientStates(this.prisma, configurations);
     return {
       ...toProductDto(product, Math.max(0, ...sizes.map(s => state?.sizes.find(a => a.size === s.size)?.cups ?? 0))),

@@ -7,9 +7,21 @@ const idPattern = /^[A-Za-z0-9_-]{1,64}$/;
 // Assets are managed outside A04. Forbid scheme, encoded traversal, backslash,
 // query/fragment, empty/dot path segments and parent traversal.
 const imagePattern = /^\/images\/(?!.*\.\.)(?:(?!\.(?:\/|$))[A-Za-z0-9_.-]+\/)*(?!\.$)[A-Za-z0-9_.-]+$/;
+// I07: whole grams/ml preserve the warehouse's 0.001 kg/litre precision.
+export class ProductRecipeLineDto {
+  @IsString() @Matches(idPattern) ingredientId!: string;
+  @IsIn(['g', 'ml']) unit!: 'g' | 'ml';
+  @IsString() @Matches(/^[1-9]\d{0,8}$/) amount!: string;
+}
 export class ProductSizeCreateDto {
   @IsIn(['S', 'M', 'L']) size!: string;
   @IsString() @Matches(moneyPattern) extraPrice!: string;
+  // Optional for existing API clients; when supplied, every selected size needs a recipe.
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(12) @ArrayUnique((line: ProductRecipeLineDto) => line?.ingredientId)
+  @ValidateNested({ each: true }) @Type(() => ProductRecipeLineDto) recipe?: ProductRecipeLineDto[];
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsString() @Matches(/^(0|[1-9]\d{0,8})$/) waterMl?: string;
 }
 export class ProductCreateDto {
   @Transform(trim) @IsString() @Length(1, 120) name!: string;

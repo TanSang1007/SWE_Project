@@ -37,7 +37,13 @@ const auth = (id: string) => 'Bearer ' + jwt.sign({ sub: id });
 beforeAll(async () => {
   await client.connect(); await client.query(`CREATE SCHEMA "${schema}"`); await client.query(`SET search_path TO "${schema}"`);
   const directory = resolve(__dirname, '../../prisma/migrations');
-  for (const name of readdirSync(directory).filter(n => /^\d+_/.test(n)).sort()) await client.query(readFileSync(resolve(directory, name, 'migration.sql'), 'utf8'));
+  for (const name of readdirSync(directory).filter(n => /^\d+_/.test(n)).sort()) {
+    if (name === '20261117120000_product_creation_recipes') {
+      // Restored database retains these older, differently shaped recipe tables.
+      await client.query("CREATE TABLE product_recipes(id TEXT PRIMARY KEY); CREATE TABLE product_recipe_ingredients(id TEXT PRIMARY KEY,recipe_id TEXT,quantity NUMERIC); INSERT INTO product_recipes VALUES('old-recipe'); INSERT INTO product_recipe_ingredients VALUES('old-dose','old-recipe',0.123)");
+    }
+    await client.query(readFileSync(resolve(directory, name, 'migration.sql'), 'utf8'));
+  }
   if (storage === 'text') {
     const quote = (name: string) => '"' + name.replaceAll('"','""') + '"';
     const constraints = await client.query<{table:string;name:string;definition:string}>(`SELECT c.conrelid::regclass::text AS "table",c.conname AS name,pg_get_constraintdef(c.oid) AS definition FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace WHERE n.nspname=$1 AND c.contype IN ('f','c')`,[schema]);
@@ -90,6 +96,90 @@ const cancel = (f: Fixture, id: string) => request(app.getHttpServer()).post(`/o
 const zero = (f: Fixture, id: string, key = randomUUID()) => request(app.getHttpServer()).post(`/orders/${id}/confirm-zero`).set('Authorization', auth(f.user)).set('Idempotency-Key', key).send({});
 const initiate = (f: Fixture, id: string, key = randomUUID()) => request(app.getHttpServer()).post('/payments/vnpay/attempts').set('Authorization', auth(f.user)).set('Idempotency-Key', key).send({ orderId: id });
 const stock = (name: string) => db.ingredient.findUniqueOrThrow({ where: { normalizedName: recipeStorageName(name).toLocaleLowerCase('vi') } });
+
+test('new recipe migration preserves differently shaped legacy recipe tables and rows', async () => {
+  expect((await client.query('SELECT * FROM product_recipe_ingredients')).rows).toEqual([{ id: 'old-dose', recipe_id: 'old-recipe', quantity: '0.123' }]);
+  expect((await client.query('SELECT * FROM product_recipes')).rows).toEqual([{ id: 'old-recipe' }]);
+});
+
+async function customInput() {
+  const milk = await stock('Sữa tươi không đường'), coffee = await stock('Cà phê hạt rang');
+  return { name: 'Món mới ' + randomUUID(), price: '0', imageUrl: '/images/latte.svg', toppingIds: [], sizes: [
+    { size: 'S', extraPrice: '0', waterMl: '25', recipe: [{ ingredientId: coffee.id, unit: 'g', amount: '9' }, { ingredientId: milk.id, unit: 'ml', amount: '125' }] },
+    { size: 'M', extraPrice: '0', waterMl: '40', recipe: [{ ingredientId: coffee.id, unit: 'g', amount: '18' }, { ingredientId: milk.id, unit: 'ml', amount: '250' }] },
+  ] };
+}
+const createCustom = (input: object) => request(app.getHttpServer()).post('/admin/products').set('Authorization', auth(admin)).send(input);
+
+test('creating a product stores each size recipe and water atomically, without changing inventory', async () => {
+  const before = await db.ingredient.findMany({ orderBy: { id: 'asc' } });
+  const input = await customInput(), made = await createCustom(input).expect(201), id = (made.body as { id: string }).id;
+  expect(made.body).toMatchObject({ stock: 0, recipeConfigured: true, availableSizes: ['S', 'M'] });
+  const product = await db.product.findUniqueOrThrow({ where: { id }, include: { sizes: true, recipeIngredients: true } });
+  expect(product.hasCustomRecipe).toBe(true);
+  expect(product.recipeIngredients).toHaveLength(4);
+  expect(product.sizes.find(size => size.size === 'M')?.waterMl).toBe(40);
+  expect(product.recipeIngredients.filter(line => line.size === 'S').map(line => line.quantity.toFixed(3)).sort()).toEqual(['0.009', '0.125']);
+  expect(await db.ingredient.findMany({ orderBy: { id: 'asc' } })).toEqual(before);
+});
+
+test('custom product rename, topping, cart, shared demand, payment and preparation use stored doses', async () => {
+  const input = await customInput(), made = await createCustom(input).expect(201), id = (made.body as { id: string }).id;
+  const product = await db.product.update({ where: { id }, data: { name: 'Latte' } });
+  const topping = await db.topping.create({ data: { name: 'Kem', price: '0', products: { create: { productId: id } } } });
+  const user = (await db.user.create({ data: { email: randomUUID() + '@example.invalid', passwordHash: 'isolated-fixture' } })).id;
+  const f = { product, user, key: randomUUID(), input: { productId: id, size: 'M' as const, qty: 2, toppingIds: [topping.id] } };
+  const cart = await app.get(CartService).add(user, f.input);
+  expect(cart.items[0]).toMatchObject({ productName: 'Latte', available: true });
+  await db.ingredient.update({ where: { id: (await stock('Sữa tươi không đường')).id }, data: { quantity: '0.500' } });
+  const detail = await request(app.getHttpServer()).get('/products/' + id).expect(200);
+  expect(detail.body).toMatchObject({ sizes: [{ size: 'S', maxQuantity: 4 }, { size: 'M', maxQuantity: 2 }], toppings: [{ availableSizes: ['S', 'M'] }] });
+  const order = await create(f).expect(201), orderId = (order.body as { id: string }).id;
+  const reservations = await db.ingredientReservation.findMany({ where: { orderId } });
+  expect(reservations.find(row => row.nameSnapshot === 'Sữa tươi không đường')?.quantity.toFixed(3)).toBe('0.500');
+  expect(reservations.find(row => row.nameSnapshot === 'Cà phê hạt rang')?.quantity.toFixed(3)).toBe('0.036');
+  expect(reservations.find(row => row.nameSnapshot === 'Kem tươi')?.quantity.toFixed(3)).toBe('0.060');
+  expect(reservations.some(row => row.nameSnapshot === 'Nước lọc')).toBe(false);
+  // Subsequent edits cannot change the already reserved order snapshot.
+  await db.productRecipeIngredient.updateMany({ where: { productId: id }, data: { quantity: '0.999' } });
+  await zero(f, orderId).expect(200);
+  const paid = await db.order.update({ where: { id: orderId }, data: { paidAt: new Date(Date.now() - 121000) } });
+  await app.get(OrderService).transitionOrder(orderId, paid.version, 'PREPARING', staff);
+  expect((await stock('Sữa tươi không đường')).quantity.toFixed(3)).toBe('0.000');
+  expect((await stock('Sữa tươi không đường')).reservedQuantity.toFixed(3)).toBe('0.000');
+  expect((await db.product.findUniqueOrThrow({ where: { id } })).stock).toBe(0);
+});
+
+test('custom recipes reject retired/supply/missing IDs, mismatched units and partial size definitions', async () => {
+  const input = await customInput(), count = await db.product.count();
+  const supply = await db.ingredient.findFirstOrThrow({ where: { unit: 'PIECE' } });
+  for (const line of [{ ...input.sizes[0].recipe[0], ingredientId: supply.id }, { ...input.sizes[0].recipe[0], ingredientId: 'missing' }, { ...input.sizes[0].recipe[0], unit: 'ml' }]) {
+    await createCustom({ ...input, sizes: [{ ...input.sizes[0], recipe: [line] }] }).expect(400);
+  }
+  await createCustom({ ...input, sizes: [input.sizes[0], { size: 'M', extraPrice: '0' }] }).expect(400);
+  expect(await db.product.count()).toBe(count);
+});
+
+test('custom size without recipe stays unavailable and deleting unused products cleans recipe configuration', async () => {
+  const made = await createCustom(await customInput()).expect(201), id = (made.body as { id: string }).id;
+  await db.productSize.create({ data: { productId: id, size: 'L', extraPrice: '0' } });
+  await db.product.update({ where: { id }, data: { name: 'Latte' } });
+  const detail = await request(app.getHttpServer()).get('/products/' + id).expect(200);
+  expect((detail.body as { sizes: unknown[] }).sizes[2]).toMatchObject({ size: 'L', available: false, maxQuantity: 0 });
+  await request(app.getHttpServer()).delete('/admin/products/' + id).set('Authorization', auth(admin)).send({ expectedVersion: 0 }).expect(204);
+  expect(await db.productRecipeIngredient.count({ where: { productId: id } })).toBe(0);
+});
+
+test('a recipe write failure rolls back the product, sizes, associations and recipe together', async () => {
+  const count = await db.product.count(), sizeCount = await db.productSize.count(), lines = await db.productRecipeIngredient.count();
+  await client.query("CREATE FUNCTION product_recipe_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'isolated product recipe fault'; END $$; CREATE TRIGGER product_recipe_fault BEFORE INSERT ON product_size_recipe_ingredients FOR EACH ROW EXECUTE FUNCTION product_recipe_fault()");
+  try {
+    await createCustom(await customInput()).expect(503);
+    expect(await db.product.count()).toBe(count);
+    expect(await db.productSize.count()).toBe(sizeCount);
+    expect(await db.productRecipeIngredient.count()).toBe(lines);
+  } finally { await client.query('DROP TRIGGER product_recipe_fault ON product_size_recipe_ingredients; DROP FUNCTION product_recipe_fault()'); }
+});
 
 test('mock failure, repeated failure and retry release/reacquire recipe quantities without changing product stock',async()=>{
   const f=await fixture();const made=await create(f).expect(201),id=(made.body as {id:string}).id;

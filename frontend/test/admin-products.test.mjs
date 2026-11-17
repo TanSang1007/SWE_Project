@@ -8,7 +8,8 @@ for (const ext of ['.ts', '.tsx']) require.extensions[ext] = (module, filename) 
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true }, fileName: filename,
 }).outputText, filename);
 const React = require('react'); const { renderToStaticMarkup } = require('react-dom/server');
-const { parseAdminProduct, parseAdminProducts, adminProductRequest, validateProductForm, productManagementMessage } = require('../src/lib/api/admin-products.ts');
+const { parseAdminProduct, parseAdminProducts, adminProductRequest, validateProductForm, validateProductRecipes, productManagementMessage } = require('../src/lib/api/admin-products.ts');
+const { ProductRecipeFields } = require('../src/components/product-recipe-fields.tsx');
 const { ProductForm, ProductList } = require('../src/components/admin-products.tsx');
 const { useAuthStore } = require('../src/lib/auth-store.ts');
 const { cartErrorMessage, CartError } = require('../src/lib/api/cart.ts');
@@ -46,6 +47,24 @@ test('form validation rejects invalid name/money/path/missing-size and allows De
   assert.equal(validateProductForm(' Drink ', '0', '/images/drink.svg', p.sizes), '');
   assert.equal(validateProductForm('Drink', '999999999999', '/images/drink.svg', p.sizes), '');
   for (const args of [[' ', '0', '/images/x', p.sizes], ['Drink', '01', '/images/x', p.sizes], ['Drink', '1.5', '/images/x', p.sizes], ['Drink', '1', '/images/../x', p.sizes], ['Drink', '1', '/images//x', p.sizes], ['Drink', '1', '/images/x', []]]) assert(validateProductForm(...args));
+});
+test('each selected size requires distinct listed ingredients, matching units and positive whole g/ml', () => {
+  const ingredients = [{ id: 'coffee', name: 'Coffee', unit: 'g' }, { id: 'milk', name: 'Milk', unit: 'ml' }];
+  const line = { ingredientId: 'coffee', unit: 'g', amount: '9' };
+  const size = { size: 'S', extraPrice: '0', waterMl: '25', recipe: [line] };
+  assert.equal(validateProductRecipes([size], ingredients), '');
+  for (const recipe of [[], [line, line], [{ ...line, ingredientId: 'unknown' }], [{ ...line, unit: 'ml' }],
+    ...['0', '-1', '0.5', '1000000000', ''].map(amount => [{ ...line, amount }])]) assert(validateProductRecipes([{ ...size, recipe }], ingredients));
+  assert(validateProductRecipes([size, { ...size, size: 'M', recipe: [] }], ingredients));
+  assert(validateProductRecipes([size], []));
+  assert(validateProductRecipes([{ ...size, waterMl: '-1' }], ingredients));
+});
+test('recipe editor labels per-size ingredients and units, prevents duplicate selections and keeps water separate', () => {
+  const value = html(ProductRecipeFields, { size: 'M', waterMl: '40', ingredients: [{ id: 'milk', name: 'Sữa tươi', unit: 'ml' }],
+    lines: [{ key: 7, ingredientId: 'milk', amount: '180' }, { key: 9, ingredientId: '', amount: '' }] });
+  for (const text of ['Công thức size M', 'Nguyên liệu 1', 'Định lượng (ml)', 'Nước lọc (ml, không trừ kho)', 'min="1"', 'step="1"', 'Thêm nguyên liệu size M']) assert(value.includes(text));
+  assert.match(value, /option value="milk" disabled/);
+  assert.match(value, /aria-label="Xóa nguyên liệu 2 size M"/);
 });
 test('authenticated CRUD exact paths/methods/payload/headers and no-store', async () => {
   session(); const calls = []; globalThis.fetch = async (url, options) => { calls.push({ url, ...options }); return options.method === 'DELETE' ? new Response(null, { status: 204 }) : Response.json(options.method === 'GET' && !url.endsWith(id) ? { items: [p] } : p, { status: options.method === 'POST' ? 201 : 200 }); };

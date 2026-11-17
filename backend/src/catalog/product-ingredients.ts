@@ -1,6 +1,7 @@
 import { ConflictException } from '@nestjs/common';
 import { Prisma, type IngredientUnit } from '../generated/prisma/client';
 import { hasToppingRecipe, normalizeRecipeName, recipeAmountKey, recipeCapacity, inventoryRecipeForDrink as recipeForDrink, recipeStorageName, sumRecipeAmounts, type DrinkSize, type RecipeAmount } from './drink-recipes';
+import { recipeForProduct, type RecipeProduct } from './product-recipes';
 
 type Requirement = { name: string; unit: IngredientUnit };
 type Reader = Pick<Prisma.TransactionClient, 'ingredient'>;
@@ -33,26 +34,28 @@ export async function assertRecipeAmounts(db: Reader, amounts: readonly RecipeAm
   const missing = amounts.filter(amount => new Prisma.Decimal(balances.get(recipeAmountKey(amount)) ?? 0).lt(amount.quantity)).map(amount => amount.name);
   if (missing.length) throw new ConflictException({ code: 'OUT_OF_STOCK', message: 'Không đủ nguyên liệu theo size và số lượng đã chọn.', details: { missingIngredients: missing } });
 }
-export async function configurationIngredientStates(db: Reader, items: readonly { name: string; size: string; toppings?: readonly string[] }[]) {
+export async function configurationIngredientStates(db: Reader, items: readonly { name: string; product?: RecipeProduct; size: string; toppings?: readonly string[] }[]) {
   const amounts = items.map(item => {
     if (!['S','M','L'].includes(item.size)) return undefined;
-    const base = recipeForDrink(item.name, item.size as DrinkSize);
-    return base && item.toppings?.some(topping => !hasToppingRecipe(topping)) ? [] : recipeForDrink(item.name, item.size as DrinkSize, item.toppings);
+    const base = recipeForProduct(item.product ?? item.name, item.size as DrinkSize);
+    return base && item.toppings?.some(topping => !hasToppingRecipe(topping)) ? [] : recipeForProduct(item.product ?? item.name, item.size as DrinkSize, item.toppings);
   });
   const balances = await recipeBalances(db, amounts.flatMap(item => item ?? []));
   return amounts.map(recipe => recipe ? recipeCapacity(recipe, balances) : undefined);
 }
-export async function productIngredientStates(db: Reader, names: readonly string[]) {
-  const definitions = names.map(name => ({ name, amounts: recipeForDrink(name, 'S') }));
-  const balances = await recipeBalances(db, names.flatMap(name => (['S','M','L'] as const).flatMap(size => recipeForDrink(name, size) ?? [])));
-  return new Map(definitions.map(({ name, amounts }) => {
-    if (!amounts) return [name, undefined] as const;
-    const sizes = (['S', 'M', 'L'] as const).map(size => ({ size, ...recipeCapacity(recipeForDrink(name, size)!, balances) }));
+export async function productIngredientStates(db: Reader, products: readonly (string | RecipeProduct)[]) {
+  const definitions = products.map(product => ({ key: typeof product === 'string' ? product : product.id,
+    recipes: (['S', 'M', 'L'] as const).map(size => ({ size, amounts: recipeForProduct(product, size) })) }));
+  const balances = await recipeBalances(db, definitions.flatMap(item => item.recipes.flatMap(recipe => recipe.amounts ?? [])));
+  return new Map(definitions.map(({ key, recipes }) => {
+    const amounts = recipes.find(recipe => recipe.amounts?.length)?.amounts;
+    if (!amounts) return [key, undefined] as const;
+    const sizes = recipes.map(({ size, amounts }) => ({ size, ...recipeCapacity(amounts ?? [], balances) }));
     const ingredients = amounts.map(item => {
       const quantity = balances.get(recipeAmountKey(item)) ?? null;
       return { name: item.name, unit: item.unit, quantity, requiredQuantity: item.quantity, available: quantity !== null && new Prisma.Decimal(quantity).gte(item.quantity) };
     });
-    return [name, { available: sizes.some(size => size.available), sizes, ingredients,
+    return [key, { available: sizes.some(size => size.available), sizes, ingredients,
       missingIngredients: ingredients.filter(item => !item.available).map(item => item.name) }] as const;
   }));
 }

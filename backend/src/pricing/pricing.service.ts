@@ -1,7 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, UnauthorizedException, UnprocessableEntityException } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import { assertRecipeAmounts } from '../catalog/product-ingredients';
-import { recipeAmountKey, inventoryRecipeForDrink, sumRecipeAmounts, type DrinkSize, type RecipeAmount } from '../catalog/drink-recipes';
+import { recipeAmountKey, sumRecipeAmounts, type DrinkSize, type RecipeAmount } from '../catalog/drink-recipes';
+import { recipeForProduct, recipeIngredientSelect } from '../catalog/product-recipes';
 
 type PricingProduct = Prisma.ProductGetPayload<{
   include: { sizes: true; toppings: { include: { topping: true } } };
@@ -38,7 +39,7 @@ export class PricingService {
     } });
     if (!cart || cart.userId !== userId || cart.items.length < 1 || cart.items.length > 50) throw invalid();
     const products = await db.product.findMany({ where: { id: { in: [...new Set(cart.items.map((item) => item.productId))] } },
-      include: { sizes: true, toppings: { include: { topping: true } } } });
+      include: { sizes: true, recipeIngredients: { select: recipeIngredientSelect }, toppings: { include: { topping: true } } } });
     const byId = new Map(products.map((product) => [product.id, product]));
     const demand = new Map<string, { productId: string; qty: number; version: number }>();
     const configurations = new Set<string>();
@@ -53,7 +54,7 @@ export class PricingService {
       if (!product) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
       if (!product.isActive) throw new ConflictException({ code: 'PRODUCT_UNAVAILABLE', message: 'Product is no longer sold; adjust or remove the cart item' });
       const price = this.calculateItemPrice(product, item.size, ids, item.qty);
-      const recipeAmounts = inventoryRecipeForDrink(product.name, item.size as DrinkSize, price.toppings.map(t => t.name));
+      const recipeAmounts = recipeForProduct(product, item.size as DrinkSize, price.toppings.map(t => t.name));
       if (!recipeAmounts?.length) throw new ConflictException({code:'OUT_OF_STOCK',message:'Món chưa có công thức nguyên liệu theo size để bán.'});
       subtotal = money(subtotal.plus(price.lineTotal));
       const current = demand.get(product.id);

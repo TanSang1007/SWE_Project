@@ -62,6 +62,12 @@ export function recipeForDrink(name: string, size: DrinkSize, toppings: readonly
   const amounts: RecipeAmount[] = doses.map(([ingredient, unit, amount]) => ({
     name: ingredient, unit: unit === 'g' ? 'KG' : 'L', quantity: new Prisma.Decimal(amount).dividedBy(1000).toFixed(3),
   }));
+  return [...amounts, ...toppingRecipeAmounts(size, toppings)];
+}
+
+// Shared by supplied recipes and ID-bound recipes entered in the product form.
+export function toppingRecipeAmounts(size: DrinkSize, toppings: readonly string[]): RecipeAmount[] {
+  const amounts: RecipeAmount[] = [];
   for (const topping of toppings) {
     const toppingKey = normalizeRecipeName(topping);
     if (Object.hasOwn(toppingRecipes, toppingKey)) {

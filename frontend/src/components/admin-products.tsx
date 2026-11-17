@@ -2,20 +2,49 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useAuthStore } from '../lib/auth-store';
-import { adminProductRequest, ProductManagementError, productManagementMessage, validateProductForm } from '../lib/api/admin-products';
+import { adminProductRequest, ProductManagementError, productManagementMessage, validateProductForm, validateProductRecipes } from '../lib/api/admin-products';
+import { getIngredients, ingredientName } from '../lib/api/ingredients';
+import { ProductRecipeFields, type RecipeDraftLine } from './product-recipe-fields';
 import { formatVnd } from '../lib/money';
-import type { AdminProduct, ProductCreate, ProductUpdate } from '../types/admin-product';
+import type { AdminProduct, ProductCreate, ProductUpdate, RecipeIngredientOption } from '../types/admin-product';
 
 export function ProductForm({ product, toppings, busy, onSave, onCancel }: {
   product?: AdminProduct; toppings: AdminProduct['toppings']; busy: boolean;
   onSave: (body: ProductCreate | ProductUpdate) => void; onCancel: () => void;
 }) {
   const [validation, setValidation] = useState('');
+  const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
+  const [recipes, setRecipes] = useState<Record<string, RecipeDraftLine[]>>({
+    S: [{ key: 0, ingredientId: '', amount: '' }], M: [{ key: 1, ingredientId: '', amount: '' }], L: [{ key: 2, ingredientId: '', amount: '' }],
+  });
+  const nextLine = useRef(3);
+  const [waterMl, setWaterMl] = useState<Record<string, string>>({ S: '0', M: '0', L: '0' });
+  const [ingredients, setIngredients] = useState<RecipeIngredientOption[] | null>(null);
+  const [ingredientError, setIngredientError] = useState('');
+  const [ingredientLoad, setIngredientLoad] = useState(0);
+  useEffect(() => {
+    if (product) return;
+    const abort = new AbortController();
+    void getIngredients(abort.signal).then(({ items }) => {
+      const options = items.filter(item => item.isListed === true && (item.unit === 'KG' || item.unit === 'L'))
+        .map(item => ({ id: item.id, name: ingredientName(item), unit: item.unit === 'KG' ? 'g' as const : 'ml' as const }));
+      if (!abort.signal.aborted) {
+        setIngredients(options); setIngredientError(options.length ? '' : 'Chưa có nguyên liệu. Hãy khởi tạo danh mục tại trang kho.');
+      }
+    }).catch(() => { if (!abort.signal.aborted) setIngredientError('Chưa tải được nguyên liệu. Dữ liệu bạn nhập vẫn được giữ.'); });
+    return () => abort.abort();
+  }, [product, ingredientLoad]);
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (busy) return; const data = new FormData(event.currentTarget);
     const name = String(data.get('name') ?? '').trim(); const price = String(data.get('price') ?? ''); const imageUrl = String(data.get('imageUrl') ?? '');
-    const sizes = product ? undefined : data.getAll('sizes').map(size => ({ size: String(size) as 'S' | 'M' | 'L', extraPrice: String(data.get(`extra-${size}`) ?? '') }));
-    const message = validateProductForm(name, price, imageUrl, sizes); setValidation(message); if (message) return;
+    const sizes: ProductCreate['sizes'] | undefined = product ? undefined : data.getAll('sizes').map(size => ({
+      size: String(size) as 'S' | 'M' | 'L', extraPrice: String(data.get(`extra-${size}`) ?? ''),
+      waterMl: String(data.get(`water-${size}`) || '0'),
+      recipe: recipes[String(size)].map(line => ({ ingredientId: line.ingredientId, amount: line.amount,
+        unit: ingredients?.find(item => item.id === line.ingredientId)?.unit ?? 'g' })),
+    }));
+    const message = validateProductForm(name, price, imageUrl, sizes) || (sizes ? validateProductRecipes(sizes, ingredients ?? []) : '');
+    setValidation(message); if (message) return;
     onSave(product ? { expectedVersion: product.version, name, price, imageUrl, isActive: data.get('isActive') === 'on' }
       : { name, price, imageUrl, sizes: sizes!, toppingIds: data.getAll('toppingIds').map(String) });
   }
@@ -28,12 +57,23 @@ export function ProductForm({ product, toppings, busy, onSave, onCancel }: {
       <label htmlFor="product-image">Đường dẫn ảnh trong /images/</label><input id="product-image" name="imageUrl" defaultValue={product?.imageUrl ?? ''} maxLength={512} required />
       {product && <label className="product-option"><input name="isActive" type="checkbox" defaultChecked={product.isActive} />Đang kinh doanh</label>}
     </fieldset>
-    {!product && <><fieldset disabled={busy}><legend>Kích cỡ bắt buộc (chọn 1–3)</legend>{(['S', 'M', 'L'] as const).map(size => <div className="product-size-input" key={size}>
-      <label className="product-option"><input type="checkbox" name="sizes" value={size} />Size {size}</label>
-      <label htmlFor={`extra-${size}`}>Phụ thu {size} (VND)</label><input id={`extra-${size}`} name={`extra-${size}`} inputMode="numeric" defaultValue="0" /></div>)}</fieldset>
+    {!product && <><fieldset disabled={busy}><legend>Kích cỡ bắt buộc (chọn 1–3)</legend>
+      <p>Chọn size để nhập công thức pha cho từng kích cỡ.</p>
+      {ingredientError ? <div role="alert"><p>{ingredientError}</p><button type="button" onClick={() => { setIngredientError(''); setIngredientLoad(value => value + 1); }}>Tải lại nguyên liệu</button></div>
+        : ingredients === null && <p role="status">Đang tải nguyên liệu…</p>}
+      {(['S', 'M', 'L'] as const).map(size => <div className="product-size-input" key={size}>
+      <label className="product-option"><input type="checkbox" name="sizes" value={size} checked={selectedSizes.includes(size)}
+        onChange={event => setSelectedSizes(current => event.target.checked ? [...current, size] : current.filter(value => value !== size))} />Size {size}</label>
+      <label htmlFor={`extra-${size}`}>Phụ thu {size} (VND)</label><input id={`extra-${size}`} name={`extra-${size}`} inputMode="numeric" defaultValue="0" />
+      {selectedSizes.includes(size) && <ProductRecipeFields size={size} lines={recipes[size]} ingredients={ingredients ?? []}
+        waterMl={waterMl[size]} onWaterChange={value => setWaterMl(current => ({ ...current, [size]: value }))}
+        onChange={(key, field, value) => setRecipes(current => ({ ...current, [size]: current[size].map(line => line.key === key ? { ...line, [field]: value } : line) }))}
+        onAdd={() => { const key = nextLine.current++; setRecipes(current => ({ ...current, [size]: [...current[size], { key, ingredientId: '', amount: '' }] })); }}
+        onRemove={key => setRecipes(current => ({ ...current, [size]: current[size].filter(line => line.key !== key) }))} />}
+      </div>)}</fieldset>
       <fieldset disabled={busy}><legend>Topping (không bắt buộc)</legend>{toppings.length ? toppings.map(t => <label className="product-option" key={t.id}><input type="checkbox" name="toppingIds" value={t.id} />{t.name} · {formatVnd(t.price)}</label>) : <p>Không có topping trong danh mục hiện tại.</p>}</fieldset></>}
     {validation && <p role="alert" id="product-form-validation">{validation}</p>}
-    <div className="product-actions"><button className="button" data-product-save disabled={busy} type="submit">{busy ? 'Đang xử lý…' : 'Lưu sản phẩm'}</button><button type="button" disabled={busy} onClick={onCancel}>Hủy</button></div>
+    <div className="product-actions"><button className="button" data-product-save disabled={busy || (!product && !ingredients?.length)} type="submit">{busy ? 'Đang xử lý…' : 'Lưu sản phẩm'}</button><button type="button" disabled={busy} onClick={onCancel}>Hủy</button></div>
   </form>;
 }
 export function ProductList({ items, busy, onEdit, onToggle, onDelete }: {

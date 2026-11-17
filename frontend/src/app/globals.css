@@ -149,7 +149,14 @@ button:disabled { opacity: .55; cursor: default; }
 .admin-products button { min-height:44px; max-width:100%; white-space:normal; }
 .product-form fieldset { min-width:0; padding:16px; margin-block:16px; border:1px solid var(--line); }
 .product-form label { display:block; margin-block:10px 6px; }
-.product-form input:not([type=checkbox]) { display:block; width:100%; min-width:0; min-height:44px; border:1px solid var(--line); border-radius:6px; padding:10px; font:inherit; background:white; }
+.product-form input:not([type=checkbox]),.product-form select { display:block; width:100%; min-width:0; min-height:44px; border:1px solid var(--line); border-radius:6px; padding:10px; font:inherit; background:white; color:var(--ink); }
+.product-size-input + .product-size-input { border-top:1px solid var(--line); margin-top:20px; padding-top:12px; }
+.product-recipe { background:white; border-radius:8px; }
+.product-recipe legend { font-weight:600; }
+.product-recipe p { color:var(--muted); }
+.product-recipe-line { display:grid; grid-template-columns:minmax(0,2fr) minmax(0,1fr) auto; gap:12px; align-items:end; margin-bottom:16px; }
+.product-recipe-line>div { min-width:0; }
+@media(max-width:600px) { .product-recipe-line { grid-template-columns:minmax(0,1fr); gap:4px; padding-bottom:16px; border-bottom:1px solid var(--line); } .product-recipe-line button { justify-self:start; margin-top:8px; } }
 .product-option { display:flex!important; align-items:center; gap:12px; min-height:44px; }
 .product-option input { width:20px; height:20px; flex-shrink:0; }
 .admin-products :focus-visible { outline:3px solid #a55727; outline-offset:3px; }

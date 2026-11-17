@@ -54,6 +54,20 @@ describe('A04 Product HTTP contract and authorization', () => {
     await call('post').send({ ...input, toppingIds: [topping, topping.toUpperCase()] }).expect(400);
     await call('post').send({ ...input, sizes: undefined }).expect(400);
   });
+  test('create accepts size recipes using ingredient IDs, whole g/ml and preparation-only water', async () => {
+    const sizes = [{ size: 'M', extraPrice: '0', waterMl: '40', recipe: [{ ingredientId: '123', unit: 'g', amount: '9' }, { ingredientId: '456', unit: 'ml', amount: '150' }] }];
+    await call('post').send({ ...input, sizes }).expect(201);
+    expect(service.create).toHaveBeenCalledWith(expect.objectContaining({ sizes }));
+  });
+  test('size recipes reject fractional/zero/oversized quantities, duplicate ingredients and extra fields', async () => {
+    const line = { ingredientId: '123', unit: 'g', amount: '9' };
+    for (const recipe of [[], [line, line], [{ ...line, amount: '0' }], [{ ...line, amount: '0.5' }], [{ ...line, amount: '-1' }],
+      [{ ...line, amount: '1000000000' }], [{ ...line, amount: 9 }], [{ ...line, unit: 'KG' }], [{ ...line, stock: 99 }], null]) {
+      await call('post').send({ ...input, sizes: [{ size: 'M', extraPrice: '0', recipe }] }).expect(400);
+    }
+    await call('post').send({ ...input, sizes: [{ size: 'M', extraPrice: '0', recipe: [line], waterMl: '-1' }] }).expect(400);
+    expect(service.create).not.toHaveBeenCalled();
+  });
   test.each([-1, 2147483648, 1.5, '1', null])('invalid version %p and invalid boolean rejected', async expectedVersion => {
     await call('patch', undefined, `/admin/products/${id}`).send({ expectedVersion, name: 'Drink' }).expect(400);
     await call('delete', undefined, `/admin/products/${id}`).send({ expectedVersion }).expect(400);

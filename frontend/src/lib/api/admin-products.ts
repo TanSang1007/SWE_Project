@@ -1,7 +1,7 @@
 import { getApiBaseUrl } from '../env';
 import { getAccessToken, useAuthStore } from '../auth-store';
 import { isProductId } from './products';
-import type { AdminProduct, ProductCreate, ProductUpdate } from '../../types/admin-product';
+import type { AdminProduct, ProductCreate, ProductUpdate, RecipeIngredientOption } from '../../types/admin-product';
 export class ProductManagementError extends Error { constructor(public readonly code: string) { super(code); } }
 const fail = () => new ProductManagementError('UNAVAILABLE');
 const money = (v: unknown): v is string => typeof v === 'string' && /^(0|[1-9]\d{0,11})$/.test(v);
@@ -50,7 +50,7 @@ export async function adminProductRequest(method: 'GET' | 'POST' | 'PATCH' | 'DE
 export function productManagementMessage(code: string) {
   if (code === 'UNAUTHORIZED') return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
   if (code === 'FORBIDDEN') return 'Không có quyền quản lý sản phẩm.';
-  if (code === 'VALIDATION_ERROR') return 'Kiểm tra tên, giá nguyên đồng, ảnh và các tùy chọn bắt buộc.';
+  if (code === 'VALIDATION_ERROR') return 'Kiểm tra thông tin sản phẩm và công thức từng size: nguyên liệu không trùng, đúng đơn vị, định lượng nguyên dương.';
   if (code === 'PRODUCT_NOT_FOUND') return 'Không tìm thấy sản phẩm. Hãy tải lại danh sách.';
   if (code === 'TOPPING_NOT_FOUND') return 'Topping không còn tồn tại. Hãy kiểm tra lại lựa chọn.';
   if (code === 'RESOURCE_IN_USE') return 'Sản phẩm đang được sử dụng hoặc thiếu cấu hình bắt buộc. Có thể chọn ngừng bán thay vì xóa.';
@@ -62,5 +62,21 @@ export function validateProductForm(name: string, price: string, imageUrl: strin
   if (!money(price)) return 'Giá phải là số nguyên đồng từ 0 đến 999999999999.';
   if (!/^\/images\/(?!.*\.\.)(?:(?!\.(?:\/|$))[A-Za-z0-9_.-]+\/)*(?!\.$)[A-Za-z0-9_.-]+$/.test(imageUrl) || imageUrl.length > 512) return 'Ảnh phải là đường dẫn hợp lệ trong /images/.';
   if (sizes && (!sizes.length || sizes.length > 3 || sizes.some(s => !['S', 'M', 'L'].includes(s.size) || !money(s.extraPrice)) || new Set(sizes.map(s => s.size)).size !== sizes.length)) return 'Chọn 1–3 kích cỡ S/M/L và phụ thu nguyên đồng hợp lệ.';
+  return '';
+}
+
+// Every selected size in the new form needs a complete recipe. Integer g/ml
+// converts exactly to the inventory's 0.001 kg/litre; never round fractional doses.
+export function validateProductRecipes(sizes: ProductCreate['sizes'], ingredients: RecipeIngredientOption[]): string {
+  if (!ingredients.length) return 'Chưa tải được nguyên liệu. Hãy thử tải lại trước khi lưu.';
+  for (const size of sizes) {
+    if (!size.recipe.length || size.recipe.length > 12) return `Size ${size.size}: chọn ít nhất một nguyên liệu.`;
+    if (new Set(size.recipe.map(line => line.ingredientId)).size !== size.recipe.length) return `Size ${size.size}: nguyên liệu bị trùng.`;
+    if (!/^(0|[1-9]\d{0,8})$/.test(size.waterMl)) return `Size ${size.size}: lượng nước phải là số nguyên từ 0 đến 999999999 ml.`;
+    for (const line of size.recipe) {
+      if (!ingredients.some(item => item.id === line.ingredientId && item.unit === line.unit)) return `Size ${size.size}: chọn nguyên liệu hợp lệ.`;
+      if (!/^[1-9]\d{0,8}$/.test(line.amount)) return `Size ${size.size}: định lượng phải là số nguyên dương (g/ml), tối đa 999999999.`;
+    }
+  }
   return '';
 }

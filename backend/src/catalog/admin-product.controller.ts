@@ -20,6 +20,8 @@ export class AdminProductController {
     void query; void body; res.vary('Authorization'); return this.products.get(String(normalizeCatalogId(params.id)));
   }
   @Post() @Header('Cache-Control', 'private, no-store, max-age=0')
+  // I07: sizes[].recipe accepts current ingredient IDs, whole g/ml and optional waterMl.
+  // Product/options/recipes commit together; invalid or partial recipes return 400 VALIDATION_ERROR.
   create(@Body() body: ProductCreateDto, @Query() query: CatalogQueryDto, @Res({ passthrough: true }) res: Response) {
     void query; res.vary('Authorization'); return this.products.create(body);
   }

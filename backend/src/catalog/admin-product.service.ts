@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, HttpException, Injectable, NotF
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { productIngredientStates } from './product-ingredients';
+import { recipeIngredientSelect, recipeMaterials } from './product-recipes';
 import type { ProductCreateDto, ProductUpdateDto } from './admin-product.dto';
 
 function compareIds(a: string, b: string) {
@@ -14,6 +15,7 @@ function compareIds(a: string, b: string) {
 }
 
 const select = { id: true, name: true, price: true, imageUrl: true, stock: true, isActive: true, version: true, createdAt: true, updatedAt: true,
+  hasCustomRecipe: true, recipeIngredients: { select: recipeIngredientSelect },
   sizes: { select: { size: true, extraPrice: true, isActive: true } },
   toppings: { orderBy: { toppingId: 'asc' as const }, select: { topping: { select: { id: true, name: true, price: true, createdAt: true, updatedAt: true } } } },
 } satisfies Prisma.ProductSelect;
@@ -23,7 +25,7 @@ const inUse = () => new ConflictException({ code: 'RESOURCE_IN_USE', message: 'P
 const missing = () => new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
 const unavailable = () => new ServiceUnavailableException({ code: 'SERVICE_UNAVAILABLE', message: 'Product management unavailable' });
 async function response(db: PrismaService | Prisma.TransactionClient, row: Row) {
-  const state=(await productIngredientStates(db,[row.name])).get(row.name);
+  const state=(await productIngredientStates(db,[row])).get(row.id);
   const availableSizes=state?.sizes.filter(s => s.available && row.sizes.some(active => active.size===s.size && active.isActive)).map(s=>s.size) ?? [];
   return { id: row.id, name: row.name, price: row.price.toFixed(0), imageUrl: row.imageUrl, stock: row.stock, available:row.isActive && availableSizes.length>0, recipeConfigured:!!state, availableSizes, isActive: row.isActive, version: row.version,
     createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(),
@@ -63,10 +65,31 @@ export class AdminProductService {
   get(id: string) { return this.safely(async () => { const row = await this.db.product.findUnique({ where: { id }, select }); if (!row) throw missing(); return response(this.db,row); }); }
   create(input: ProductCreateDto) {
     return this.safely(() => this.transaction(async tx => {
+      // Create recipe and product atomically. Old clients can omit every recipe;
+      // partial recipes, retired materials, supplies and mismatched units are rejected.
+      const hasCustomRecipe = input.sizes.some(size => size.recipe !== undefined);
+      if (hasCustomRecipe && input.sizes.some(size => !size.recipe?.length)
+        || !hasCustomRecipe && input.sizes.some(size => size.waterMl !== undefined)) {
+        throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Nhập đầy đủ công thức cho từng size đã chọn.' });
+      }
+      const lines = input.sizes.flatMap(size => size.recipe ?? []);
+      const materials = hasCustomRecipe ? await tx.ingredient.findMany({
+        where: { id: { in: [...new Set(lines.map(line => line.ingredientId))] } }, select: { id: true, normalizedName: true, unit: true },
+      }) : [];
+      const catalog = recipeMaterials();
+      for (const line of lines) {
+        const material = materials.find(item => item.id === line.ingredientId);
+        if (!material || !catalog.some(item => item.normalizedName === material.normalizedName && item.unit === material.unit)
+          || line.unit !== (material.unit === 'KG' ? 'g' : 'ml')) {
+          throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Chọn nguyên liệu hiện hành và đúng đơn vị g/ml.' });
+        }
+      }
       const ids = input.toppingIds;
       if (ids.length && await tx.topping.count({ where: { id: { in: ids } } }) !== ids.length) throw new NotFoundException({ code: 'TOPPING_NOT_FOUND', message: 'Topping not found' });
-      return response(tx,await tx.product.create({ select, data: { name: input.name, price: new Prisma.Decimal(input.price), imageUrl: input.imageUrl, stock: 0,
-        sizes: { create: input.sizes.map(s => ({ size: s.size, extraPrice: new Prisma.Decimal(s.extraPrice) })) },
+      return response(tx,await tx.product.create({ select, data: { name: input.name, price: new Prisma.Decimal(input.price), imageUrl: input.imageUrl, stock: 0, hasCustomRecipe,
+        sizes: { create: input.sizes.map(s => ({ size: s.size, extraPrice: new Prisma.Decimal(s.extraPrice), waterMl: Number(s.waterMl ?? 0),
+          recipeIngredients: { create: (s.recipe ?? []).map(line => ({ ingredientId: line.ingredientId, quantity: new Prisma.Decimal(line.amount).dividedBy(1000) })) },
+        })) },
         toppings: { create: ids.map(toppingId => ({ toppingId })) } } }));
     }));
   }

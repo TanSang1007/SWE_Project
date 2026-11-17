@@ -5,6 +5,7 @@ import type { AddCartItemDto, CartOptionsDto } from './cart.dto';
 import { normalizeCatalogId } from '../catalog/dto/catalog.dto';
 import { assertNoActiveOrder, lockUser } from '../orders/order-policy';
 import { configurationIngredientStates } from '../catalog/product-ingredients';
+import { recipeIngredientSelect } from '../catalog/product-recipes';
 const invalid = () => new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Cart bounds exceeded or invalid quantity/toppings' });
 const maxMoney = new Prisma.Decimal('999999999999');
 function validMoney(value: Prisma.Decimal): Prisma.Decimal {
@@ -23,9 +24,9 @@ export class CartService {
   get(userId: string) { return this.prisma.$transaction((tx) => this.read(tx, userId), this.prisma.transactionOptions); }
   private async read(tx: Prisma.TransactionClient, userId: string) {
     const rows = await tx.cartItem.findMany({ where: { cart: { userId } }, orderBy: { id: 'asc' }, include: {
-      product: { include: { toppings: { select: { toppingId: true } } } }, productSize: true, toppings: { orderBy: { toppingId: 'asc' }, include: { topping: true } },
+      product: { include: { recipeIngredients: { select: recipeIngredientSelect }, toppings: { select: { toppingId: true } } } }, productSize: true, toppings: { orderBy: { toppingId: 'asc' }, include: { topping: true } },
     } });
-    const capacities = await configurationIngredientStates(tx, rows.map(row => ({name:row.product.name,size:row.size,toppings:row.toppings.map(t => t.topping.name)})));
+    const capacities = await configurationIngredientStates(tx, rows.map(row => ({name:row.product.name,product:row.product,size:row.size,toppings:row.toppings.map(t => t.topping.name)})));
     let subtotal = new Prisma.Decimal(0); let totalQuantity = 0;
     const items = rows.map((row,index) => {
       // Validate each price before adding: invalid values must not cancel out or round.
@@ -58,13 +59,13 @@ export class CartService {
       const ids = [...toppingIds].sort().map(id => Prisma.sql`${id}`);
       await tx.$queryRaw`SELECT id FROM toppings WHERE id IN (${Prisma.join(ids)}) ORDER BY id FOR SHARE`;
     }
-    const product = await tx.product.findUnique({ where: { id: productId }, include: { sizes: true, toppings: { include: { topping: true } } } });
+    const product = await tx.product.findUnique({ where: { id: productId }, include: { sizes: true, recipeIngredients: { select: recipeIngredientSelect }, toppings: { include: { topping: true } } } });
     if (!product) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
     if (!product.isActive) throw new ConflictException({ code: 'PRODUCT_UNAVAILABLE', message: 'Product is no longer sold; adjust or remove the cart item' });
     if (!product.sizes.some((entry) => entry.size === size && entry.isActive) || toppingIds.some((id) => !product.toppings.some((entry) => entry.toppingId === id && entry.topping.isActive))) {
       throw new BadRequestException({ code: 'INVALID_ITEM_OPTIONS', message: 'Options do not belong to product' });
     }
-    const [capacity] = await configurationIngredientStates(tx,[{name:product.name,size,toppings:toppingIds.map(id => product.toppings.find(t => t.toppingId === id)!.topping.name)}]);
+    const [capacity] = await configurationIngredientStates(tx,[{name:product.name,product,size,toppings:toppingIds.map(id => product.toppings.find(t => t.toppingId === id)!.topping.name)}]);
     if (!capacity?.available) throw new ConflictException({code:'OUT_OF_STOCK',message:'Không đủ nguyên liệu hoặc chưa có công thức cho cấu hình đã chọn.'});
   }
   add(userId: string, input: AddCartItemDto) {
