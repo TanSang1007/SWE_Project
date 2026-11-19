@@ -16,6 +16,7 @@
     "lint": "eslint . --max-warnings=0",
     "test": "jest",
     "test:database": "jest --config jest.database.config.cjs",
+    "test:catalog-replacement": "node --test scripts/replace-store-catalog.test.cjs",
     "db:format": "prisma format",
     "db:validate": "prisma validate",
     "db:generate": "prisma generate",

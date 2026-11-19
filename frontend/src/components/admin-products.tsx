@@ -37,12 +37,23 @@ export function ProductForm({ product, toppings, busy, onSave, onCancel }: {
     <div className="product-actions"><button className="button" data-product-save disabled={busy} type="submit">{busy ? 'Đang xử lý…' : 'Lưu sản phẩm'}</button><button type="button" disabled={busy} onClick={onCancel}>Hủy</button></div>
   </form>;
 }
+const replacedProductIds = new Set([
+  '11111111-1111-4111-8111-111111111111',
+  '11111111-1111-4111-8111-111111111112',
+  '11111111-1111-4111-8111-111111111113',
+  '11111111-1111-4111-8111-111111111114',
+  '11111111-1111-4111-8111-111111111115',
+  '11111111-1111-4111-8111-111111111116',
+  '11111111-1111-4111-8111-111111111117',
+]);
+
 export function ProductList({ items, busy, onEdit, onToggle, onDelete }: {
   items: AdminProduct[]; busy: boolean; onEdit: (p: AdminProduct) => void; onToggle: (p: AdminProduct) => void; onDelete: (p: AdminProduct) => void;
 }) {
-  if (!items.length) return <p>Chưa có sản phẩm.</p>;
+  const visibleItems = items.filter(p => !replacedProductIds.has(p.id));
+  if (!visibleItems.length) return <p>Chưa có sản phẩm.</p>;
   return <table className="product-management-table"><caption>Danh mục sản phẩm — tồn kho chỉ đọc</caption><thead><tr><th scope="col">Sản phẩm</th><th scope="col">Giá cơ bản</th><th scope="col">Tồn kho</th><th scope="col">Kinh doanh / Đặt hàng</th><th scope="col">Thao tác</th></tr></thead>
-    <tbody className="admin-product-list">{items.map(p => <tr className="admin-product-card" key={p.id} data-product-id={p.id}>
+    <tbody className="admin-product-list">{visibleItems.map(p => <tr className="admin-product-card" key={p.id} data-product-id={p.id}>
       <td data-label="Sản phẩm"><h3>{p.name}</h3><p>Kích cỡ: {p.sizes.map(s => `${s.size} (+${formatVnd(s.extraPrice)})`).join(', ') || 'Chưa cấu hình'}</p><p>Topping: {p.toppings.map(t => t.name).join(', ') || 'Không topping'}</p></td>
       <td data-label="Giá cơ bản">{formatVnd(p.price)}</td><td data-label="Tồn kho">Tồn kho: {p.stock} · {p.stock > 0 ? 'Có tồn' : 'Hết tồn'}</td>
       <td data-label="Trạng thái"><span className="role-badge">{p.isActive ? 'Đang kinh doanh' : 'Ngừng kinh doanh'}</span><p>{p.isActive && p.stock > 0 && p.sizes.length > 0 ? 'Kiểm tra tùy chọn đang cung cấp' : 'Chưa thể đặt hàng'}</p>

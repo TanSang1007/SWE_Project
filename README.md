@@ -309,3 +309,30 @@ Review trước khi merge `sang` vào `main`; tuân thủ branch protection và 
 Source có Customer/MOCK, Admin/Staff, Loyalty redemption, VNPAY verified IPN/Return read-only, cancel/recovery UX và Normal launcher. Không coi successful PAID Sandbox E2E đã nghiệm thu chỉ từ tests/giao dịch hủy.
 
 Docker Compose theo PDF chưa có trong repository; browser matrix, hiệu năng và clean-clone đầy đủ cần bằng chứng riêng. Shared Staging/production chưa triển khai. Việc còn lại: [DEVELOPMENT_PLAN](Docs/DEVELOPMENT_PLAN.md).
+
+## 16. Cập nhật thực đơn ngày 19/11/2026
+
+Danh mục mới gồm 7 món:
+
+| ID | Tên món | Giá size S |
+|---|---|---|
+| BR007 | Cappuccino | 45.000đ |
+| BR008 | Latte | 40.000đ |
+| BR009 | Cold brew | 50.000đ |
+| BR010 | Đen đá | 40.000đ |
+| BR011 | Asian Dolce Latte | 75.000đ |
+| BR012 | Matcha Coldwisk | 70.000đ |
+| BR013 | Cacao đá | 65.000đ |
+
+Phụ thu size:
+- S: 0đ
+- M: 5.000đ
+- L: 10.000đ
+
+Các thay đổi liên quan:
+- Ẩn 7 sản phẩm UUID cũ khỏi giao diện quản lý sản phẩm.
+- Giữ dữ liệu sản phẩm cũ phục vụ lịch sử đơn hàng.
+- Script thay danh mục: `backend/scripts/replace-store-catalog.cjs`.
+- Script kiểm thử: `backend/scripts/replace-store-catalog.test.cjs`.
+- Không tự động chạy script thay danh mục khi khởi động ứng dụng.
+- Cần kiểm tra trạng thái database trước khi thực hiện thay danh mục.
