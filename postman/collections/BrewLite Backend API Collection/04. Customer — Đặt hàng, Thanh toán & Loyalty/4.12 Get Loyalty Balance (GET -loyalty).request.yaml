@@ -1,7 +1,0 @@
-$kind: http-request
-name: 4.12 Get Loyalty Balance (GET /loyalty)
-url: "{{baseUrl}}/loyalty"
-method: GET
-headers:
-  Authorization: Bearer {{customerToken}}
-order: 12000

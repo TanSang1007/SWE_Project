@@ -1,7 +1,0 @@
-$kind: http-request
-name: 4.4 Get Order Detail (GET /orders/:id)
-url: "{{baseUrl}}/orders/{{orderId}}"
-method: GET
-headers:
-  Authorization: Bearer {{customerToken}}
-order: 4000

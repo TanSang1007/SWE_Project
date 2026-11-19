@@ -1,7 +1,0 @@
-$kind: http-request
-name: 4.8 Get VNPAY Attempt Status (GET /payments/attempts/:attemptId)
-url: "{{baseUrl}}/payments/attempts/{{attemptId}}"
-method: GET
-headers:
-  Authorization: Bearer {{customerToken}}
-order: 8000

@@ -1,7 +1,0 @@
-$kind: http-request
-name: 6.1 List Admin Products (GET /admin/products)
-url: "{{baseUrl}}/admin/products"
-method: GET
-headers:
-  Authorization: Bearer {{adminToken}}
-order: 1000

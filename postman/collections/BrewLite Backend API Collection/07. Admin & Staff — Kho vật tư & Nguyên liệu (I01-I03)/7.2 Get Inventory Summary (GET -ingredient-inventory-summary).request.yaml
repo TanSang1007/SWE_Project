@@ -1,7 +1,0 @@
-$kind: http-request
-name: 7.2 Get Inventory Summary (GET /ingredient-inventory/summary)
-url: "{{baseUrl}}/ingredient-inventory/summary"
-method: GET
-headers:
-  Authorization: Bearer {{adminToken}}
-order: 2000

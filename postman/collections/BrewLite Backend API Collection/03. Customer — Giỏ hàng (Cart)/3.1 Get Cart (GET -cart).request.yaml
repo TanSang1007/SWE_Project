@@ -1,7 +1,0 @@
-$kind: http-request
-name: 3.1 Get Cart (GET /cart)
-url: "{{baseUrl}}/cart"
-method: GET
-headers:
-  Authorization: Bearer {{customerToken}}
-order: 1000

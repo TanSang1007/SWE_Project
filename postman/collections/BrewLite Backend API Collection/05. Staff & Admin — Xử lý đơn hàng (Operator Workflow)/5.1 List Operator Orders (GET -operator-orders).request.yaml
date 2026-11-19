@@ -1,7 +1,0 @@
-$kind: http-request
-name: 5.1 List Operator Orders (GET /operator/orders)
-url: "{{baseUrl}}/operator/orders"
-method: GET
-headers:
-  Authorization: Bearer {{staffToken}}
-order: 1000

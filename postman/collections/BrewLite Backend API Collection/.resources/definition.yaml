@@ -1,2 +1,0 @@
-$kind: collection
-description: Bộ sưu tập API đầy đủ để kiểm thử Backend BrewLite (Catalog, Auth/Session, Cart, Orders, VNPAY/Zero Payment, Loyalty, Staff/Admin Workflow, Ingredient Inventory I01-I03).
